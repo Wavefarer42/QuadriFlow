@@ -1,11 +1,7 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-// Move settings to cmake to make CMake happy :)
-
-// #define WITH_SCALE
-
-const int GRAIN_SIZE = 1024;
+#include <chrono>
 
 #ifdef LOG_OUTPUT
 
@@ -19,15 +15,14 @@ const int GRAIN_SIZE = 1024;
 
 #endif
 
-#include <chrono>
 
 namespace qflow {
 
 // simulation of Windows GetTickCount()
-unsigned long long inline GetCurrentTime64() {
-    using namespace std::chrono;
-    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-}
+    unsigned long long inline GetCurrentTime64() {
+        using namespace std::chrono;
+        return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    }
 } // namespace qflow
 
 #endif

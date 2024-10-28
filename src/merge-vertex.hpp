@@ -5,9 +5,9 @@
 
 namespace qflow {
 
-using namespace Eigen;
+    using namespace Eigen;
 
-void merge_close(MatrixXd& V, MatrixXi& F, double threshold);
+    void merge_close(MatrixXd &V, MatrixXi &F, double threshold);
 
 } // namespace qflow
 

@@ -1,14 +1,15 @@
+#include <cstdlib>
+
 #include "config.hpp"
 #include "field-math.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
-#include <stdlib.h>
 
 using namespace qflow;
 
 Parametrizer field;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
     int t1, t2;
@@ -49,7 +50,7 @@ int main(int argc, char** argv) {
 
     if (field.flag_preserve_boundary) {
         printf("Add boundary constrains...\n");
-        Hierarchy& mRes = field.hierarchy;
+        Hierarchy &mRes = field.hierarchy;
         mRes.clearConstraints();
         for (uint32_t i = 0; i < 3 * mRes.mF.cols(); ++i) {
             if (mRes.mE2E[i] == -1) {
@@ -63,7 +64,7 @@ int main(int argc, char** argv) {
                     mRes.mCO[0].col(i1) = p1;
                     mRes.mCQ[0].col(i0) = mRes.mCQ[0].col(i1) = edge;
                     mRes.mCQw[0][i0] = mRes.mCQw[0][i1] = mRes.mCOw[0][i0] = mRes.mCOw[0][i1] =
-                        1.0;
+                            1.0;
                 }
             }
         }
