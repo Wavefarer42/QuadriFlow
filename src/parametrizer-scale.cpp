@@ -7,9 +7,6 @@ void Parametrizer::ComputeInverseAffine()
     if (flag_adaptive_scale == 0)
         return;
     triangle_space.resize(F.cols());
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
     for (int i = 0; i < F.cols(); ++i) {
         Matrix3d p, q;
         p.col(0) = V.col(F(1, i)) - V.col(F(0, i));

@@ -16,14 +16,14 @@
 namespace qflow {
 
 #ifdef WITH_CUDA
-#    include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #ifndef EIGEN_MPL2_ONLY
-template<class T>
+template <class T>
 using LinearSolver = Eigen::SimplicialLLT<T>;
 #else
-template<class T>
+template <class T>
 using LinearSolver = Eigen::SparseLU<T>;
 #endif
 
@@ -49,9 +49,6 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
         for (int iter = 0; iter < levelIterations; ++iter) {
             for (int phase = 0; phase < phases.size(); ++phase) {
                 auto& p = phases[phase];
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
                 for (int pi = 0; pi < p.size(); ++pi) {
                     int i = p[pi];
                     const Vector3d n_i = N.col(i);
@@ -96,9 +93,6 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
             const MatrixXi& toUpper = mRes.mToUpper[level - 1];
             MatrixXd& destField = mRes.mQ[level - 1];
             const MatrixXd& N = mRes.mN[level - 1];
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
             for (int i = 0; i < srcField.cols(); ++i) {
                 for (int k = 0; k < 2; ++k) {
                     int dest = toUpper(k, i);
@@ -116,9 +110,6 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
         const MatrixXd& Q = mRes.mQ[l];
         MatrixXd& Q_next = mRes.mQ[l + 1];
         auto& toUpper = mRes.mToUpper[l];
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
         for (int i = 0; i < toUpper.cols(); ++i) {
             Vector2i upper = toUpper.col(i);
             Vector3d q0 = Q.col(upper[0]);
@@ -284,9 +275,6 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
             auto& phases = mRes.mPhases[level];
             for (int phase = 0; phase < phases.size(); ++phase) {
                 auto& p = phases[phase];
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
                 for (int pi = 0; pi < p.size(); ++pi) {
                     int i = p[pi];
                     double scale_x = mRes.mScale;
@@ -356,9 +344,6 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
             MatrixXd& destField = mRes.mO[level - 1];
             const MatrixXd& N = mRes.mN[level - 1];
             const MatrixXd& V = mRes.mV[level - 1];
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
             for (int i = 0; i < srcField.cols(); ++i) {
                 for (int k = 0; k < 2; ++k) {
                     int dest = toUpper(k, i);
@@ -575,9 +560,6 @@ void Optimizer::optimize_positions_dynamic(
         std::vector<Vector3d> Q_compact(O_compact.size());
         std::vector<Vector3d> N_compact(O_compact.size());
         std::vector<Vector3d> V_compact(O_compact.size());
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
         for (int i = 0; i < O_compact.size(); ++i) {
             Q_compact[i] = Q.col(Vind[i]);
             N_compact[i] = N.col(Vind[i]);
@@ -872,7 +854,7 @@ void Optimizer::optimize_positions_sharp(
 
             for (int i = 0; i < q.size(); ++i) {
                 if (sharp_to_original_indices[q[i]].size() == 0) {
-                  continue;
+                    continue;
                 }
                 o[i] = O.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qx = Q.col(sharp_to_original_indices[q[i]][0]);
@@ -1098,9 +1080,6 @@ void Optimizer::optimize_positions_fixed(
 
     std::vector<int> fixed_dim(num * 2, 0);
     std::vector<double> x(num * 2);
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
     for (int i = 0; i < num; ++i) {
         int p = v_index[i];
         Vector3d q = Q.col(p);
@@ -1291,11 +1270,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                 solver = std::make_unique<BoykovMaxFlowHelper>();
             }
 
-#ifdef WITH_GUROBI
-            if (use_minimum_cost_flow && level == mRes.mToUpperEdges.size()) {
-                solver = std::make_unique<GurobiFlowHelper>();
-            }
-#endif
             solver->resize(initial.size() + 2, arc_ids.size());
 
             std::set<int> ids;
@@ -1329,8 +1303,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             edge_capacity += 1;
             iter++;
             if (iter == 10) {
-              /* Probably won't converge. */
-              break;
+                /* Probably won't converge. */
+                break;
             }
             lprintf("Not full flow, edge_capacity += 1\n");
         }
@@ -1416,4 +1390,4 @@ void Optimizer::optimize_positions_cuda(Hierarchy& mRes) {
 
 #endif
 
-} // namespace qflow
+}  // namespace qflow

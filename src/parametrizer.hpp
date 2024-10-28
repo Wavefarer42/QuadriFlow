@@ -1,17 +1,14 @@
 #ifndef PARAMETRIZER_H_
 #define PARAMETRIZER_H_
-#include <atomic>
-#include <condition_variable>
-#ifdef WITH_TBB
-#include <tbb/tbb.h>
-#endif
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <atomic>
+#include <condition_variable>
 #include <list>
 #include <map>
 #include <set>
 #include <unordered_set>
+
 #include "adjacent-matrix.hpp"
 #include "disajoint-tree.hpp"
 #include "field-math.hpp"
@@ -172,6 +169,6 @@ extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi&
                                               const VectorXi& E2E, const VectorXi& nonManifold,
                                               AdjacentMatrix& adj);
 
-} // namespace qflow
+}  // namespace qflow
 
 #endif
