@@ -81,11 +81,6 @@ void Hierarchy::Initialize(double scale, int with_scale) {
             }
         }
     }
-#ifdef WITH_CUDA
-    printf("copy to device...\n");
-    CopyToDevice();
-    printf("copy to device finish...\n");
-#endif
 }
 
 void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix& adj, int size,

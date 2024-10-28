@@ -28,27 +28,7 @@ class Optimizer {
         std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
         std::map<std::pair<int, int>, int>& o2e, std::vector<int>& sharp_o,
         std::map<int, std::pair<Vector3d, Vector3d>>& compact_sharp_constraints, int with_scale);
-#ifdef WITH_CUDA
-    static void optimize_orientations_cuda(Hierarchy& mRes);
-    static void optimize_positions_cuda(Hierarchy& mRes);
-#endif
 };
-
-#ifdef WITH_CUDA
-extern void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj,
-                              int* adjOffset, int num_adj);
-extern void PropagateOrientationUpper(glm::dvec3* srcField, int num_orientation,
-                                      glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField);
-extern void PropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N,
-                                      glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper);
-
-extern void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj,
-                           int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O,
-                           double scale);
-extern void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper,
-                                   glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField);
-
-#endif
 
 } // namespace qflow
 

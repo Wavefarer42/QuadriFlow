@@ -15,10 +15,6 @@
 
 namespace qflow {
 
-#ifdef WITH_CUDA
-#include <cuda_runtime.h>
-#endif
-
 #ifndef EIGEN_MPL2_ONLY
 template <class T>
 using LinearSolver = Eigen::SimplicialLLT<T>;
@@ -30,14 +26,6 @@ using LinearSolver = Eigen::SparseLU<T>;
 Optimizer::Optimizer() {}
 
 void Optimizer::optimize_orientations(Hierarchy& mRes) {
-#ifdef WITH_CUDA
-    optimize_orientations_cuda(mRes);
-    printf("%s\n", cudaGetErrorString(cudaDeviceSynchronize()));
-    cudaMemcpy(mRes.mQ[0].data(), mRes.cudaQ[0], sizeof(glm::dvec3) * mRes.mQ[0].cols(),
-               cudaMemcpyDeviceToHost);
-
-#else
-
     int levelIterations = 6;
     for (int level = mRes.mN.size() - 1; level >= 0; --level) {
         AdjacentMatrix& adj = mRes.mAdj[level];
@@ -131,8 +119,6 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
             Q_next.col(i) = q;
         }
     }
-
-#endif
 }
 
 void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
@@ -258,11 +244,6 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
 
 void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
     int levelIterations = 6;
-#ifdef WITH_CUDA
-    optimize_positions_cuda(mRes);
-    cudaMemcpy(mRes.mO[0].data(), mRes.cudaO[0], sizeof(glm::dvec3) * mRes.mO[0].cols(),
-               cudaMemcpyDeviceToHost);
-#else
     for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
         for (int iter = 0; iter < levelIterations; ++iter) {
             AdjacentMatrix& adj = mRes.mAdj[level];
@@ -355,7 +336,6 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
             }
         }
     }
-#endif
 }
 
 void Optimizer::optimize_positions_dynamic(
@@ -1260,7 +1240,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             }
 
             std::unique_ptr<MaxFlowHelper> solver = nullptr;
-             if (supply < 20) {
+            if (supply < 20) {
                 solver = std::make_unique<ECMaxFlowHelper>();
             } else {
                 solver = std::make_unique<BoykovMaxFlowHelper>();

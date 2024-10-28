@@ -1,10 +1,6 @@
 #ifndef HIERARCHY_H_
 #define HIERARCHY_H_
 
-#ifdef WITH_CUDA
-#    include <glm/glm.hpp>
-#endif
-
 #include <map>
 #include <vector>
 #include "adjacent-matrix.hpp"
@@ -80,18 +76,6 @@ class Hierarchy {
     std::vector<std::vector<int> > mAllowChanges;
     std::vector<std::vector<Vector2i>> mEdgeDiff; // face_edgeDiff
 
-#ifdef WITH_CUDA
-    std::vector<Link*> cudaAdj;
-    std::vector<int*> cudaAdjOffset;
-    std::vector<glm::dvec3*> cudaN;
-    std::vector<glm::dvec3*> cudaV;
-    std::vector<glm::dvec3*> cudaQ;
-    std::vector<glm::dvec3*> cudaO;
-    std::vector<std::vector<int*>> cudaPhases;
-    std::vector<glm::ivec2*> cudaToUpper;
-    void CopyToDevice();
-    void CopyToHost();
-#endif
 };
 
 } // namespace qflow

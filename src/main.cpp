@@ -4,10 +4,6 @@
 #include "parametrizer.hpp"
 #include <stdlib.h>
 
-#ifdef WITH_CUDA
-#include <cuda_runtime.h>
-#endif
-
 using namespace qflow;
 
 Parametrizer field;
@@ -15,9 +11,6 @@ Parametrizer field;
 int main(int argc, char** argv) {
     setbuf(stdout, NULL);
 
-#ifdef WITH_CUDA
-    cudaFree(0);
-#endif
     int t1, t2;
     std::string input_obj, output_obj;
     int faces = -1;

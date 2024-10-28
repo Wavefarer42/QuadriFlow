@@ -1,9 +1,6 @@
 #ifndef FIELD_MATH_H_
 #define FIELD_MATH_H_
 
-#ifdef WITH_CUDA
-#    include <glm/glm.hpp>
-#endif
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <algorithm>

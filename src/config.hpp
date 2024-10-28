@@ -4,7 +4,6 @@
 // Move settings to cmake to make CMake happy :)
 
 // #define WITH_SCALE
-// #define WITH_CUDA
 
 const int GRAIN_SIZE = 1024;
 
