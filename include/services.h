@@ -196,7 +196,7 @@ namespace services {
         /**
          * Computes the constraints for the edges and features and optimizes the integer map. Afterwards it fixes several issues arising from the optimization.
          *
-         * TODO : Service level method for the meshing flow. Split and simplify
+         * TODO : Service level method for the surfacenets flow. Split and simplify
          */
         void compute_index_map(Hierarchy &hierarchy, int with_scale = 0);
 
@@ -271,6 +271,8 @@ namespace services {
                 std::vector<MatrixXd> &triangle_space,
                 MatrixXd &normals_faces
         ) const;
+
+        entities::QuadMesh mesh_sdfn(const std::string path_model) const;
 
     private:
         persistence::MeshDao mesh_dao;

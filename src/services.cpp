@@ -1,9 +1,9 @@
+#include <fstream>
+
 #include "spdlog/spdlog.h"
 
 #include "services.h"
 #include "field-math.h"
-#include <fstream>
-
 
 namespace services {
 
@@ -304,6 +304,13 @@ namespace services {
         }
 
         return std::make_tuple(faces_slope, faces_orientation);
+    }
+
+    entities::QuadMesh mesh_sdfn(const std::string path_model) {
+        spdlog::info("Meshing SDFn via surface nets.");
+
+        entities::QuadMesh mesh;
+        return mesh;
     }
 
 }

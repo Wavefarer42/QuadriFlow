@@ -36,7 +36,7 @@ find_package(OpenMesh REQUIRED)
 include(FetchContent)
 include_directories(include)
 include_directories(src)
-include_directories(libs/pcg32/include)
+include_directories(third_party/pcg32/include)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 
@@ -47,22 +47,42 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.2  # Specify the version you want to use
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+# Tools
+set(UBTool ${CMAKE_SOURCE_DIR}/third_party/UbTool/UbTool)
+add_definitions(-DPATH_UBTOOL="${UBTool}")
+
 # Targets
 add_executable(
         meshbound
 
+        src/main.cpp
+
         src/dedge.cpp
         src/hierarchy.cpp
-        src/main.cpp
         src/optimizer.cpp
         src/parametrizer.cpp
         src/persistence.cpp
         src/services.cpp
         src/bootstrap.cpp
         src/adapters.cpp
+        src/surfacenets.cpp
 )
 
-target_link_libraries(meshbound PRIVATE OpenMeshCore OpenMeshTools spdlog::spdlog)
+target_link_libraries(
+        meshbound
+        PRIVATE
+        OpenMeshCore
+        OpenMeshTools
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
+)
 
 # Testing
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -80,11 +100,16 @@ add_executable(
 
         tests/test_persistence.cpp
         tests/test_openmesh.cpp
+        tests/test_surfacenets.cpp
         src/dedge.cpp
         src/hierarchy.cpp
         src/optimizer.cpp
         src/parametrizer.cpp
         src/persistence.cpp
+        src/services.cpp
+        src/bootstrap.cpp
+        src/adapters.cpp
+        src/surfacenets.cpp
 )
 
 
@@ -94,6 +119,8 @@ target_link_libraries(
         GTest::gtest_main
         OpenMeshCore
         OpenMeshTools
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
 )
 
 # Testing

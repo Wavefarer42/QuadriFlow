@@ -218,4 +218,13 @@ namespace entities {
     };
 
     typedef OpenMesh::PolyMesh_ArrayKernelT<> QuadMesh;
+
+    struct UnboundModelInfo {
+        std::string id_model;
+        int size_edits;
+        int resolution;
+        int shape_density;
+    };
+
+    typedef std::function<MatrixXf(MatrixXf)> SDFn;
 }
