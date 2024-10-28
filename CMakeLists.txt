@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 project(QuadriFlow LANGUAGES CXX)
 
-option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
 option(BUILD_LOG "Enable verbose log" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -42,10 +41,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
-
-if (BUILD_PERFORMANCE_TEST)
-    add_definitions(-DPERFORMANCE_TEST)
-endif (BUILD_PERFORMANCE_TEST)
 
 if (BUILD_LOG)
     add_definitions(-DLOG_OUTPUT)

@@ -49,19 +49,12 @@ void Parametrizer::Initialize(int faces) {
     for (int i = 0; i < V.cols(); ++i) {
         rho[i] = 1;
     }
-#ifdef PERFORMANCE_TEST
-    scale = sqrt(surface_area / (V.cols() * 10));
-#else
     if (faces <= 0) {
         scale = sqrt(surface_area / V.cols());
     } else {
         scale = std::sqrt(surface_area / faces);
     }
-#endif
     double target_len = std::min(scale / 2, average_edge_length * 2);
-#ifdef PERFORMANCE_TEST
-    scale = sqrt(surface_area / V.cols());
-#endif
 
     if (target_len < max_edge_length) {
         while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
