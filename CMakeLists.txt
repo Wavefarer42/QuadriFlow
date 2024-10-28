@@ -3,7 +3,6 @@ project(QuadriFlow LANGUAGES CXX)
 
 option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
 option(BUILD_LOG "Enable verbose log" OFF)
-option(BUILD_FREE_LICENSE "Only use libraries with permissive licenses" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 set(Boost_USE_STATIC_LIBS ON)
@@ -51,11 +50,6 @@ endif (BUILD_PERFORMANCE_TEST)
 if (BUILD_LOG)
     add_definitions(-DLOG_OUTPUT)
 endif (BUILD_LOG)
-
-if (BUILD_FREE_LICENSE)
-    add_definitions(-DEIGEN_MPL2_ONLY)
-endif (BUILD_FREE_LICENSE)
-
 
 set(
         quadriflow_SRC
