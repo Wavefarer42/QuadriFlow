@@ -13,7 +13,6 @@
 #include "disajoint-tree.hpp"
 #include "field-math.hpp"
 #include "hierarchy.hpp"
-#include "post-solver.hpp"
 #include "serialize.hpp"
 
 namespace qflow {

@@ -36,10 +36,8 @@ endif ()
 
 include_directories(src)
 include_directories(3rd/pcg32)
-include_directories(3rd/pss)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
-include_directories(${GLM_INCLUDE_DIRS})
 
 if (BUILD_LOG)
     add_definitions(-DLOG_OUTPUT)
@@ -80,7 +78,4 @@ set(
         src/subdivide.hpp
 )
 
-add_executable(
-        quadriflow
-        ${quadriflow_SRC}
-)
+add_executable(quadriflow ${quadriflow_SRC})

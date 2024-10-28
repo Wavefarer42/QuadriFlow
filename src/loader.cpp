@@ -1,11 +1,3 @@
-//
-//  loader.cpp
-//  Loop
-//
-//  Created by Jingwei on 10/22/17.
-//  Copyright © 2017 Jingwei. All rights reserved.
-//
-
 #include "loader.hpp"
 
 #include <fstream>
