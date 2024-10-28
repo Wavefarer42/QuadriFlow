@@ -4,11 +4,8 @@ project(QuadriFlow LANGUAGES CXX)
 option(BUILD_LOG "Enable verbose log" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 set(Boost_USE_STATIC_LIBS ON)
-find_package(Eigen REQUIRED)
-find_package(Boost REQUIRED)
-
-
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +15,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")  # enable assert
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
+
+find_package(Eigen REQUIRED)
+find_package(Boost REQUIRED)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-int-in-bool-context -Wno-sign-compare")
@@ -40,7 +40,6 @@ include_directories(3rd/pss)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
-include_directories(${GLUT_INCLUDE_DIRS})
 
 if (BUILD_LOG)
     add_definitions(-DLOG_OUTPUT)
