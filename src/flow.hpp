@@ -1,10 +1,6 @@
 #ifndef FLOW_H_
 #define FLOW_H_
 
-#include <lemon/network_simplex.h>
-#include <lemon/preflow.h>
-#include <lemon/smart_graph.h>
-
 #include <Eigen/Core>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
@@ -105,89 +101,6 @@ class BoykovMaxFlowHelper : public MaxFlowHelper {
     property_map<Graph, edge_reverse_t>::type rev;
     std::vector<Traits::vertex_descriptor> vertex_descriptors;
     std::map<Traits::edge_descriptor, std::pair<int, int>> edge_to_variables;
-};
-
-class NetworkSimplexFlowHelper : public MaxFlowHelper {
-   public:
-    using Weight = int;
-    using Capacity = int;
-    using Graph = lemon::SmartDigraph;
-    using Node = Graph::Node;
-    using Arc = Graph::Arc;
-    template <typename ValueType>
-    using ArcMap = lemon::SmartDigraph::ArcMap<ValueType>;
-    using Preflow = lemon::Preflow<lemon::SmartDigraph, ArcMap<Capacity>>;
-    using NetworkSimplex = lemon::NetworkSimplex<lemon::SmartDigraph, Capacity, Weight>;
-
-   public:
-    NetworkSimplexFlowHelper() : cost(graph), capacity(graph), flow(graph), variable(graph) {}
-    ~NetworkSimplexFlowHelper() {};
-    void resize(int n, int m) {
-        nodes.reserve(n);
-        for (int i = 0; i < n; ++i) nodes.push_back(graph.addNode());
-    }
-    void addEdge(int x, int y, int c, int rc, int v, int cst = 1) {
-        assert(x >= 0);
-        assert(v >= -1);
-        if (c) {
-            auto e1 = graph.addArc(nodes[x], nodes[y]);
-            cost[e1] = cst;
-            capacity[e1] = c;
-            variable[e1] = std::make_pair(v, 1);
-        }
-
-        if (rc) {
-            auto e2 = graph.addArc(nodes[y], nodes[x]);
-            cost[e2] = cst;
-            capacity[e2] = rc;
-            variable[e2] = std::make_pair(v, -1);
-        }
-    }
-    int compute() {
-        Preflow pf(graph, capacity, nodes.front(), nodes.back());
-        NetworkSimplex ns(graph);
-
-        // Run preflow to find maximum flow
-        lprintf("push-relabel flow... ");
-        pf.runMinCut();
-        int maxflow = pf.flowValue();
-
-        // Run network simplex to find minimum cost maximum flow
-        ns.costMap(cost).upperMap(capacity).stSupply(nodes.front(), nodes.back(), maxflow);
-        auto status = ns.run();
-        switch (status) {
-            case NetworkSimplex::OPTIMAL:
-                ns.flowMap(flow);
-                break;
-            case NetworkSimplex::INFEASIBLE:
-                lputs("NetworkSimplex::INFEASIBLE");
-                assert(0);
-                break;
-            default:
-                lputs("Unknown: NetworkSimplex::Default");
-                assert(0);
-                break;
-        }
-
-        return maxflow;
-    }
-    void applyTo(std::vector<Vector2i>& edge_diff) {
-        for (Graph::ArcIt e(graph); e != lemon::INVALID; ++e) {
-            int var = variable[e].first;
-            if (var == -1) continue;
-            int sgn = variable[e].second;
-            edge_diff[var / 2][var % 2] -= sgn * flow[e];
-        }
-    }
-
-   private:
-    Graph graph;
-    ArcMap<Weight> cost;
-    ArcMap<Capacity> capacity;
-    ArcMap<Capacity> flow;
-    ArcMap<std::pair<int, int>> variable;
-    std::vector<Node> nodes;
-    std::vector<Arc> edges;
 };
 
 class ECMaxFlowHelper : public MaxFlowHelper {

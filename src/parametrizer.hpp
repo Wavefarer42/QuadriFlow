@@ -162,7 +162,6 @@ class Parametrizer {
     int flag_preserve_boundary = 0;
     int flag_adaptive_scale = 0;
     int flag_aggresive_sat = 0;
-    int flag_minimum_cost_flow = 0;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,

@@ -418,7 +418,7 @@ void Parametrizer::BuildIntegerConstraints() {
 
 void Parametrizer::ComputeMaxFlow() {
     hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, 1);
-    Optimizer::optimize_integer_constraints(hierarchy, singularities, flag_minimum_cost_flow);
+    Optimizer::optimize_integer_constraints(hierarchy, singularities);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 

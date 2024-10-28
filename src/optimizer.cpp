@@ -1194,8 +1194,7 @@ void Optimizer::optimize_positions_fixed(
     }
 }
 
-void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities,
-                                             bool use_minimum_cost_flow) {
+void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
     int edge_capacity = 2;
     bool fullFlow = false;
     std::vector<std::vector<int>>& AllowChange = mRes.mAllowChanges;
@@ -1261,10 +1260,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             }
 
             std::unique_ptr<MaxFlowHelper> solver = nullptr;
-            if (use_minimum_cost_flow && level == mRes.mToUpperEdges.size()) {
-                lprintf("network simplex MCF is used\n");
-                solver = std::make_unique<NetworkSimplexFlowHelper>();
-            } else if (supply < 20) {
+             if (supply < 20) {
                 solver = std::make_unique<ECMaxFlowHelper>();
             } else {
                 solver = std::make_unique<BoykovMaxFlowHelper>();

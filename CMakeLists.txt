@@ -10,27 +10,6 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(Eigen REQUIRED)
 find_package(Boost REQUIRED)
 
-set(LEMON_3RD_PATH 3rd/lemon-1.3.1)
-
-find_path(
-        LEMON_SOURCE_ROOT_DIR
-        CMakeLists.txt
-        PATHS ${CMAKE_SOURCE_DIR}/${LEMON_3RD_PATH} NO_DEFAULT_PATH
-        DOC "Location of LEMON source as a CMAKE subproject"
-)
-
-if (EXISTS ${LEMON_SOURCE_ROOT_DIR})
-    add_subdirectory(${LEMON_SOURCE_ROOT_DIR})
-    set(LEMON_INCLUDE_DIRS ${LEMON_SOURCE_ROOT_DIR} ${PROJECT_BINARY_DIR}/${LEMON_3RD_PATH})
-    set(LEMON_LIBRARIES lemon)
-    unset(LEMON_ROOT_DIR CACHE)
-    unset(LEMON_DIR CACHE)
-    unset(LEMON_INCLUDE_DIR CACHE)
-    unset(LEMON_LIBRARY CACHE)
-else ()
-    find_package(LEMON QUIET NO_MODULE)
-    find_package(LEMON REQUIRED)
-endif ()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
@@ -64,7 +43,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
-include_directories(${LEMON_INCLUDE_DIRS})
 
 if (BUILD_PERFORMANCE_TEST)
     add_definitions(-DPERFORMANCE_TEST)
@@ -117,9 +95,4 @@ set(
 add_executable(
         quadriflow
         ${quadriflow_SRC}
-)
-
-target_link_libraries(
-        quadriflow
-        ${LEMON_LIBRARIES}
 )
