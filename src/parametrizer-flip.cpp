@@ -4,6 +4,7 @@
 
 #include "dedge.hpp"
 #include "parametrizer.hpp"
+#include "config.hpp"
 
 namespace qflow {
 

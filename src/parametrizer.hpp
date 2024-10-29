@@ -13,7 +13,6 @@
 #include "entities.h"
 #include "field-math.hpp"
 #include "hierarchy.hpp"
-#include "serialize.hpp"
 
 namespace qflow {
 
@@ -188,9 +187,5 @@ namespace qflow {
         int flag_adaptive_scale = 0;
         int flag_aggresive_sat = 0;
     };
-
-    extern void generate_adjacency_matrix_uniform(const MatrixXi &F, const VectorXi &V2E,
-                                                  const VectorXi &E2E, const VectorXi &nonManifold,
-                                                  AdjacentMatrix &adj);
 
 }  // namespace qflow

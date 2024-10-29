@@ -8,7 +8,6 @@
 
 namespace qflow {
 
-
     void Parametrizer::BuildEdgeInfo() {
         auto &F = hierarchy.mF;
         auto &E2E = hierarchy.mE2E;

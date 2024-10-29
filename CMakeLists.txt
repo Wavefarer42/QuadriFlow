@@ -45,7 +45,6 @@ endif (BUILD_LOG)
 
 set(
         quadriflow_SRC
-        src/adjacent-matrix.cpp
         src/config.hpp
         src/dedge.cpp
         src/dedge.hpp
@@ -67,7 +66,6 @@ set(
         src/parametrizer-scale.cpp
         src/parametrizer-sing.cpp
         src/parametrizer.hpp
-        src/serialize.hpp
         src/subdivide.cpp
         src/subdivide.hpp
         src/entities.h

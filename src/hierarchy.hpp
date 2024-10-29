@@ -4,8 +4,6 @@
 #include <vector>
 
 #include "entities.h"
-#include "config.hpp"
-#include "serialize.hpp"
 
 #define RCPOVERFLOW 2.93873587705571876e-39f
 

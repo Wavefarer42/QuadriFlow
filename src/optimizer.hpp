@@ -1,6 +1,7 @@
 #pragma once
 
-#include "config.hpp"
+#include <set>
+
 #include "field-math.hpp"
 #include "hierarchy.hpp"
 

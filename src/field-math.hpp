@@ -36,7 +36,7 @@ namespace qflow {
 
     inline double signum(double value) { return std::copysign((double) 1, value); }
 
-/// Always-positive modulo function (assumes b > 0)
+    // Always-positive modulo function (assumes b > 0)
     inline int modulo(int a, int b) {
         int r = a % b;
         return (r < 0) ? r + b : r;

@@ -1,6 +1,8 @@
 #include <cstdlib>
 
-#include "config.hpp"
+
+#include <chrono>
+
 #include "field-math.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
@@ -8,6 +10,12 @@
 using namespace qflow;
 
 Parametrizer field;
+
+unsigned long long inline GetCurrentTime64() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
 
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
