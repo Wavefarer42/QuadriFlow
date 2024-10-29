@@ -6,7 +6,6 @@
 #include <boost/graph/push_relabel_max_flow.hpp>
 
 #include "entities.h"
-#include "config.hpp"
 
 using namespace boost;
 

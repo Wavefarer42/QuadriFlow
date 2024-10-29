@@ -1,4 +1,3 @@
-#include "config.hpp"
 #include "field-math.hpp"
 #include "parametrizer.hpp"
 

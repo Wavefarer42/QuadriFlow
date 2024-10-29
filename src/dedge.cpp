@@ -22,8 +22,6 @@ namespace qflow {
 
     const int INVALID = -1;
 
-#undef max
-#undef min
 
     bool compute_direct_graph(MatrixXd &V, MatrixXi &F, VectorXi &V2E, VectorXi &E2E,
                               VectorXi &boundary, VectorXi &nonManifold) {
@@ -120,9 +118,7 @@ namespace qflow {
             } while (edge != start);
             V2E[i] = v2e;
         }
-#ifdef LOG_OUTPUT
-        printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
-#endif
+//        printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
         return true;
     }
 
@@ -223,9 +219,7 @@ namespace qflow {
             } while (edge != start);
             V2E[i] = v2e;
         }
-#ifdef LOG_OUTPUT
-        printf("counter %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
-#endif
+//        printf("counter %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
     }
 
     void remove_nonmanifold(std::vector<Vector4i> &F, std::vector<Vector3d> &V) {

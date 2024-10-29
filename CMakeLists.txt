@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 project(QuadriFlow LANGUAGES CXX)
 
-option(BUILD_LOG "Enable verbose log" OFF)
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 set(Boost_USE_STATIC_LIBS ON)
@@ -39,13 +37,8 @@ include_directories(3rd/pcg32)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 
-if (BUILD_LOG)
-    add_definitions(-DLOG_OUTPUT)
-endif (BUILD_LOG)
-
 set(
         quadriflow_SRC
-        src/config.hpp
         src/dedge.cpp
         src/dedge.hpp
         src/field-math.hpp

@@ -64,16 +64,12 @@ namespace qflow {
                 }
             }
         }
-#ifdef LOG_OUTPUT
-        printf("Build Integer Constraints...\n");
-#endif
+//        printf("Build Integer Constraints...\n");
         BuildIntegerConstraints();
 
         ComputeMaxFlow();
         // potential bug
-#ifdef LOG_OUTPUT
-        printf("subdivide...\n");
-#endif
+//        printf("subdivide...\n");
         subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                            edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                            singularities, 1);
@@ -88,21 +84,17 @@ namespace qflow {
             }
         }
 
-#ifdef LOG_OUTPUT
-        printf("Fix flip advance...\n");
-        int t1 = GetCurrentTime64();
-#endif
+//        printf("Fix flip advance...\n");
+//        int t1 = GetCurrentTime64();
         FixFlipHierarchy();
         subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                            edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                            singularities, 1);
         FixFlipSat();
 
-#ifdef LOG_OUTPUT
-        int t2 = GetCurrentTime64();
-        printf("Flip use %lf\n", (t2 - t1) * 1e-3);
-        printf("Post Linear Solver...\n");
-#endif
+//        int t2 = GetCurrentTime64();
+//        printf("Flip use %lf\n", (t2 - t1) * 1e-3);
+//        printf("Post Linear Solver...\n");
         std::set<int> sharp_vertices;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 1) {

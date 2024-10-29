@@ -3,7 +3,6 @@
 #include <unordered_map>
 
 #include "hierarchy.hpp"
-#include "config.hpp"
 #include "field-math.hpp"
 #include "localsat.hpp"
 #include "pcg32/pcg32.h"
@@ -586,7 +585,7 @@ namespace qflow {
                 } while (e != e0);
             }
         }
-        lprintf("[FlipH] Depth %2d: marked = %d\n", depth, mark_count);
+//        lprintf("[FlipH] Depth %2d: marked = %d\n", depth, mark_count);
 
         std::vector<bool> flexible(EdgeDiff.size(), false);
         for (int i = 0; i < F2E.size(); ++i) {
@@ -723,7 +722,7 @@ namespace qflow {
             if (area < 0) flip_after++;
         }
 
-        lprintf("[FlipH] FlipArea, Before: %d After %d\n", flip_before, flip_after);
+//        lprintf("[FlipH] FlipArea, Before: %d After %d\n", flip_before, flip_after);
         return flip_after;
     }
 

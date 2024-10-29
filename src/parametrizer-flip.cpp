@@ -4,7 +4,6 @@
 
 #include "dedge.hpp"
 #include "parametrizer.hpp"
-#include "config.hpp"
 
 namespace qflow {
 
@@ -102,13 +101,9 @@ namespace qflow {
             auto &loop_vertices = loop_vertices_array[i];
             if (loop_vertices.size() == 0) return;
             std::vector<Vector4i> quads;
-#ifdef LOG_OUTPUT
             //        printf("Compute energy for loop: %d\n", (int)loop_vertices.size());
-#endif
             QuadEnergy(loop_vertices, quads, 0);
-#ifdef LOG_OUTPUT
             //        printf("quads: %d\n", quads.size());
-#endif
             for (auto &p: quads) {
                 bool flag = false;
                 for (int j = 0; j < 4; ++j) {
@@ -173,14 +168,10 @@ namespace qflow {
     }
 
     void Parametrizer::FixFlipSat() {
-#ifdef LOG_OUTPUT
-        printf("Solving SAT!\n");
-#endif
-
         if (!this->flag_aggresive_sat) return;
 
         for (int threshold = 1; threshold <= 4; ++threshold) {
-            lprintf("[FixFlipSat] threshold = %d\n", threshold);
+//            lprintf("[FixFlipSat] threshold = %d\n", threshold);
 
             Hierarchy fh;
             fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);

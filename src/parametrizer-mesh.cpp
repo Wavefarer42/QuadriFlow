@@ -54,10 +54,8 @@ namespace qflow {
                 V(j, i) = (V(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
             }
         }
-#ifdef LOG_OUTPUT
-        printf("vertices size: %d\n", (int)V.cols());
-        printf("faces size: %d\n", (int)F.cols());
-#endif
+//        printf("vertices size: %d\n", (int)V.cols());
+//        printf("faces size: %d\n", (int)F.cols());
         this->normalize_scale = scale;
         this->normalize_offset =
                 Vector3d(0.5 * (maxV[0] + minV[0]), 0.5 * (maxV[1] + minV[1]), 0.5 * (maxV[2] + minV[2]));
@@ -107,9 +105,7 @@ namespace qflow {
 
         if (flag_adaptive_scale) ComputeInverseAffine();
 
-#ifdef LOG_OUTPUT
-        printf("V: %d F: %d\n", (int)V.cols(), (int)F.cols());
-#endif
+//        printf("V: %d F: %d\n", (int)V.cols(), (int)F.cols());
         hierarchy.mA[0] = std::move(A);
         hierarchy.mAdj[0] = std::move(adj);
         hierarchy.mN[0] = std::move(N);

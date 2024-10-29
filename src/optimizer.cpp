@@ -8,7 +8,6 @@
 #include <Eigen/Sparse>
 
 #include "optimizer.hpp"
-#include "config.hpp"
 #include "field-math.hpp"
 #include "flow.hpp"
 
@@ -626,10 +625,6 @@ namespace qflow {
 
             A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 
-#ifdef LOG_OUTPUT
-            int t1 = GetCurrentTime64();
-#endif
-
             // FIXME: IncompleteCholesky Preconditioner will fail here so I fallback to Diagonal one.
             // I suspected either there is a implementation bug in IncompleteCholesky Preconditioner
             // or there is a memory corruption somewhere.  However, g++'s address sanitizer does not
@@ -645,12 +640,8 @@ namespace qflow {
             //        solver.compute(A);
             VectorXd x_new = solver.solve(rhs);  // solver.solveWithGuess(rhs, x0);
 
-#ifdef LOG_OUTPUT
-            // std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
-            // std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
-            int t2 = GetCurrentTime64();
-            printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
-#endif
+//            int t2 = GetCurrentTime64();
+//            printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
             for (int i = 0; i < O_compact.size(); ++i) {
                 // Vector3d q = Q.col(Vind[i]);
                 Vector3d q = Q_compact[i];
@@ -1117,28 +1108,11 @@ namespace qflow {
         }
         A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 
-#ifdef LOG_OUTPUT
-        int t1 = GetCurrentTime64();
-#endif
-        /*
-            Eigen::setNbThreads(1);
-            ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
-            VectorXd x0 = VectorXd::Map(x.data(), x.size());
-            solver.setMaxIterations(40);
-
-            solver.compute(A);
-         */
         LinearSolver<Eigen::SparseMatrix<double>> solver;
         solver.analyzePattern(A);
         solver.factorize(A);
 
         VectorXd x_new = solver.solve(rhs);
-#ifdef LOG_OUTPUT
-        // std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
-        // std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
-        int t2 = GetCurrentTime64();
-        printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
-#endif
 
         for (int i = 0; i < x.size(); ++i) {
             if (!std::isnan(x_new[i])) {
@@ -1267,7 +1241,7 @@ namespace qflow {
 
                 solver->applyTo(EdgeDiff);
 
-                lprintf("flow_count = %d, supply = %d\n", flow_count, supply);
+//                lprintf("flow_count = %d, supply = %d\n", flow_count, supply);
                 if (flow_count == supply) fullFlow = true;
                 if (level != 0 || fullFlow) break;
                 edge_capacity += 1;
@@ -1276,7 +1250,7 @@ namespace qflow {
                     /* Probably won't converge. */
                     break;
                 }
-                lprintf("Not full flow, edge_capacity += 1\n");
+//                lprintf("Not full flow, edge_capacity += 1\n");
             }
 
             if (level != 0) {

@@ -6,7 +6,6 @@
 #include <Eigen/Core>
 
 #include "localsat.hpp"
-#include "config.hpp"
 #include "dedge.hpp"
 #include "field-math.hpp"
 
@@ -39,19 +38,19 @@ namespace qflow {
         FILE *fin = fopen(fout_name.c_str(), "r");
         char buf[16] = {0};
         fscanf(fin, "%15s", buf);
-        lprintf("  MiniSAT:");
+//        lprintf("  MiniSAT:");
         if (strcmp(buf, "SAT") != 0) {
             fclose(fin);
 
             if (exit_code == 124) {
-                lprintf("       Timeout! ");
+//                lprintf("       Timeout! ");
                 return SolverStatus::Timeout;
             }
-            lprintf(" Unsatisfiable! ");
+//            lprintf(" Unsatisfiable! ");
             return SolverStatus::Unsat;
         };
 
-        lprintf("   Satisfiable! ");
+//        lprintf("   Satisfiable! ");
         for (int i = 0; i < n_variable; ++i) {
             int sign[3];
             fscanf(fin, "%d %d %d", sign + 0, sign + 1, sign + 2);
@@ -142,7 +141,7 @@ namespace qflow {
                 nflip_before++;
         }
 
-        lprintf("  [SAT] nvar: %6d nflip: %3d ", n_flexible * 2, nflip_before);
+//        lprintf("  [SAT] nvar: %6d nflip: %3d ", n_flexible * 2, nflip_before);
         auto rcnf = RunCNF("test.out", n_variable, timeout, sat_clause, value);
 
         for (int i = 0; i < (int) variable_eq.size(); ++i) {
@@ -156,7 +155,7 @@ namespace qflow {
             int area = value[var[0]] * value[var[1]] * cst[0] - value[var[2]] * value[var[3]] * cst[1];
             if (area < 0) ++nflip_after;
         }
-        lprintf("nflip: %3d\n", nflip_after);
+//        lprintf("nflip: %3d\n", nflip_after);
         return rcnf;
     }
 
