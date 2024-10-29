@@ -12,9 +12,6 @@
 #include "hierarchy.hpp"
 
 namespace qflow {
-
-    using namespace Eigen;
-
     typedef std::pair<unsigned int, unsigned int> Edge;
     typedef std::map<int, std::pair<int, int>> SingDictionary;
 
@@ -84,10 +81,16 @@ namespace qflow {
         // Quadmesh and IO
         void AdvancedExtractQuad();
 
-        void BuildTriangleManifold(DisjointTree &disajoint_tree, std::vector<int> &edge,
-                                   std::vector<int> &face, std::vector<DEdge> &edge_values,
-                                   std::vector<Vector3i> &F2E, std::vector<Vector2i> &E2F,
-                                   std::vector<Vector2i> &EdgeDiff, std::vector<Vector3i> &FQ);
+        void BuildTriangleManifold(
+                DisjointTree &disajoint_tree,
+                std::vector<int> &edge,
+                std::vector<int> &face,
+                std::vector<DEdge> &edge_values,
+                std::vector<Vector3i> &F2E,
+                std::vector<Vector2i> &E2F,
+                std::vector<Vector2i> &EdgeDiff,
+                std::vector<Vector3i> &FQ
+        );
 
         void OutputMesh(const char *obj_name);
 
@@ -185,4 +188,4 @@ namespace qflow {
         int flag_aggresive_sat = 0;
     };
 
-}  // namespace qflow
+}

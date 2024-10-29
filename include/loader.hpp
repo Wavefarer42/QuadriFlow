@@ -10,4 +10,4 @@ namespace qflow {
 
     void load(const char *filename, MatrixXd &V, MatrixXi &F);
 
-} // namespace qflow
+}

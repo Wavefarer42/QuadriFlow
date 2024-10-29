@@ -15,12 +15,24 @@ namespace qflow {
 
         void Initialize(double scale, int with_scale = 0);
 
-        void DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V, const MatrixXd &N,
-                             const VectorXd &A, MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
-                             MatrixXi &to_upper, VectorXi &to_lower, AdjacentMatrix &adj_p);
+        void DownsampleGraph(
+                const AdjacentMatrix adj,
+                const MatrixXd &V,
+                const MatrixXd &N,
+                const VectorXd &A,
+                MatrixXd &V_p,
+                MatrixXd &N_p,
+                VectorXd &A_p,
+                MatrixXi &to_upper,
+                VectorXi &to_lower,
+                AdjacentMatrix &adj_p
+        );
 
-        void generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
-                                                   std::vector<std::vector<int>> &phases);
+        void generate_graph_coloring_deterministic(
+                const AdjacentMatrix &adj,
+                int size,
+                std::vector<std::vector<int>> &phases
+        );
 
         void FixFlip();
 
@@ -30,12 +42,19 @@ namespace qflow {
 
         void PropagateEdge();
 
-        void DownsampleEdgeGraph(std::vector<Vector3i> &FQ, std::vector<Vector3i> &F2E,
-                                 std::vector<Vector2i> &edge_diff,
-                                 std::vector<int> &allow_changes, int level);
+        void DownsampleEdgeGraph(
+                std::vector<Vector3i> &FQ,
+                std::vector<Vector3i> &F2E,
+                std::vector<Vector2i> &edge_diff,
+                std::vector<int> &allow_changes,
+                int level
+        );
 
-        void UpdateGraphValue(std::vector<Vector3i> &FQ, std::vector<Vector3i> &F2E,
-                              std::vector<Vector2i> &edge_diff);
+        void UpdateGraphValue(
+                std::vector<Vector3i> &FQ,
+                std::vector<Vector3i> &F2E,
+                std::vector<Vector2i> &edge_diff
+        );
 
         enum {
             MAX_DEPTH = 25
@@ -88,4 +107,4 @@ namespace qflow {
 
     };
 
-} // namespace qflow
+}

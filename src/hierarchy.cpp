@@ -5,7 +5,7 @@
 #include "hierarchy.hpp"
 #include "field-math.hpp"
 #include "localsat.hpp"
-#include "pcg32/pcg32.h"
+#include "pcg32.h"
 
 namespace qflow {
 
@@ -24,8 +24,6 @@ namespace qflow {
         mCO.reserve(MAX_DEPTH + 1);
         mCOw.reserve(MAX_DEPTH + 1);
     }
-
-#undef max
 
     void Hierarchy::Initialize(double scale, int with_scale) {
         this->with_scale = with_scale;
@@ -81,8 +79,11 @@ namespace qflow {
         }
     }
 
-    void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
-                                                          std::vector<std::vector<int>> &phases) {
+    void Hierarchy::generate_graph_coloring_deterministic(
+            const AdjacentMatrix &adj,
+            int size,
+            std::vector<std::vector<int>> &phases
+    ) {
         phases.clear();
 
         std::vector<uint32_t> perm(size);
@@ -127,9 +128,18 @@ namespace qflow {
         for (uint32_t i = 0; i < size; ++i) phases[color[i]].push_back(i);
     }
 
-    void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V, const MatrixXd &N,
-                                    const VectorXd &A, MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
-                                    MatrixXi &to_upper, VectorXi &to_lower, AdjacentMatrix &adj_p) {
+    void Hierarchy::DownsampleGraph(
+            const AdjacentMatrix adj,
+            const MatrixXd &V,
+            const MatrixXd &N,
+            const VectorXd &A,
+            MatrixXd &V_p,
+            MatrixXd &N_p,
+            VectorXd &A_p,
+            MatrixXi &to_upper,
+            VectorXi &to_lower,
+            AdjacentMatrix &adj_p
+    ) {
         struct Entry {
             int i, j;
             double order;
@@ -249,16 +259,23 @@ namespace qflow {
         }
     }
 
-    void Hierarchy::UpdateGraphValue(std::vector<Vector3i> &FQ, std::vector<Vector3i> &F2E,
-                                     std::vector<Vector2i> &edge_diff) {
+    void Hierarchy::UpdateGraphValue(
+            std::vector<Vector3i> &FQ,
+            std::vector<Vector3i> &F2E,
+            std::vector<Vector2i> &edge_diff
+    ) {
         FQ = std::move(mFQ[0]);
         F2E = std::move(mF2E[0]);
         edge_diff = std::move(mEdgeDiff[0]);
     }
 
-    void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i> &FQ, std::vector<Vector3i> &F2E,
-                                        std::vector<Vector2i> &edge_diff,
-                                        std::vector<int> &allow_changes, int level) {
+    void Hierarchy::DownsampleEdgeGraph(
+            std::vector<Vector3i> &FQ,
+            std::vector<Vector3i> &F2E,
+            std::vector<Vector2i> &edge_diff,
+            std::vector<int> &allow_changes,
+            int level
+    ) {
         std::vector<Vector2i> E2F(edge_diff.size(), Vector2i(-1, -1));
         for (int i = 0; i < F2E.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
@@ -1041,13 +1058,8 @@ namespace qflow {
                     Vector3d n = N_next.col(i), v = V_next.col(i);
                     co -= n.dot(cq - v) * n;
                 }
-#if 0
-                cqw *= 0.5f;
-                cow *= 0.5f;
-#else
                 if (cqw > 0) cqw = 1;
                 if (cow > 0) cow = 1;
-#endif
 
                 CQw_next[i] = cqw;
                 COw_next[i] = cow;
@@ -1057,4 +1069,4 @@ namespace qflow {
         }
     }
 
-}  // namespace qflow
+}

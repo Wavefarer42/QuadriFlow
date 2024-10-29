@@ -3,8 +3,8 @@
 namespace qflow {
 
     void Parametrizer::ComputeInverseAffine() {
-        if (flag_adaptive_scale == 0)
-            return;
+        if (flag_adaptive_scale == 0) return;
+
         triangle_space.resize(F.cols());
         for (int i = 0; i < F.cols(); ++i) {
             Matrix3d p, q;
@@ -121,4 +121,4 @@ namespace qflow {
         }
     }
 
-} // namespace qflow
+}

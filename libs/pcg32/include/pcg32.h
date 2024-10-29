@@ -163,7 +163,7 @@ struct pcg32 {
      * \brief Draw uniformly distributed permutation and permute the
      * given STL container
      *
-     * From: Knuth, TAoCP Vol. 2 (3rd 3d), Section 3.4.2
+     * From: Knuth, TAoCP Vol. 2 (libs 3d), Section 3.4.2
      */
     template <typename Iterator> void shuffle(Iterator begin, Iterator end) {
         if (begin <= end) return;

@@ -52,10 +52,12 @@ namespace qflow {
         return shift;
     }
 
-    inline std::pair<int, int> compat_orientation_extrinsic_index_4(const Vector3d &q0,
-                                                                    const Vector3d &n0,
-                                                                    const Vector3d &q1,
-                                                                    const Vector3d &n1) {
+    inline std::pair<int, int> compat_orientation_extrinsic_index_4(
+            const Vector3d &q0,
+            const Vector3d &n0,
+            const Vector3d &q1,
+            const Vector3d &n1
+    ) {
         const Vector3d A[2] = {q0, n0.cross(q0)};
         const Vector3d B[2] = {q1, n1.cross(q1)};
 
@@ -78,10 +80,12 @@ namespace qflow {
         return std::make_pair(best_a, best_b);
     }
 
-    inline std::pair<Vector3d, Vector3d> compat_orientation_extrinsic_4(const Vector3d &q0,
-                                                                        const Vector3d &n0,
-                                                                        const Vector3d &q1,
-                                                                        const Vector3d &n1) {
+    inline std::pair<Vector3d, Vector3d> compat_orientation_extrinsic_4(
+            const Vector3d &q0,
+            const Vector3d &n0,
+            const Vector3d &q1,
+            const Vector3d &n1
+    ) {
         const Vector3d A[2] = {q0, n0.cross(q0)};
         const Vector3d B[2] = {q1, n1.cross(q1)};
 
@@ -103,8 +107,12 @@ namespace qflow {
         return std::make_pair(A[best_a], B[best_b] * signum(dp));
     }
 
-    inline Vector3d middle_point(const Vector3d &p0, const Vector3d &n0, const Vector3d &p1,
-                                 const Vector3d &n1) {
+    inline Vector3d middle_point(
+            const Vector3d &p0,
+            const Vector3d &n0,
+            const Vector3d &p1,
+            const Vector3d &n1
+    ) {
         /* How was this derived?
          *
          * Minimize \|x-p0\|^2 + \|x-p1\|^2, where
@@ -125,9 +133,16 @@ namespace qflow {
         return 0.5f * (p0 + p1) - 0.25f * (n0 * lambda_0 + n1 * lambda_1);
     }
 
-    inline Vector3d position_floor_4(const Vector3d &o, const Vector3d &q, const Vector3d &n,
-                                     const Vector3d &p, double scale_x, double scale_y,
-                                     double inv_scale_x, double inv_scale_y) {
+    inline Vector3d position_floor_4(
+            const Vector3d &o,
+            const Vector3d &q,
+            const Vector3d &n,
+            const Vector3d &p,
+            double scale_x,
+            double scale_y,
+            double inv_scale_x,
+            double inv_scale_y
+    ) {
         Vector3d t = n.cross(q);
         Vector3d d = p - o;
         return o + q * std::floor(q.dot(d) * inv_scale_x) * scale_x +
@@ -135,10 +150,23 @@ namespace qflow {
     }
 
     inline std::pair<Vector3d, Vector3d> compat_position_extrinsic_4(
-            const Vector3d &p0, const Vector3d &n0, const Vector3d &q0, const Vector3d &o0,
-            const Vector3d &p1, const Vector3d &n1, const Vector3d &q1, const Vector3d &o1, double scale_x,
-            double scale_y, double inv_scale_x, double inv_scale_y, double scale_x_1, double scale_y_1,
-            double inv_scale_x_1, double inv_scale_y_1) {
+            const Vector3d &p0,
+            const Vector3d &n0,
+            const Vector3d &q0,
+            const Vector3d &o0,
+            const Vector3d &p1,
+            const Vector3d &n1,
+            const Vector3d &q1,
+            const Vector3d &o1,
+            double scale_x,
+            double scale_y,
+            double inv_scale_x,
+            double inv_scale_y,
+            double scale_x_1,
+            double scale_y_1,
+            double inv_scale_x_1,
+            double inv_scale_y_1
+    ) {
         Vector3d t0 = n0.cross(q0), t1 = n1.cross(q1);
         Vector3d middle = middle_point(p0, n0, p1, n1);
         Vector3d o0p =
@@ -168,18 +196,32 @@ namespace qflow {
                 o1p + (q1 * (best_j & 1) * scale_x_1 + t1 * ((best_j & 2) >> 1) * scale_y_1));
     }
 
-    inline Vector3d position_round_4(const Vector3d &o, const Vector3d &q, const Vector3d &n,
-                                     const Vector3d &p, double scale_x, double scale_y,
-                                     double inv_scale_x, double inv_scale_y) {
+    inline Vector3d position_round_4(
+            const Vector3d &o,
+            const Vector3d &q,
+            const Vector3d &n,
+            const Vector3d &p,
+            double scale_x,
+            double scale_y,
+            double inv_scale_x,
+            double inv_scale_y
+    ) {
         Vector3d t = n.cross(q);
         Vector3d d = p - o;
         return o + q * std::round(q.dot(d) * inv_scale_x) * scale_x +
                t * std::round(t.dot(d) * inv_scale_y) * scale_y;
     }
 
-    inline Vector2i position_floor_index_4(const Vector3d &o, const Vector3d &q, const Vector3d &n,
-                                           const Vector3d &p, double /* unused */, double /* unused */,
-                                           double inv_scale_x, double inv_scale_y) {
+    inline Vector2i position_floor_index_4(
+            const Vector3d &o,
+            const Vector3d &q,
+            const Vector3d &n,
+            const Vector3d &p,
+            double /* unused */,
+            double /* unused */,
+            double inv_scale_x,
+            double inv_scale_y
+    ) {
         Vector3d t = n.cross(q);
         Vector3d d = p - o;
         return Vector2i((int) std::floor(q.dot(d) * inv_scale_x),
@@ -187,10 +229,24 @@ namespace qflow {
     }
 
     inline std::pair<Vector2i, Vector2i> compat_position_extrinsic_index_4(
-            const Vector3d &p0, const Vector3d &n0, const Vector3d &q0, const Vector3d &o0,
-            const Vector3d &p1, const Vector3d &n1, const Vector3d &q1, const Vector3d &o1, double scale_x,
-            double scale_y, double inv_scale_x, double inv_scale_y, double scale_x_1, double scale_y_1,
-            double inv_scale_x_1, double inv_scale_y_1, double *error) {
+            const Vector3d &p0,
+            const Vector3d &n0,
+            const Vector3d &q0,
+            const Vector3d &o0,
+            const Vector3d &p1,
+            const Vector3d &n1,
+            const Vector3d &q1,
+            const Vector3d &o1,
+            double scale_x,
+            double scale_y,
+            double inv_scale_x,
+            double inv_scale_y,
+            double scale_x_1,
+            double scale_y_1,
+            double inv_scale_x_1,
+            double inv_scale_y_1,
+            double *error
+    ) {
         Vector3d t0 = n0.cross(q0), t1 = n1.cross(q1);
         Vector3d middle = middle_point(p0, n0, p1, n1);
         Vector2i o0p =
@@ -233,8 +289,11 @@ namespace qflow {
         b = c.cross(a);
     }
 
-    inline Vector3d rotate_vector_into_plane(Vector3d q, const Vector3d &source_normal,
-                                             const Vector3d &target_normal) {
+    inline Vector3d rotate_vector_into_plane(
+            Vector3d q,
+            const Vector3d &source_normal,
+            const Vector3d &target_normal
+    ) {
         const double cosTheta = source_normal.dot(target_normal);
         if (cosTheta < 0.9999f) {
             if (cosTheta < -0.9999f) return -q;
@@ -245,9 +304,19 @@ namespace qflow {
         return q;
     }
 
-    inline Vector3d Travel(Vector3d p, const Vector3d &dir, double &len, int &f, VectorXi &E2E,
-                           MatrixXd &V, MatrixXi &F, MatrixXd &NF,
-                           std::vector<MatrixXd> &triangle_space, double *tx = 0, double *ty = 0) {
+    inline Vector3d Travel(
+            Vector3d p,
+            const Vector3d &dir,
+            double &len,
+            int &f,
+            VectorXi &E2E,
+            MatrixXd &V,
+            MatrixXi &F,
+            MatrixXd &NF,
+            std::vector<MatrixXd> &triangle_space,
+            double *tx = 0,
+            double *ty = 0
+    ) {
         Vector3d N = NF.col(f);
         Vector3d pt = (dir - dir.dot(N) * N).normalized();
         int prev_id = -1;
@@ -318,10 +387,23 @@ namespace qflow {
         return p;
     }
 
-    inline Vector3d TravelField(Vector3d p, Vector3d &pt, double &len, int &f, VectorXi &E2E,
-                                MatrixXd &V, MatrixXi &F, MatrixXd &NF, MatrixXd &QF, MatrixXd &QV,
-                                MatrixXd &NV, std::vector<MatrixXd> &triangle_space, double *tx = 0,
-                                double *ty = 0, Vector3d *dir_unfold = 0) {
+    inline Vector3d TravelField(
+            Vector3d p,
+            Vector3d &pt,
+            double &len,
+            int &f,
+            VectorXi &E2E,
+            MatrixXd &V,
+            MatrixXi &F,
+            MatrixXd &NF,
+            MatrixXd &QF,
+            MatrixXd &QV,
+            MatrixXd &NV,
+            std::vector<MatrixXd> &triangle_space,
+            double *tx = 0,
+            double *ty = 0,
+            Vector3d *dir_unfold = 0
+    ) {
         Vector3d N = NF.col(f);
         pt = (pt - pt.dot(N) * N).normalized();
         int prev_id = -1;
@@ -449,4 +531,4 @@ namespace qflow {
         return p;
     }
 
-} // namespace qflow
+}

@@ -7,8 +7,11 @@
 
 namespace qflow {
 
-    double Parametrizer::QuadEnergy(std::vector<int> &loop_vertices, std::vector<Vector4i> &res_quads,
-                                    int level) {
+    double Parametrizer::QuadEnergy(
+            std::vector<int> &loop_vertices,
+            std::vector<Vector4i> &res_quads,
+            int level
+    ) {
         if (loop_vertices.size() < 4) return 0;
         if (loop_vertices.size() == 4) {
             double energy = 0;
@@ -255,11 +258,16 @@ namespace qflow {
         BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
     }
 
-    void Parametrizer::BuildTriangleManifold(DisjointTree &disajoint_tree, std::vector<int> &edge,
-                                             std::vector<int> &face, std::vector<DEdge> &edge_values,
-                                             std::vector<Vector3i> &F2E, std::vector<Vector2i> &E2F,
-                                             std::vector<Vector2i> &EdgeDiff,
-                                             std::vector<Vector3i> &FQ) {
+    void Parametrizer::BuildTriangleManifold(
+            DisjointTree &disajoint_tree,
+            std::vector<int> &edge,
+            std::vector<int> &face,
+            std::vector<DEdge> &edge_values,
+            std::vector<Vector3i> &F2E,
+            std::vector<Vector2i> &E2F,
+            std::vector<Vector2i> &EdgeDiff,
+            std::vector<Vector3i> &FQ
+    ) {
         auto &F = hierarchy.mF;
         std::vector<int> E2E(F2E.size() * 3, -1);
         for (int i = 0; i < E2F.size(); ++i) {
@@ -453,8 +461,15 @@ namespace qflow {
         std::swap(O_compact, O);
         std::swap(N_compact, N);
         std::swap(Q_compact, Q);
-        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                  nonManifold_compact);
+
+        compute_direct_graph_quad(
+                O_compact,
+                F_compact,
+                V2E_compact,
+                E2E_compact,
+                boundary_compact,
+                nonManifold_compact
+        );
 
         while (true) {
             std::vector<int> erasedF(F_compact.size(), 0);
@@ -501,74 +516,23 @@ namespace qflow {
             }
             if (offset == F_compact.size()) break;
             F_compact.resize(offset);
-            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                      nonManifold_compact);
+            compute_direct_graph_quad(
+                    O_compact,
+                    F_compact,
+                    V2E_compact,
+                    E2E_compact,
+                    boundary_compact,
+                    nonManifold_compact
+            );
         }
         FixHoles();
-        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                  nonManifold_compact);
-
-        /*
-        for (auto& p : flip_vertices) {
-            int deid0 = V2E_compact[p];
-            int deid = deid0;
-            std::list<int> dedges;
-            if (deid0 != -1) {
-                do {
-                    dedges.push_back(deid);
-                    deid = E2E_compact[deid/4*4 + (deid+3) % 4];
-                } while (deid != -1 && deid != deid0);
-                if (deid == -1) {
-                    deid = deid0;
-                    do {
-                        deid = E2E_compact[deid];
-                        if (deid == -1)
-                            break;
-                        deid = deid/4*4 + (deid +1) % 4;
-                        dedges.push_front(deid);
-                    } while (deid != -1 && deid != deid0);
-                }
-                std::set<int> eraseF;
-                std::set<int> valid_dedges;
-                std::set<int> boundaries;
-                std::vector<int> loop_vertices;
-                for (auto& dedge : dedges) {
-                    int f = dedge / 4;
-                    eraseF.insert(f);
-                    valid_dedges.insert(E2E_compact[f * 4 + (dedge+1)%4]);
-                    valid_dedges.insert(E2E_compact[f * 4 + (dedge+2)%4]);
-                    loop_vertices.push_back(F_compact[f][(dedge+1)%4]);
-                    loop_vertices.push_back(F_compact[f][(dedge+2)%4]);
-                    boundaries.insert(F_compact[f][(dedge+1)%4]);
-                    boundaries.insert(F_compact[f][(dedge+2)%4]);
-                }
-                int offset = 0;
-                auto it = eraseF.begin();
-                for (int i = 0; i < F_compact.size(); ++i) {
-                    if (it == eraseF.end() || i != *it) {
-                        bool need_erase = false;
-                        for (int j = 0; j < 4; ++j) {
-                            if (valid_dedges.count(i * 4 + j) == 0 && boundaries.count(F_compact[i][j])
-        && boundaries.count(F_compact[i][(j + 1) % 4])) { need_erase = true;
-                            }
-                        }
-                        if (!need_erase)
-                            F_compact[offset++] = F_compact[i];
-                    } else {
-                        it++;
-                    }
-                }
-                F_compact.resize(offset);
-                compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact,
-        boundary_compact, nonManifold_compact); std::reverse(loop_vertices.begin(),
-        loop_vertices.end()); FixHoles(loop_vertices); compute_direct_graph_quad(O_compact, F_compact,
-        V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
-            }
-        }
-        FixHoles();
-        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                  nonManifold_compact);
-         */
+        compute_direct_graph_quad(
+                O_compact,
+                F_compact,
+                V2E_compact,
+                E2E_compact,
+                boundary_compact,
+                nonManifold_compact
+        );
     }
-
-} // namespace qflow
+}

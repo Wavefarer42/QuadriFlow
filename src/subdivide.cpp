@@ -7,8 +7,16 @@
 
 namespace qflow {
 
-    void subdivide(MatrixXi &F, MatrixXd &V, VectorXd &rho, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
-                   VectorXi &nonmanifold, double maxLength) {
+    void subdivide(
+            MatrixXi &F,
+            MatrixXd &V,
+            VectorXd &rho,
+            VectorXi &V2E,
+            VectorXi &E2E,
+            VectorXi &boundary,
+            VectorXi &nonmanifold,
+            double maxLength
+    ) {
         typedef std::pair<double, int> Edge;
 
         std::priority_queue<Edge> queue;
@@ -142,11 +150,25 @@ namespace qflow {
         E2E.conservativeResize(nF * 3);
     }
 
-    void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, MatrixXd *S,
-                            VectorXi &V2E, VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
-                            std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
-                            std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
-                            std::vector<int> &sharp_edges, std::map<int, int> &singularities, int max_len) {
+    void subdivide_edgeDiff(
+            MatrixXi &F,
+            MatrixXd &V,
+            MatrixXd &N,
+            MatrixXd &Q,
+            MatrixXd &O,
+            MatrixXd *S,
+            VectorXi &V2E,
+            VectorXi &E2E,
+            VectorXi &boundary,
+            VectorXi &nonmanifold,
+            std::vector<Vector2i> &edge_diff,
+            std::vector<DEdge> &edge_values,
+            std::vector<Vector3i> &face_edgeOrients,
+            std::vector<Vector3i> &face_edgeIds,
+            std::vector<int> &sharp_edges,
+            std::map<int, int> &singularities,
+            int max_len
+    ) {
         struct EdgeLink {
             int id;
             double length;
@@ -511,5 +533,4 @@ namespace qflow {
             }
         }
     }
-
-} // namespace qflow
+}

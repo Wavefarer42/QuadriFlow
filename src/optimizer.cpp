@@ -332,12 +332,23 @@ namespace qflow {
     }
 
     void Optimizer::optimize_positions_dynamic(
-            MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, std::vector<std::vector<int>> &Vset,
-            std::vector<Vector3d> &O_compact, std::vector<Vector4i> &F_compact,
-            std::vector<int> &V2E_compact, std::vector<int> &E2E_compact, double mScale,
-            std::vector<Vector3d> &diffs, std::vector<int> &diff_count,
-            std::map<std::pair<int, int>, int> &o2e, std::vector<int> &sharp_o,
-            std::map<int, std::pair<Vector3d, Vector3d>> &compact_sharp_constraints, int with_scale) {
+            MatrixXi &F,
+            MatrixXd &V,
+            MatrixXd &N,
+            MatrixXd &Q,
+            std::vector<std::vector<int>> &Vset,
+            std::vector<Vector3d> &O_compact,
+            std::vector<Vector4i> &F_compact,
+            std::vector<int> &V2E_compact,
+            std::vector<int> &E2E_compact,
+            double mScale,
+            std::vector<Vector3d> &diffs,
+            std::vector<int> &diff_count,
+            std::map<std::pair<int, int>, int> &o2e,
+            std::vector<int> &sharp_o,
+            std::map<int, std::pair<Vector3d, Vector3d>> &compact_sharp_constraints,
+            int with_scale
+    ) {
         std::set<int> uncertain;
         for (auto &info: o2e) {
             if (diff_count[info.second] == 0) {
@@ -678,9 +689,14 @@ namespace qflow {
     }
 
     void Optimizer::optimize_positions_sharp(
-            Hierarchy &mRes, std::vector<DEdge> &edge_values, std::vector<Vector2i> &edge_diff,
-            std::vector<int> &sharp_edges, std::set<int> &sharp_vertices,
-            std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints, int with_scale) {
+            Hierarchy &mRes,
+            std::vector<DEdge> &edge_values,
+            std::vector<Vector2i> &edge_diff,
+            std::vector<int> &sharp_edges,
+            std::set<int> &sharp_vertices,
+            std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
+            int with_scale
+    ) {
         auto &V = mRes.mV[0];
         auto &F = mRes.mF;
         auto &Q = mRes.mQ[0];
@@ -893,28 +909,16 @@ namespace qflow {
                 loops.push_back(new_o);
             }
         }
-        return;
-        std::ofstream os("/Users/jingwei/Desktop/sharp.obj");
-        for (int i = 0; i < loops.size(); ++i) {
-            for (auto &v: loops[i]) {
-                os << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
-            }
-        }
-        int offset = 1;
-        for (int i = 0; i < loops.size(); ++i) {
-            for (int j = 0; j < loops[i].size() - 1; ++j) {
-                os << "l " << offset + j << " " << offset + j + 1 << "\n";
-            }
-            offset += loops[i].size();
-        }
-        os.close();
-        exit(0);
     }
 
     void Optimizer::optimize_positions_fixed(
-            Hierarchy &mRes, std::vector<DEdge> &edge_values, std::vector<Vector2i> &edge_diff,
-            std::set<int> &sharp_vertices, std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-            int with_scale) {
+            Hierarchy &mRes,
+            std::vector<DEdge> &edge_values,
+            std::vector<Vector2i> &edge_diff,
+            std::set<int> &sharp_vertices,
+            std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
+            int with_scale
+    ) {
         auto &V = mRes.mV[0];
         auto &F = mRes.mF;
         auto &Q = mRes.mQ[0];
@@ -1267,4 +1271,4 @@ namespace qflow {
         }
     }
 
-}  // namespace qflow
+}

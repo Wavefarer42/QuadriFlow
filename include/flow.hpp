@@ -56,10 +56,16 @@ namespace qflow {
             return flow;
         }
 
-        void addDirectEdge(Traits::vertex_descriptor &v1, Traits::vertex_descriptor &v2,
-                           property_map<Graph, edge_reverse_t>::type &rev, const int capacity,
-                           const int inv_capacity, Graph &g, Traits::edge_descriptor &e1,
-                           Traits::edge_descriptor &e2) {
+        void addDirectEdge(
+                Traits::vertex_descriptor &v1,
+                Traits::vertex_descriptor &v2,
+                property_map<Graph, edge_reverse_t>::type &rev,
+                const int capacity,
+                const int inv_capacity,
+                Graph &g,
+                Traits::edge_descriptor &e1,
+                Traits::edge_descriptor &e2
+        ) {
             e1 = add_edge(v1, v2, g).first;
             e2 = add_edge(v2, v1, g).first;
             put(edge_capacity, g, e1, capacity);
@@ -220,5 +226,4 @@ namespace qflow {
 
         std::vector<std::list<FlowInfo>> graph;
     };
-
-}  // namespace qflow
+}

@@ -24,9 +24,6 @@ namespace qflow {
 
         BuildEdgeInfo();
 
-        if (flag_preserve_sharp) {
-            //        ComputeSharpO();
-        }
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i]) {
                 int e = face_edgeIds[i / 3][i % 3];
@@ -103,11 +100,24 @@ namespace qflow {
             }
         }
 
-        Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges,
-                                            sharp_vertices, sharp_constraints, with_scale);
+        Optimizer::optimize_positions_sharp(
+                hierarchy,
+                edge_values,
+                edge_diff,
+                sharp_edges,
+                sharp_vertices,
+                sharp_constraints,
+                with_scale
+        );
 
-        Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices,
-                                            sharp_constraints, flag_adaptive_scale);
+        Optimizer::optimize_positions_fixed(
+                hierarchy,
+                edge_values,
+                edge_diff,
+                sharp_vertices,
+                sharp_constraints,
+                flag_adaptive_scale
+        );
 
         AdvancedExtractQuad();
 
@@ -147,6 +157,7 @@ namespace qflow {
         }
         std::vector<Vector3d> diffs(F_compact.size() * 4, Vector3d(0, 0, 0));
         std::vector<int> diff_count(F_compact.size() * 4, 0);
+
         for (int i = 0; i < F.cols(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int v1 = F(j, i);
@@ -219,15 +230,17 @@ namespace qflow {
             }
         }
 
-        Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
-                                              E2E_compact, sqrt(surface_area / F_compact.size()),
-                                              diffs, diff_count, o2e, sharp_o,
-                                              compact_sharp_constraints, flag_adaptive_scale);
-
-        //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
-        //    E2E_compact,
-        //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree,
-        //                            hierarchy.mScale, false);
+        Optimizer::optimize_positions_dynamic(
+                F, V, N, Q,
+                Vset, O_compact, F_compact, V2E_compact,
+                E2E_compact,
+                sqrt(surface_area / F_compact.size()),
+                diffs,
+                diff_count,
+                o2e,
+                sharp_o,
+                compact_sharp_constraints,
+                flag_adaptive_scale
+        );
     }
-
-}  // namespace qflow
+}

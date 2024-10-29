@@ -45,14 +45,6 @@ namespace qflow {
                     throw std::runtime_error("Invalid vertex data: \"" + string + "\"");
 
                 p = str_to_uint32_t(tokens[0]);
-
-#if 0
-                if (tokens.size() >= 2 && !tokens[1].empty())
-                    uv = str_to_uint32_t(tokens[1]);
-
-                if (tokens.size() >= 3 && !tokens[2].empty())
-                    n = str_to_uint32_t(tokens[2]);
-#endif
             }
 
             inline bool operator==(const obj_vertex &v) const {
@@ -144,4 +136,4 @@ namespace qflow {
             V.col(i) = positions.at(vertices[i].p - 1);
     }
 
-} // namespace qflow
+}

@@ -263,9 +263,11 @@ namespace qflow {
             }
 
             // uniformly random manually modify variables so that the network has full flow.
-            for (int i = 0; i < 2; ++i)
-                for (auto &modified_var: modified_variables[i])
+            for (int i = 0; i < 2; ++i) {
+                for (auto &modified_var: modified_variables[i]) {
                     std::shuffle(modified_var.begin(), modified_var.end(), g);
+                }
+            }
 
             for (int j = 0; j < total_flows.size(); ++j) {
                 for (int ii = 0; ii < 2; ++ii) {
@@ -420,5 +422,4 @@ namespace qflow {
         Optimizer::optimize_integer_constraints(hierarchy, singularities);
         hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
     }
-
-} // namespace qflow
+}
