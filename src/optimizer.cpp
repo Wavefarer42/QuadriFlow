@@ -11,17 +11,11 @@
 #include "config.hpp"
 #include "field-math.hpp"
 #include "flow.hpp"
-#include "parametrizer.hpp"
 
 namespace qflow {
 
-#ifndef EIGEN_MPL2_ONLY
     template<class T>
     using LinearSolver = Eigen::SimplicialLLT<T>;
-#else
-    template <class T>
-    using LinearSolver = Eigen::SparseLU<T>;
-#endif
 
     Optimizer::Optimizer() {}
 
@@ -703,7 +697,7 @@ namespace qflow {
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 
-        DisajointTree tree(V.cols());
+        DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
             if (edge_diff[i].array().abs().sum() == 0) {
                 tree.Merge(edge_values[i].x, edge_values[i].y);
@@ -937,7 +931,7 @@ namespace qflow {
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 
-        DisajointTree tree(V.cols());
+        DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
             if (edge_diff[i].array().abs().sum() == 0) {
                 tree.Merge(edge_values[i].x, edge_values[i].y);

@@ -3,9 +3,9 @@
 #include <iostream>
 #include <set>
 #include <vector>
+#include <map>
 
 #include "dedge.hpp"
-#include "compare-key.hpp"
 
 namespace qflow {
 

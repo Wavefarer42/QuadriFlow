@@ -1,5 +1,4 @@
-#ifndef __LOADER_H
-#define __LOADER_H
+#pragma once
 
 #include <vector>
 
@@ -12,5 +11,3 @@ namespace qflow {
     void load(const char *filename, MatrixXd &V, MatrixXi &F);
 
 } // namespace qflow
-
-#endif

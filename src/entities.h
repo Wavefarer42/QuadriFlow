@@ -1,15 +1,142 @@
-#ifndef DISAJOINT_TREE_H_
-#define DISAJOINT_TREE_H_
+#pragma once
 
 #include <vector>
+#include <list>
+#include <map>
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
 
 namespace qflow {
+    using namespace Eigen;
 
-    class DisajointTree {
+    // Adjacency matrix
+    struct Link {
+        Link() {}
+
+        Link(int _id, double _w = 1)
+                : id(_id), weight(_w) {}
+
+        inline bool operator<(const Link &link) const { return id < link.id; }
+
+        int id;
+        double weight;
+    };
+
+    struct TaggedLink {
+        int id;
+        unsigned char flag;
+
+        TaggedLink() {}
+
+        TaggedLink(int id) : id(id), flag(0) {}
+
+        bool used() const { return flag & 1; }
+
+        void markUsed() { flag |= 1; }
+
+        TaggedLink &operator=(const Link &l) {
+            flag = 0;
+            id = l.id;
+            return *this;
+        }
+    };
+
+    typedef std::vector<std::vector<Link> > AdjacentMatrix;
+
+
+    // Compare Key
+    struct Key2i {
+        Key2i(int x, int y)
+                : key(std::make_pair(x, y)) {}
+
+        bool operator==(const Key2i &other) const {
+            return key == other.key;
+        }
+
+        bool operator<(const Key2i &other) const {
+            return key < other.key;
+        }
+
+        std::pair<int, int> key;
+    };
+
+    struct Key3i {
+        Key3i(int x, int y, int z)
+                : key(std::make_pair(x, std::make_pair(y, z))) {}
+
+        bool operator==(const Key3i &other) const {
+            return key == other.key;
+        }
+
+        bool operator<(const Key3i &other) const {
+            return key < other.key;
+        }
+
+        std::pair<int, std::pair<int, int> > key;
+    };
+
+    struct Key3f {
+        Key3f(double x, double y, double z, double threshold)
+                : key(std::make_pair(x / threshold, std::make_pair(y / threshold, z / threshold))) {}
+
+        bool operator==(const Key3f &other) const {
+            return key == other.key;
+        }
+
+        bool operator<(const Key3f &other) const {
+            return key < other.key;
+        }
+
+        std::pair<int, std::pair<int, int> > key;
+    };
+
+    struct KeySorted2i {
+        KeySorted2i(int x, int y)
+                : key(std::make_pair(x, y)) {
+            if (x > y)
+                std::swap(key.first, key.second);
+        }
+
+        bool operator==(const KeySorted2i &other) const {
+            return key == other.key;
+        }
+
+        bool operator<(const KeySorted2i &other) const {
+            return key < other.key;
+        }
+
+        std::pair<int, int> key;
+    };
+
+    struct KeySorted3i {
+        KeySorted3i(int x, int y, int z)
+                : key(std::make_pair(x, std::make_pair(y, z))) {
+            if (key.first > key.second.first)
+                std::swap(key.first, key.second.first);
+            if (key.first > key.second.second)
+                std::swap(key.first, key.second.second);
+            if (key.second.first > key.second.second)
+                std::swap(key.second.first, key.second.second);
+        }
+
+        bool operator==(const Key3i &other) const {
+            return key == other.key;
+        }
+
+        bool operator<(const Key3i &other) const {
+            return key < other.key;
+        }
+
+        std::pair<int, std::pair<int, int> > key;
+    };
+
+    // Tree
+    class DisjointTree {
     public:
-        DisajointTree() {}
+        DisjointTree() {}
 
-        DisajointTree(int n) {
+        DisjointTree(int n) {
             parent.resize(n);
             rank.resize(n, 1);
             for (int i = 0; i < n; ++i) parent[i] = i;
@@ -72,11 +199,11 @@ namespace qflow {
         std::vector<int> rank;
     };
 
-    class DisajointOrientTree {
+    class DisjointOrientTree {
     public:
-        DisajointOrientTree() {}
+        DisjointOrientTree() {}
 
-        DisajointOrientTree(int n) {
+        DisjointOrientTree(int n) {
             parent.resize(n);
             rank.resize(n, 1);
             for (int i = 0; i < n; ++i) parent[i] = std::make_pair(i, 0);
@@ -158,6 +285,31 @@ namespace qflow {
         std::vector<int> rank;
     };
 
-} // namespace qflow
+    // Dedge
+    struct DEdge {
+        DEdge()
+                : x(0), y(0) {}
 
-#endif
+        DEdge(int _x, int _y) {
+            if (_x > _y)
+                x = _y, y = _x;
+            else
+                x = _x, y = _y;
+        }
+
+        bool operator<(const DEdge &e) const {
+            return (x < e.x) || (x == e.x && y < e.y);
+        }
+
+        bool operator==(const DEdge &e) const {
+            return x == e.x && y == e.y;
+        }
+
+        bool operator!=(const DEdge &e) const {
+            return x != e.x || y != e.y;
+        }
+
+        int x, y;
+    };
+
+}

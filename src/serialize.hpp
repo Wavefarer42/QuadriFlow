@@ -1,5 +1,4 @@
-#ifndef SERIALIZE_H_
-#define SERIALIZE_H_
+#pragma once
 
 #include <fstream>
 #include <map>
@@ -8,7 +7,7 @@
 
 #include <Eigen/Core>
 
-#include "adjacent-matrix.hpp"
+#include "entities.h"
 
 namespace qflow {
 
@@ -125,5 +124,3 @@ namespace qflow {
     }
 
 } // namespace qflow
-
-#endif

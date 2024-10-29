@@ -199,7 +199,7 @@ namespace qflow {
         fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
         auto &V = hierarchy.mV[0];
         auto &F = hierarchy.mF;
-        disajoint_tree = DisajointTree(V.cols());
+        disajoint_tree = DisjointTree(V.cols());
         auto &diffs = fh.mEdgeDiff.front();
         for (int i = 0; i < diffs.size(); ++i) {
             if (diffs[i] == Vector2i::Zero()) {
@@ -263,7 +263,7 @@ namespace qflow {
         BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
     }
 
-    void Parametrizer::BuildTriangleManifold(DisajointTree &disajoint_tree, std::vector<int> &edge,
+    void Parametrizer::BuildTriangleManifold(DisjointTree &disajoint_tree, std::vector<int> &edge,
                                              std::vector<int> &face, std::vector<DEdge> &edge_values,
                                              std::vector<Vector3i> &F2E, std::vector<Vector2i> &E2F,
                                              std::vector<Vector2i> &EdgeDiff,

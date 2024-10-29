@@ -1,10 +1,9 @@
-#ifndef HIERARCHY_H_
-#define HIERARCHY_H_
+#pragma once
 
 #include <map>
 #include <vector>
 
-#include "adjacent-matrix.hpp"
+#include "entities.h"
 #include "config.hpp"
 #include "serialize.hpp"
 
@@ -94,5 +93,3 @@ namespace qflow {
     };
 
 } // namespace qflow
-
-#endif

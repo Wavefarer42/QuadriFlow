@@ -1,15 +1,15 @@
-#include <fstream>
-
-#include "adjacent-matrix.hpp"
-#include "config.hpp"
+#include "entities.h"
 #include "dedge.hpp"
 
 namespace qflow {
 
-    void generate_adjacency_matrix_uniform(const MatrixXi &F, const VectorXi &V2E,
-                                           const VectorXi &E2E,
-                                           const VectorXi &nonManifold,
-                                           AdjacentMatrix &adj) {
+    void generate_adjacency_matrix_uniform(
+            const MatrixXi &F,
+            const VectorXi &V2E,
+            const VectorXi &E2E,
+            const VectorXi &nonManifold,
+            AdjacentMatrix &adj
+    ) {
         adj.resize(V2E.size());
         for (int i = 0; i < adj.size(); ++i) {
             int start = V2E[i];

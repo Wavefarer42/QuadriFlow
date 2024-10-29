@@ -1,41 +1,10 @@
-#ifndef FIELD_MATH_H_
-#define FIELD_MATH_H_
+#pragma once
 
 #include <algorithm>
-#include <vector>
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
+#include "entities.h"
 
 namespace qflow {
-
-    using namespace Eigen;
-
-    struct DEdge {
-        DEdge()
-                : x(0), y(0) {}
-
-        DEdge(int _x, int _y) {
-            if (_x > _y)
-                x = _y, y = _x;
-            else
-                x = _x, y = _y;
-        }
-
-        bool operator<(const DEdge &e) const {
-            return (x < e.x) || (x == e.x && y < e.y);
-        }
-
-        bool operator==(const DEdge &e) const {
-            return x == e.x && y == e.y;
-        }
-
-        bool operator!=(const DEdge &e) const {
-            return x != e.x || y != e.y;
-        }
-
-        int x, y;
-    };
 
     inline int get_parents(std::vector<std::pair<int, int>> &parents, int j) {
         if (j == parents[j].first) return j;
@@ -481,5 +450,3 @@ namespace qflow {
     }
 
 } // namespace qflow
-
-#endif

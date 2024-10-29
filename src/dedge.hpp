@@ -1,14 +1,10 @@
-#ifndef DEDGE_H_
-#define DEDGE_H_
+#pragma once
 
 #include <vector>
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
+#include "entities.h"
 
 namespace qflow {
-
-    using namespace Eigen;
 
     inline int dedge_prev_3(int e) { return (e % 3 == 0) ? e + 2 : e - 1; }
 
@@ -23,5 +19,3 @@ namespace qflow {
     void remove_nonmanifold(std::vector<Vector4i> &F, std::vector<Vector3d> &V);
 
 } // namespace qflow
-
-#endif

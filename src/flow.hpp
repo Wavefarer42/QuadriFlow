@@ -1,20 +1,14 @@
-#ifndef FLOW_H_
-#define FLOW_H_
+#pragma once
 
-#include <list>
-#include <map>
-#include <vector>
-
-#include <Eigen/Core>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
 #include <boost/graph/edmonds_karp_max_flow.hpp>
 #include <boost/graph/push_relabel_max_flow.hpp>
 
+#include "entities.h"
 #include "config.hpp"
 
 using namespace boost;
-using namespace Eigen;
 
 namespace qflow {
 
@@ -231,5 +225,3 @@ namespace qflow {
     };
 
 }  // namespace qflow
-
-#endif

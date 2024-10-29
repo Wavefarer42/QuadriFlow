@@ -46,13 +46,9 @@ endif (BUILD_LOG)
 set(
         quadriflow_SRC
         src/adjacent-matrix.cpp
-        src/adjacent-matrix.hpp
-        src/compare-key.hpp
         src/config.hpp
         src/dedge.cpp
         src/dedge.hpp
-        src/disajoint-tree.hpp
-        src/dset.hpp
         src/field-math.hpp
         src/flow.hpp
         src/hierarchy.cpp
@@ -62,8 +58,6 @@ set(
         src/localsat.cpp
         src/localsat.hpp
         src/main.cpp
-        src/merge-vertex.cpp
-        src/merge-vertex.hpp
         src/optimizer.cpp
         src/optimizer.hpp
         src/parametrizer.cpp
@@ -76,6 +70,7 @@ set(
         src/serialize.hpp
         src/subdivide.cpp
         src/subdivide.hpp
+        src/entities.h
 )
 
 add_executable(quadriflow ${quadriflow_SRC})

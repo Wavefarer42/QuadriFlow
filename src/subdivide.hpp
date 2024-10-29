@@ -3,7 +3,6 @@
 
 #include "parametrizer.hpp"
 
-using namespace Eigen;
 
 namespace qflow {
 

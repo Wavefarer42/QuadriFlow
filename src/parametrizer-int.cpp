@@ -112,7 +112,7 @@ namespace qflow {
         }
 
         // a face disajoint tree
-        DisajointOrientTree disajoint_orient_tree = DisajointOrientTree(F.cols());
+        DisjointOrientTree disajoint_orient_tree = DisjointOrientTree(F.cols());
         // merge the whole face graph except for the singularity in which there exists a spanning tree
         // which contains consistent orientation
         std::vector<int> sharpUE(E2D.size());
@@ -312,7 +312,7 @@ namespace qflow {
         }
         std::vector<std::pair<Vector2i, int>> arcs;
         std::vector<int> arc_ids;
-        DisajointTree tree(face_edgeIds.size() * 2);
+        DisjointTree tree(face_edgeIds.size() * 2);
         for (int i = 0; i < edge_to_constraints.size(); ++i) {
             if (allow_changes[i] == 0) continue;
             if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1) continue;

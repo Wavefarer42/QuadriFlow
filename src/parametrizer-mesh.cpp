@@ -146,7 +146,7 @@ namespace qflow {
         auto &V = hierarchy.mV[0];
         auto &O = hierarchy.mO[0];
         auto &E2E = hierarchy.mE2E;
-        DisajointTree tree(V.cols());
+        DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
             if (edge_diff[i][0] == 0 && edge_diff[i][1] == 0) {
                 tree.Merge(edge_values[i].x, edge_values[i].y);

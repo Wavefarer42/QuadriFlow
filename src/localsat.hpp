@@ -1,5 +1,4 @@
-#ifndef __LOCAL_SAT_H
-#define __LOCAL_SAT_H
+#pragma once
 
 #include <vector>
 
@@ -28,5 +27,3 @@ namespace qflow {
                         const VectorXi &V2E, const VectorXi &E2E);
 
 } // namespace qflow
-
-#endif

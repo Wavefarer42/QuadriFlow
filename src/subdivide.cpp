@@ -1,8 +1,8 @@
 #include <queue>
 
+#include "entities.h"
 #include "dedge.hpp"
 #include "subdivide.hpp"
-#include "disajoint-tree.hpp"
 #include "field-math.hpp"
 #include "parametrizer.hpp"
 

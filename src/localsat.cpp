@@ -1,6 +1,4 @@
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
+#pragma once
 
 #include <deque>
 #include <memory>

@@ -1,5 +1,4 @@
-#ifndef OPTIMIZER_H_
-#define OPTIMIZER_H_
+#pragma once
 
 #include "config.hpp"
 #include "field-math.hpp"
@@ -39,5 +38,3 @@ namespace qflow {
     };
 
 } // namespace qflow
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef PARAMETRIZER_H_
-#define PARAMETRIZER_H_
+#pragma once
 
 #include <atomic>
 #include <list>
@@ -11,8 +10,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
-#include "adjacent-matrix.hpp"
-#include "disajoint-tree.hpp"
+#include "entities.h"
 #include "field-math.hpp"
 #include "hierarchy.hpp"
 #include "serialize.hpp"
@@ -90,7 +88,7 @@ namespace qflow {
         // Quadmesh and IO
         void AdvancedExtractQuad();
 
-        void BuildTriangleManifold(DisajointTree &disajoint_tree, std::vector<int> &edge,
+        void BuildTriangleManifold(DisjointTree &disajoint_tree, std::vector<int> &edge,
                                    std::vector<int> &face, std::vector<DEdge> &edge_values,
                                    std::vector<Vector3i> &F2E, std::vector<Vector2i> &E2F,
                                    std::vector<Vector2i> &EdgeDiff, std::vector<Vector3i> &FQ);
@@ -131,7 +129,7 @@ namespace qflow {
         VectorXd A;
 
         // just for test
-        DisajointTree disajoint_tree;
+        DisjointTree disajoint_tree;
 
         int compact_num_v;
         std::vector<std::vector<int>> Vset;
@@ -196,5 +194,3 @@ namespace qflow {
                                                   AdjacentMatrix &adj);
 
 }  // namespace qflow
-
-#endif
