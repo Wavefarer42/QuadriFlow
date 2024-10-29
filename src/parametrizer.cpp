@@ -4,11 +4,11 @@
 
 #include <Eigen/Sparse>
 
-#include "parametrizer.hpp"
-#include "field-math.hpp"
-#include "localsat.hpp"
-#include "optimizer.hpp"
-#include "subdivide.hpp"
+#include "parametrizer.h"
+#include "field-math.h"
+#include "localsat.h"
+#include "optimizer.h"
+#include "subdivide.h"
 
 namespace qflow {
 

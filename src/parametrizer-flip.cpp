@@ -2,8 +2,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "dedge.hpp"
-#include "parametrizer.hpp"
+#include "dedge.h"
+#include "parametrizer.h"
 
 namespace qflow {
 

@@ -2,9 +2,9 @@
 #include <queue>
 #include <unordered_map>
 
-#include "hierarchy.hpp"
-#include "field-math.hpp"
-#include "localsat.hpp"
+#include "hierarchy.h"
+#include "field-math.h"
+#include "localsat.h"
 #include "pcg32.h"
 
 namespace qflow {

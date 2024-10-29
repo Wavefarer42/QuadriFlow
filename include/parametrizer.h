@@ -8,8 +8,8 @@
 #include <unordered_set>
 
 #include "entities.h"
-#include "field-math.hpp"
-#include "hierarchy.hpp"
+#include "field-math.h"
+#include "hierarchy.h"
 
 namespace qflow {
     typedef std::pair<unsigned int, unsigned int> Edge;

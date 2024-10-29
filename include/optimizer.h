@@ -2,8 +2,8 @@
 
 #include <set>
 
-#include "field-math.hpp"
-#include "hierarchy.hpp"
+#include "field-math.h"
+#include "hierarchy.h"
 
 namespace qflow {
 

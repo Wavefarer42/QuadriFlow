@@ -5,9 +5,9 @@
 
 #include <Eigen/Core>
 
-#include "localsat.hpp"
-#include "dedge.hpp"
-#include "field-math.hpp"
+#include "localsat.h"
+#include "dedge.h"
+#include "field-math.h"
 
 namespace qflow {
 

@@ -1,6 +1,6 @@
 #include "entities.h"
 
-#include "parametrizer.hpp"
+#include "parametrizer.h"
 
 
 namespace qflow {

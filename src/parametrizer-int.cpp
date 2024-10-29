@@ -3,8 +3,8 @@
 #include <vector>
 #include <random>
 
-#include "parametrizer.hpp"
-#include "optimizer.hpp"
+#include "parametrizer.h"
+#include "optimizer.h"
 
 namespace qflow {
 

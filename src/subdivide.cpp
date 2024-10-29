@@ -1,9 +1,9 @@
 #include <queue>
 
 #include "entities.h"
-#include "dedge.hpp"
-#include "subdivide.hpp"
-#include "field-math.hpp"
+#include "dedge.h"
+#include "subdivide.h"
+#include "field-math.h"
 
 namespace qflow {
 

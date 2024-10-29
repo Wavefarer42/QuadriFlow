@@ -1,9 +1,9 @@
 #include <cstdlib>
 #include <chrono>
 
-#include "field-math.hpp"
-#include "optimizer.hpp"
-#include "parametrizer.hpp"
+#include "field-math.h"
+#include "optimizer.h"
+#include "parametrizer.h"
 
 using namespace qflow;
 

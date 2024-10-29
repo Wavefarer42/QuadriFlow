@@ -1,7 +1,7 @@
 #include <fstream>
 #include <unordered_map>
 
-#include "loader.hpp"
+#include "loader.h"
 
 namespace qflow {
 

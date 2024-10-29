@@ -1,4 +1,4 @@
-#include "parametrizer.hpp"
+#include "parametrizer.h"
 
 namespace qflow {
 

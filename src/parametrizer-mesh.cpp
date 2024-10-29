@@ -1,11 +1,11 @@
 #include <queue>
 #include <fstream>
 
-#include "dedge.hpp"
-#include "field-math.hpp"
-#include "loader.hpp"
-#include "parametrizer.hpp"
-#include "subdivide.hpp"
+#include "dedge.h"
+#include "field-math.h"
+#include "loader.h"
+#include "parametrizer.h"
+#include "subdivide.h"
 
 namespace qflow {
 

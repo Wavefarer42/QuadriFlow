@@ -3,7 +3,7 @@
 #include <set>
 #include <vector>
 
-#include "dedge.hpp"
+#include "dedge.h"
 
 namespace qflow {
     const int INVALID = -1;

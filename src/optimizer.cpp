@@ -7,9 +7,9 @@
 
 #include <Eigen/Sparse>
 
-#include "optimizer.hpp"
-#include "field-math.hpp"
-#include "flow.hpp"
+#include "optimizer.h"
+#include "field-math.h"
+#include "flow.h"
 
 namespace qflow {
 

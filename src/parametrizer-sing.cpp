@@ -1,5 +1,5 @@
-#include "field-math.hpp"
-#include "parametrizer.hpp"
+#include "field-math.h"
+#include "parametrizer.h"
 
 namespace qflow {
 
