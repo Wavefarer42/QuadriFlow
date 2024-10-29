@@ -30,7 +30,6 @@ namespace qflow {
     public:
         typedef int EdgeWeightType;
         typedef adjacency_list_traits <vecS, vecS, directedS> Traits;
-        // clang-format off
         typedef adjacency_list <vecS, vecS, directedS,
         property<vertex_name_t, std::string,
                 property < vertex_index_t, long,
@@ -42,7 +41,6 @@ namespace qflow {
         property<edge_residual_capacity_t, EdgeWeightType,
                 property < edge_reverse_t, Traits::edge_descriptor>> > >
         Graph;
-        // clang-format on
 
     public:
         BoykovMaxFlowHelper() { rev = get(edge_reverse, g); }

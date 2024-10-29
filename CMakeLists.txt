@@ -32,36 +32,27 @@ if (MSVC)
 endif ()
 
 
+include_directories(include)
 include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 
-set(
-        quadriflow_SRC
+
+add_executable(
+        quadriflow
+
         src/dedge.cpp
-        src/dedge.hpp
-        src/field-math.hpp
-        src/flow.hpp
         src/hierarchy.cpp
-        src/hierarchy.hpp
         src/loader.cpp
-        src/loader.hpp
         src/localsat.cpp
-        src/localsat.hpp
         src/main.cpp
         src/optimizer.cpp
-        src/optimizer.hpp
         src/parametrizer.cpp
         src/parametrizer-flip.cpp
         src/parametrizer-int.cpp
         src/parametrizer-mesh.cpp
         src/parametrizer-scale.cpp
         src/parametrizer-sing.cpp
-        src/parametrizer.hpp
         src/subdivide.cpp
-        src/subdivide.hpp
-        src/entities.h
 )
-
-add_executable(quadriflow ${quadriflow_SRC})

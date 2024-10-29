@@ -1,5 +1,4 @@
-#include <Eigen/Core>
-#include <Eigen/Dense>
+#include "entities.h"
 
 #include "parametrizer.hpp"
 

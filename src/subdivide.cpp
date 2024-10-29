@@ -4,7 +4,6 @@
 #include "dedge.hpp"
 #include "subdivide.hpp"
 #include "field-math.hpp"
-#include "parametrizer.hpp"
 
 namespace qflow {
 

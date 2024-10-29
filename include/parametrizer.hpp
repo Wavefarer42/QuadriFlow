@@ -7,9 +7,6 @@
 #include <condition_variable>
 #include <unordered_set>
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
-
 #include "entities.h"
 #include "field-math.hpp"
 #include "hierarchy.hpp"

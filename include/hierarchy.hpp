@@ -7,8 +7,6 @@
 
 #define RCPOVERFLOW 2.93873587705571876e-39f
 
-using namespace Eigen;
-
 namespace qflow {
 
     class Hierarchy {

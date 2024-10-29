@@ -1,6 +1,4 @@
 #include <cstdlib>
-
-
 #include <chrono>
 
 #include "field-math.hpp"
