@@ -185,7 +185,6 @@ namespace qflow {
         int flag_preserve_sharp = 0;
         int flag_preserve_boundary = 0;
         int flag_adaptive_scale = 0;
-        int flag_aggresive_sat = 0;
     };
 
 }

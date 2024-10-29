@@ -6,7 +6,6 @@
 
 #include "parametrizer.h"
 #include "field-math.h"
-#include "localsat.h"
 #include "optimizer.h"
 #include "subdivide.h"
 
@@ -20,7 +19,6 @@ namespace qflow {
         auto &N = hierarchy.mN[0];
         auto &O = hierarchy.mO[0];
         auto &S = hierarchy.mS[0];
-        // ComputeOrientationSingularities();
 
         BuildEdgeInfo();
 
@@ -87,7 +85,6 @@ namespace qflow {
         subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                            edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                            singularities, 1);
-        FixFlipSat();
 
 //        int t2 = GetCurrentTime64();
 //        printf("Flip use %lf\n", (t2 - t1) * 1e-3);
@@ -120,7 +117,6 @@ namespace qflow {
         );
 
         AdvancedExtractQuad();
-
         FixValence();
 
         std::vector<int> sharp_o(O_compact.size(), 0);
@@ -149,6 +145,7 @@ namespace qflow {
                 o2e[std::make_pair(v1, v2)] = i * 4 + j;
             }
         }
+
         std::vector<std::vector<int>> v2o(V.cols());
         for (int i = 0; i < Vset.size(); ++i) {
             for (auto v: Vset[i]) {

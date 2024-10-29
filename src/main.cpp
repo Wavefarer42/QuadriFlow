@@ -34,8 +34,6 @@ int main(int argc, char **argv) {
             field.flag_preserve_boundary = 1;
         } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
-        } else if (strcmp(argv[i], "-sat") == 0) {
-            field.flag_aggresive_sat = 1;
         } else if (strcmp(argv[i], "-seed") == 0) {
             field.hierarchy.rng_seed = atoi(argv[i + 1]);
         }

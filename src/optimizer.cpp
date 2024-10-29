@@ -1,6 +1,5 @@
 #include <cmath>
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <queue>
 #include <unordered_map>
@@ -13,8 +12,7 @@
 
 namespace qflow {
 
-    template<class T>
-    using LinearSolver = Eigen::SimplicialLLT<T>;
+    using LinearSolver = Eigen::SimplicialLLT<Eigen::SparseMatrix<double>>;
 
     Optimizer::Optimizer() {}
 
@@ -194,7 +192,7 @@ namespace qflow {
                 }
             }
             A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-            LinearSolver<Eigen::SparseMatrix<double>> solver;
+            LinearSolver solver;
             solver.analyzePattern(A);
 
             solver.factorize(A);
@@ -640,7 +638,7 @@ namespace qflow {
             // I suspected either there is a implementation bug in IncompleteCholesky Preconditioner
             // or there is a memory corruption somewhere.  However, g++'s address sanitizer does not
             // report anything useful.
-            LinearSolver<Eigen::SparseMatrix<double>> solver;
+            LinearSolver solver;
             solver.analyzePattern(A);
             solver.factorize(A);
             //        Eigen::setNbThreads(1);
@@ -1112,7 +1110,7 @@ namespace qflow {
         }
         A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 
-        LinearSolver<Eigen::SparseMatrix<double>> solver;
+        LinearSolver solver;
         solver.analyzePattern(A);
         solver.factorize(A);
 

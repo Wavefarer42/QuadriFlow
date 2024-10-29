@@ -45,7 +45,6 @@ add_executable(
         src/dedge.cpp
         src/hierarchy.cpp
         src/loader.cpp
-        src/localsat.cpp
         src/main.cpp
         src/optimizer.cpp
         src/parametrizer.cpp

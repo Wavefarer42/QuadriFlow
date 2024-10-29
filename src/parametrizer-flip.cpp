@@ -170,25 +170,6 @@ namespace qflow {
         fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
     }
 
-    void Parametrizer::FixFlipSat() {
-        if (!this->flag_aggresive_sat) return;
-
-        for (int threshold = 1; threshold <= 4; ++threshold) {
-//            lprintf("[FixFlipSat] threshold = %d\n", threshold);
-
-            Hierarchy fh;
-            fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
-            int nflip = 0;
-            for (int depth = std::min(5, (int) fh.mFQ.size() - 1); depth >= 0; --depth) {
-                nflip = fh.FixFlipSat(depth, threshold);
-                if (depth > 0) fh.PushDownwardFlip(depth);
-                if (nflip == 0) break;
-            }
-            fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
-            if (nflip == 0) break;
-        }
-    }
-
     void Parametrizer::AdvancedExtractQuad() {
         Hierarchy fh;
         fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);

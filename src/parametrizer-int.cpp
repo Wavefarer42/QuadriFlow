@@ -422,4 +422,5 @@ namespace qflow {
         Optimizer::optimize_integer_constraints(hierarchy, singularities);
         hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
     }
+
 }
