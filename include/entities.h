@@ -11,6 +11,16 @@
 namespace entities {
     using namespace Eigen;
 
+    struct CLIArgs {
+        std::string path_in;
+        std::string path_out;
+        int face_count = -1;
+        int edges = 0;
+        int boundaries = 0;
+        int adaptive = 0;
+        int seed = 0;
+    };
+
     // Adjacency matrix
     struct Link {
         Link() {}

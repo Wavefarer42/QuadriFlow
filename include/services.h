@@ -21,8 +21,8 @@ namespace services {
 
         entities::QuadMesh load_trimesh_from_file(const std::string &filename);
 
-        void save_quadmesh_to_file(const std::string &filename,
-                                   const entities::QuadMesh &mesh);
+        void save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh);
+
 
     private:
         persistence::MeshDao mesh_dao;

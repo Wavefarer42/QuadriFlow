@@ -27,8 +27,7 @@ namespace services {
         return mesh;
     }
 
-    void MeshService::save_quadmesh_to_file(const std::string &filename,
-                                            const entities::QuadMesh &mesh) {
+    void MeshService::save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh) {
         this->mesh_dao.save_mesh_to_file(filename, mesh);
     }
 }

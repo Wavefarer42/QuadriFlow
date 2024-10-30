@@ -3,6 +3,26 @@
 #include "adapters.h"
 
 namespace adapters {
+    using namespace Eigen;
+
+    void initialize_parameterizer(services::Parametrizer &field, entities::QuadMesh mesh) {
+        field.m_vertices = MatrixXd(3, mesh.n_vertices());
+        for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
+            auto idx = (*it_v).idx();
+            auto point = mesh.point(*it_v);
+            field.m_vertices.col(idx) = Vector3d(point[0], point[1], point[2]);
+        }
+
+        field.m_faces = MatrixXi(3, mesh.n_faces());
+        for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
+            auto idx = (*it_f).idx();
+            auto fv_it = mesh.cfv_iter(*it_f);
+            for (int i = 0; i < 3; ++i) {
+                field.m_faces(i, idx) = (*fv_it).idx();
+                ++fv_it;
+            }
+        }
+    }
 
     entities::QuadMesh from_parametrizer_to_quad_mesh(services::Parametrizer &field) {
         spdlog::info("Converting parametrizer to quad mesh");
