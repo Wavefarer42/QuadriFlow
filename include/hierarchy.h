@@ -7,7 +7,8 @@
 
 #define RCPOVERFLOW 2.93873587705571876e-39f
 
-namespace qflow {
+namespace services {
+    using namespace Eigen;
 
     class Hierarchy {
     public:
@@ -16,7 +17,7 @@ namespace qflow {
         void Initialize(double scale, int with_scale = 0);
 
         void DownsampleGraph(
-                const AdjacentMatrix adj,
+                const entities::AdjacentMatrix adj,
                 const MatrixXd &V,
                 const MatrixXd &N,
                 const VectorXd &A,
@@ -25,11 +26,11 @@ namespace qflow {
                 VectorXd &A_p,
                 MatrixXi &to_upper,
                 VectorXi &to_lower,
-                AdjacentMatrix &adj_p
+                entities::AdjacentMatrix &adj_p
         );
 
         void generate_graph_coloring_deterministic(
-                const AdjacentMatrix &adj,
+                const entities::AdjacentMatrix &adj,
                 int size,
                 std::vector<std::vector<int>> &phases
         );
@@ -65,7 +66,7 @@ namespace qflow {
 
         MatrixXi mF;    // mF(i, j) i \in [0, 3) ith index in face j
         VectorXi mE2E;  // inverse edge
-        std::vector<AdjacentMatrix> mAdj;
+        std::vector<entities::AdjacentMatrix> mAdj;
         std::vector<MatrixXd> mV;
         std::vector<MatrixXd> mN;
         std::vector<VectorXd> mA;

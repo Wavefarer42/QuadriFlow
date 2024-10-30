@@ -4,7 +4,7 @@
 
 #include <Eigen/Core>
 
-namespace qflow {
+namespace services {
 
     using namespace Eigen;
 

@@ -4,7 +4,8 @@
 
 #include "entities.h"
 
-namespace qflow {
+namespace services {
+    using namespace Eigen;
 
     inline int get_parents(std::vector<std::pair<int, int>> &parents, int j) {
         if (j == parents[j].first) return j;

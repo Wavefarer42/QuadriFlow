@@ -3,7 +3,7 @@
 
 #include "loader.h"
 
-namespace qflow {
+namespace services {
 
     inline std::vector<std::string> &
     str_tokenize(const std::string &s, char delim, std::vector<std::string> &elems, bool include_empty = false) {

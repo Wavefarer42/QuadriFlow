@@ -1,11 +1,12 @@
 #include <atomic>
 #include <fstream>
-#include <set>
 #include <vector>
 
 #include "dedge.h"
 
-namespace qflow {
+namespace services {
+    using namespace Eigen;
+
     const int INVALID = -1;
 
     inline int dedge_prev(int e, int deg) { return (e % deg == 0u) ? e + (deg - 1) : e - 1; }

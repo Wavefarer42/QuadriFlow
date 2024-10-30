@@ -4,7 +4,8 @@
 
 #include "entities.h"
 
-namespace qflow {
+namespace services {
+    using namespace Eigen;
 
     inline int dedge_prev_3(int e) { return (e % 3 == 0) ? e + 2 : e - 1; }
 

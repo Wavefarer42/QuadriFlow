@@ -6,7 +6,7 @@
 #include "field-math.h"
 #include "pcg32.h"
 
-namespace qflow {
+namespace services {
 
     Hierarchy::Hierarchy() {
         mAdj.resize(MAX_DEPTH + 1);
@@ -79,7 +79,7 @@ namespace qflow {
     }
 
     void Hierarchy::generate_graph_coloring_deterministic(
-            const AdjacentMatrix &adj,
+            const entities::AdjacentMatrix &adj,
             int size,
             std::vector<std::vector<int>> &phases
     ) {
@@ -128,7 +128,7 @@ namespace qflow {
     }
 
     void Hierarchy::DownsampleGraph(
-            const AdjacentMatrix adj,
+            const entities::AdjacentMatrix adj,
             const MatrixXd &V,
             const MatrixXd &N,
             const VectorXd &A,
@@ -137,7 +137,7 @@ namespace qflow {
             VectorXd &A_p,
             MatrixXi &to_upper,
             VectorXi &to_lower,
-            AdjacentMatrix &adj_p
+            entities::AdjacentMatrix &adj_p
     ) {
         struct Entry {
             int i, j;
@@ -223,7 +223,7 @@ namespace qflow {
 
         adj_p.resize(V_p.cols());
         std::vector<int> capacity(V_p.cols());
-        std::vector<std::vector<Link>> scratches(V_p.cols());
+        std::vector<std::vector<entities::Link>> scratches(V_p.cols());
         for (int i = 0; i < V_p.cols(); ++i) {
             int t = 0;
             for (int j = 0; j < 2; ++j) {
@@ -240,7 +240,7 @@ namespace qflow {
                 int upper = to_upper(j, i);
                 if (upper == -1) continue;
                 auto &ad = adj[upper];
-                for (auto &link: ad) scratch.push_back(Link(to_lower[link.id], link.weight));
+                for (auto &link: ad) scratch.push_back(entities::Link(to_lower[link.id], link.weight));
             }
             std::sort(scratch.begin(), scratch.end());
             int id = -1;

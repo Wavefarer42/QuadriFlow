@@ -3,9 +3,9 @@
 
 #include "field-math.h"
 #include "optimizer.h"
-#include "parametrizer.h"
+#include "services.h"
 
-using namespace qflow;
+using namespace services;
 
 Parametrizer field;
 

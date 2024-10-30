@@ -6,8 +6,9 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 
-namespace qflow {
+namespace entities {
     using namespace Eigen;
 
     // Adjacency matrix
@@ -23,7 +24,7 @@ namespace qflow {
         double weight;
     };
 
-    typedef std::vector<std::vector<Link> > AdjacentMatrix;
+    typedef std::vector<std::vector<Link>> AdjacentMatrix;
 
     // Tree
     class DisjointTree {
@@ -206,4 +207,5 @@ namespace qflow {
         int x, y;
     };
 
+    typedef OpenMesh::PolyMesh_ArrayKernelT<> QuadMesh;
 }

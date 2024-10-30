@@ -5,7 +5,7 @@
 #include "field-math.h"
 #include "hierarchy.h"
 
-namespace qflow {
+namespace services {
 
     class Optimizer {
     public:
@@ -21,7 +21,7 @@ namespace qflow {
 
         static void optimize_positions_fixed(
                 Hierarchy &mRes,
-                std::vector<DEdge> &edge_values,
+                std::vector<entities::DEdge> &edge_values,
                 std::vector<Vector2i> &edge_diff,
                 std::set<int> &sharp_vertices,
                 std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
@@ -30,7 +30,7 @@ namespace qflow {
 
         static void optimize_positions_sharp(
                 Hierarchy &mRes,
-                std::vector<DEdge> &edge_values,
+                std::vector<entities::DEdge> &edge_values,
                 std::vector<Vector2i> &edge_diff,
                 std::vector<int> &sharp_edges,
                 std::set<int> &sharp_vertices,

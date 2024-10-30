@@ -6,14 +6,14 @@
 
 #include <Eigen/Sparse>
 
-#include "parametrizer.h"
+#include "services.h"
 #include "field-math.h"
 #include "optimizer.h"
 #include "dedge.h"
 #include "loader.h"
 
 
-namespace qflow {
+namespace services {
 
     void Parametrizer::load_from_obj(const char *filename) {
         load(filename, m_vertices, F);
@@ -199,7 +199,7 @@ namespace qflow {
             const VectorXi &V2E,
             const VectorXi &E2E,
             const VectorXi &nonManifold,
-            AdjacentMatrix &adj
+            entities::AdjacentMatrix &adj
     ) {
         adj.resize(V2E.size());
         for (int i = 0; i < adj.size(); ++i) {
@@ -211,9 +211,9 @@ namespace qflow {
                 int base = edge % 3, f = edge / 3;
                 int opp = E2E[edge], next = dedge_next_3(opp);
                 if (adj[i].empty())
-                    adj[i].push_back(Link(F((base + 2) % 3, f)));
+                    adj[i].push_back(entities::Link(F((base + 2) % 3, f)));
                 if (opp == -1 || next != start) {
-                    adj[i].push_back(Link(F((base + 1) % 3, f)));
+                    adj[i].push_back(entities::Link(F((base + 1) % 3, f)));
                     if (opp == -1)
                         break;
                 }
@@ -536,7 +536,7 @@ namespace qflow {
                 int k1 = j, k2 = (j + 1) % 3;
                 int v1 = F(k1, i);
                 int v2 = F(k2, i);
-                DEdge e2(v1, v2);
+                entities::DEdge e2(v1, v2);
                 Vector2i diff2;
                 int rank2;
                 if (v1 > v2) {
@@ -593,7 +593,7 @@ namespace qflow {
             int v0 = F(0, i);
             int v1 = F(1, i);
             int v2 = F(2, i);
-            DEdge e0(v0, v1), e1(v1, v2), e2(v2, v0);
+            entities::DEdge e0(v0, v1), e1(v1, v2), e2(v2, v0);
             const Vector3i &eid = m_face_edge_ids[i];
             Vector2i variable_id[3];
             for (int i = 0; i < 3; ++i) {
@@ -638,7 +638,7 @@ namespace qflow {
         }
 
         // a face disajoint tree
-        DisjointOrientTree disajoint_orient_tree = DisjointOrientTree(F.cols());
+        entities::DisjointOrientTree disajoint_orient_tree = entities::DisjointOrientTree(F.cols());
         // merge the whole face graph except for the singularity in which there exists a spanning tree
         // which contains consistent orientation
         std::vector<int> sharpUE(E2D.size());
@@ -840,7 +840,7 @@ namespace qflow {
         }
         std::vector<std::pair<Vector2i, int>> arcs;
         std::vector<int> arc_ids;
-        DisjointTree tree(m_face_edge_ids.size() * 2);
+        entities::DisjointTree tree(m_face_edge_ids.size() * 2);
         for (int i = 0; i < edge_to_constraints.size(); ++i) {
             if (m_allow_changes[i] == 0) continue;
             if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1) continue;
@@ -956,7 +956,7 @@ namespace qflow {
             VectorXi &boundary,
             VectorXi &nonmanifold,
             std::vector<Vector2i> &edge_diff,
-            std::vector<DEdge> &edge_values,
+            std::vector<entities::DEdge> &edge_values,
             std::vector<Vector3i> &face_edgeOrients,
             std::vector<Vector3i> &face_edgeIds,
             std::vector<int> &sharp_edges,
@@ -1135,16 +1135,16 @@ namespace qflow {
 
             eid0 = eid;
             sharp_eid0 = sharp_eid;
-            edge_values[eid0] = DEdge(v0, vn);
+            edge_values[eid0] = entities::DEdge(v0, vn);
 
             eid1 = edge_values.size();
             sharp_eid1 = sharp_eid;
-            edge_values.push_back(DEdge(vn, v1));
+            edge_values.push_back(entities::DEdge(vn, v1));
             edge_diff.push_back(Vector2i());
 
             eid0p = edge_values.size();
             sharp_eid0p = 0;
-            edge_values.push_back(DEdge(vn, v0p));
+            edge_values.push_back(entities::DEdge(vn, v0p));
             edge_diff.push_back(Vector2i());
 
             int f2 = is_boundary ? -1 : (nF++);
@@ -1198,7 +1198,7 @@ namespace qflow {
                 F.col(f1) << vn, v0, v1p;
                 eid1p = edge_values.size();
                 sharp_eid1p = 0;
-                edge_values.push_back(DEdge(vn, v1p));
+                edge_values.push_back(entities::DEdge(vn, v1p));
                 edge_diff.push_back(Vector2i());
 
                 sharp_edges[f1 * 3] = sharp_eid0;
@@ -1985,7 +1985,7 @@ namespace qflow {
         fh.DownsampleEdgeGraph(face_edgeOrients, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
         auto &V = m_hierarchy.mV[0];
         auto &F = m_hierarchy.mF;
-        disajoint_tree = DisjointTree(V.cols());
+        disajoint_tree = entities::DisjointTree(V.cols());
         auto &diffs = fh.mEdgeDiff.front();
         for (int i = 0; i < diffs.size(); ++i) {
             if (diffs[i] == Vector2i::Zero()) {
@@ -2050,10 +2050,10 @@ namespace qflow {
     }
 
     void Parametrizer::build_triangle_manifold(
-            DisjointTree &disajoint_tree,
+            entities::DisjointTree &disajoint_tree,
             std::vector<int> &edge,
             std::vector<int> &face,
-            std::vector<DEdge> &edge_values,
+            std::vector<entities::DEdge> &edge_values,
             std::vector<Vector3i> &F2E,
             std::vector<Vector2i> &E2F,
             std::vector<Vector2i> &EdgeDiff,
@@ -2225,7 +2225,7 @@ namespace qflow {
         VectorXi NV2E, NE2E, NB, NN;
         compute_direct_graph(NV, NF, NV2E, NE2E, NB, NN);
 
-        std::map<DEdge, std::pair<Vector3i, Vector3i>> quads;
+        std::map<entities::DEdge, std::pair<Vector3i, Vector3i>> quads;
         for (int i = 0; i < triangle_vertices.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int e = triangle_edges[i][j];
@@ -2233,7 +2233,7 @@ namespace qflow {
                 int v2 = triangle_vertices[i][(j + 1) % 3];
                 int v3 = triangle_vertices[i][(j + 2) % 3];
                 if (abs(EdgeDiff[e][0]) == 1 && abs(EdgeDiff[e][1]) == 1) {
-                    DEdge edge(v1, v2);
+                    entities::DEdge edge(v1, v2);
                     if (quads.count(edge))
                         quads[edge].second = Vector3i(v1, v2, v3);
                     else

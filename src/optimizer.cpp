@@ -10,7 +10,7 @@
 #include "field-math.h"
 #include "flow.h"
 
-namespace qflow {
+namespace services {
 
     using LinearSolver = Eigen::SimplicialLLT<Eigen::SparseMatrix<double>>;
 
@@ -19,7 +19,7 @@ namespace qflow {
     void Optimizer::optimize_orientations(Hierarchy &mRes) {
         int levelIterations = 6;
         for (int level = mRes.mN.size() - 1; level >= 0; --level) {
-            AdjacentMatrix &adj = mRes.mAdj[level];
+            entities::AdjacentMatrix &adj = mRes.mAdj[level];
             const MatrixXd &N = mRes.mN[level];
             const MatrixXd &CQ = mRes.mCQ[level];
             const VectorXd &CQw = mRes.mCQw[level];
@@ -237,7 +237,7 @@ namespace qflow {
         int levelIterations = 6;
         for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
             for (int iter = 0; iter < levelIterations; ++iter) {
-                AdjacentMatrix &adj = mRes.mAdj[level];
+                entities::AdjacentMatrix &adj = mRes.mAdj[level];
                 const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
                 const MatrixXd &CQ = mRes.mCQ[level];
                 const MatrixXd &CO = mRes.mCO[level];
@@ -688,7 +688,7 @@ namespace qflow {
 
     void Optimizer::optimize_positions_sharp(
             Hierarchy &mRes,
-            std::vector<DEdge> &edge_values,
+            std::vector<entities::DEdge> &edge_values,
             std::vector<Vector2i> &edge_diff,
             std::vector<int> &sharp_edges,
             std::set<int> &sharp_vertices,
@@ -702,7 +702,7 @@ namespace qflow {
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 
-        DisjointTree tree(V.cols());
+        entities::DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
             if (edge_diff[i].array().abs().sum() == 0) {
                 tree.Merge(edge_values[i].x, edge_values[i].y);
@@ -710,12 +710,12 @@ namespace qflow {
         }
         tree.BuildCompactParent();
         std::map<int, int> compact_sharp_indices;
-        std::set<DEdge> compact_sharp_edges;
+        std::set<entities::DEdge> compact_sharp_edges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 1) {
                 int v1 = tree.Index(F(i % 3, i / 3));
                 int v2 = tree.Index(F((i + 1) % 3, i / 3));
-                compact_sharp_edges.insert(DEdge(v1, v2));
+                compact_sharp_edges.insert(entities::DEdge(v1, v2));
             }
         }
         for (auto &v: sharp_vertices) {
@@ -726,14 +726,14 @@ namespace qflow {
             }
         }
         std::map<int, std::set<int>> sharp_vertices_links;
-        std::set<DEdge> sharp_dedges;
+        std::set<entities::DEdge> sharp_dedges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i]) {
                 int v1 = F(i % 3, i / 3);
                 int v2 = F((i + 1) % 3, i / 3);
                 if (sharp_vertices_links.count(v1) == 0) sharp_vertices_links[v1] = std::set<int>();
                 sharp_vertices_links[v1].insert(v2);
-                sharp_dedges.insert(DEdge(v1, v2));
+                sharp_dedges.insert(entities::DEdge(v1, v2));
             }
         }
         std::vector<std::vector<int>> sharp_to_original_indices(compact_sharp_indices.size());
@@ -762,7 +762,7 @@ namespace qflow {
             int v2 = edge_values[e].y;
             int p1 = tree.Index(v1);
             int p2 = tree.Index(v2);
-            if (p1 == p2 || compact_sharp_edges.count(DEdge(p1, p2)) == 0) continue;
+            if (p1 == p2 || compact_sharp_edges.count(entities::DEdge(p1, p2)) == 0) continue;
             p1 = compact_sharp_indices[p1];
             p2 = compact_sharp_indices[p2];
 
@@ -911,7 +911,7 @@ namespace qflow {
 
     void Optimizer::optimize_positions_fixed(
             Hierarchy &mRes,
-            std::vector<DEdge> &edge_values,
+            std::vector<entities::DEdge> &edge_values,
             std::vector<Vector2i> &edge_diff,
             std::set<int> &sharp_vertices,
             std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
@@ -924,7 +924,7 @@ namespace qflow {
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 
-        DisjointTree tree(V.cols());
+        entities::DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
             if (edge_diff[i].array().abs().sum() == 0) {
                 tree.Merge(edge_values[i].x, edge_values[i].y);

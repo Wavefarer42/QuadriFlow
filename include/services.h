@@ -11,7 +11,8 @@
 #include "field-math.h"
 #include "hierarchy.h"
 
-namespace qflow {
+namespace services {
+    using namespace Eigen;
 
     class Parametrizer {
     public:
@@ -58,7 +59,7 @@ namespace qflow {
         VectorXi E2E;
         VectorXi boundary;
         VectorXi nonManifold;  // nonManifold vertices, in boolean
-        AdjacentMatrix m_adjacency_matrix;
+        entities::AdjacentMatrix m_adjacency_matrix;
         Hierarchy m_hierarchy;
 
         // Mesh Status;
@@ -69,7 +70,7 @@ namespace qflow {
         VectorXd m_vertex_area;
 
         // just for test
-        DisjointTree disajoint_tree;
+        entities::DisjointTree disajoint_tree;
 
         int compact_num_v;
         std::vector<std::vector<int>> Vset;
@@ -100,7 +101,7 @@ namespace qflow {
          * m_edge_difference[edgeIds[i](j)]:  t_ij+t_ji under m_edge_values[edgeIds[i](j)].x's Q value
          */
         std::vector<Vector2i> m_edge_difference;
-        std::vector<DEdge> m_edge_values;   // see above
+        std::vector<entities::DEdge> m_edge_values;   // see above
 
         /**
          * m_face_edge_ids[i](j): "undirected edge ID" of the i'th face and the j'th edge
@@ -245,10 +246,10 @@ namespace qflow {
          * Builds the triangle
          */
         void build_triangle_manifold(
-                DisjointTree &disajoint_tree,
+                entities::DisjointTree &disajoint_tree,
                 std::vector<int> &edge,
                 std::vector<int> &face,
-                std::vector<DEdge> &edge_values,
+                std::vector<entities::DEdge> &edge_values,
                 std::vector<Vector3i> &F2E,
                 std::vector<Vector2i> &E2F,
                 std::vector<Vector2i> &EdgeDiff,

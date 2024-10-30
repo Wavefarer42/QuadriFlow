@@ -9,7 +9,7 @@
 
 using namespace boost;
 
-namespace qflow {
+namespace services {
 
     class MaxFlowHelper {
     public:

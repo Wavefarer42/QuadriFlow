@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.24)
 project(QuadriFlow LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -15,10 +15,6 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
-find_package(Eigen REQUIRED)
-find_package(Boost REQUIRED)
-find_package(OpenMesh REQUIRED)
-
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-int-in-bool-context -Wno-sign-compare")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
@@ -33,13 +29,37 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /wd4267 /wd4244 /wd4018 /wd4800")
 endif ()
 
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
 
+find_package(Eigen REQUIRED)
+find_package(Boost REQUIRED)
+find_package(OpenMesh REQUIRED)
+
+
+include(FetchContent)
 include_directories(include)
 include_directories(src)
 include_directories(libs/pcg32/include)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 
+# Testing
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+add_subdirectory(tests)
+
+# Targets
 add_executable(
         quadriflow
 
@@ -49,6 +69,8 @@ add_executable(
         src/main.cpp
         src/optimizer.cpp
         src/parametrizer.cpp
+        include/persistence.h
+        src/persistence.cpp
 )
 
 target_link_libraries(quadriflow PRIVATE OpenMeshCore OpenMeshTools)
