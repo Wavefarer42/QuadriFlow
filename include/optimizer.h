@@ -15,7 +15,7 @@ namespace services {
 
         static void optimize_scale(Hierarchy &mRes, VectorXd &rho, int adaptive);
 
-        static void optimize_positions(Hierarchy &mRes, int with_scale = 0);
+        static void optimize_positions(Hierarchy &mRes, bool with_scale = true);
 
         static void optimize_integer_constraints(Hierarchy &mRes, std::map<int, int> &singularities);
 
@@ -25,7 +25,7 @@ namespace services {
                 std::vector<Vector2i> &edge_diff,
                 std::set<int> &sharp_vertices,
                 std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-                int with_scale = 0
+                bool with_scale = false
         );
 
         static void optimize_positions_sharp(
@@ -35,7 +35,7 @@ namespace services {
                 std::vector<int> &sharp_edges,
                 std::set<int> &sharp_vertices,
                 std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-                int with_scale = 0
+                bool with_scale = false
         );
 
         static void optimize_positions_dynamic(
@@ -53,7 +53,7 @@ namespace services {
                 std::map<std::pair<int, int>, int> &o2e,
                 std::vector<int> &sharp_o,
                 std::map<int, std::pair<Vector3d, Vector3d>> &compact_sharp_constraints,
-                int with_scale
+                bool with_scale
         );
     };
 }

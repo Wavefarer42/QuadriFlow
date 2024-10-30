@@ -436,11 +436,11 @@ namespace services {
     // Singularities
 
 
-    void Parametrizer::find_position_singularities(bool with_scale = true) {
+    void Parametrizer::find_position_singularities(bool with_scale) {
         const MatrixXd &V = m_hierarchy.m_vertices[0];
         const MatrixXd &N = m_hierarchy.m_normals[0];
         const MatrixXd &Q = m_hierarchy.m_orientation[0];
-        const MatrixXd &O = m_hierarchy.mO[0];
+        const MatrixXd &O = m_hierarchy.m_positions[0];
         const MatrixXi &F = m_hierarchy.m_faces;
 
         m_singularity_position.clear();
@@ -480,8 +480,8 @@ namespace services {
 
             for (int k = 0; k < 3; ++k) {
                 int kn = k == 2 ? 0 : (k + 1);
-                double scale_x = m_hierarchy.mScale, scale_y = m_hierarchy.mScale,
-                        scale_x_1 = m_hierarchy.mScale, scale_y_1 = m_hierarchy.mScale;
+                double scale_x = m_hierarchy.m_scale, scale_y = m_hierarchy.m_scale,
+                        scale_x_1 = m_hierarchy.m_scale, scale_y_1 = m_hierarchy.m_scale;
                 if (with_scale) {
                     scale_x *= m_hierarchy.mS[0](0, F(k, f));
                     scale_y *= m_hierarchy.mS[0](1, F(k, f));
@@ -1305,7 +1305,7 @@ namespace services {
         auto &F = m_hierarchy.m_faces;
         auto &Q = m_hierarchy.m_orientation[0];
         auto &N = m_hierarchy.m_normals[0];
-        auto &O = m_hierarchy.mO[0];
+        auto &O = m_hierarchy.m_positions[0];
         auto &S = m_hierarchy.mS[0];
 
         build_edge_info();
@@ -1477,8 +1477,8 @@ namespace services {
                             if (rank_diff % 2 == 1) std::swap(s_x2, s_y2);
                             Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
                             Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-                            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * m_hierarchy.mScale;
-                            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * m_hierarchy.mScale;
+                            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * m_hierarchy.m_scale;
+                            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * m_hierarchy.m_scale;
                             Vector2i diff = m_edge_difference[m_face_edge_ids[i][j]];
                             Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y;
 
@@ -2001,7 +2001,7 @@ namespace services {
         }
         fh.UpdateGraphValue(face_edgeOrients, m_face_edge_ids, m_edge_difference);
 
-        auto &O = m_hierarchy.mO[0];
+        auto &O = m_hierarchy.m_positions[0];
         auto &Q = m_hierarchy.m_orientation[0];
         auto &N = m_hierarchy.m_normals[0];
         int num_v = disajoint_tree.CompactNum();
@@ -2334,7 +2334,7 @@ namespace services {
             m_faces_orientation.col(i) = q.normalized();
         }
         for (int i = 0; i < mF.cols(); ++i) {
-            double step = m_hierarchy.mScale * 1.f;
+            double step = m_hierarchy.m_scale * 1.f;
 
             const Vector3d &n = m_faces_normals.col(i);
             Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);

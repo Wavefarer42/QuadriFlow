@@ -61,7 +61,7 @@ namespace services {
 
         void propagateConstraints();
 
-        double mScale;
+        double m_scale;
         int rng_seed;
 
         MatrixXi m_faces;    // m_faces(i, j) i \in [0, 3) ith index in face j
@@ -70,10 +70,10 @@ namespace services {
         std::vector<MatrixXd> m_vertices;
         std::vector<MatrixXd> m_normals;
         std::vector<VectorXd> mA;
-        std::vector<std::vector<std::vector<int>>> mPhases;
+        std::vector<std::vector<std::vector<int>>> m_phases;
         // parameters
         std::vector<MatrixXd> m_orientation;
-        std::vector<MatrixXd> mO;
+        std::vector<MatrixXd> m_positions;
         std::vector<VectorXi> mToLower;
         std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in m_vertices; i \in [0, 2); j \in m_vertices
         std::vector<MatrixXd> mS;
@@ -81,9 +81,9 @@ namespace services {
 
         // constraints
         std::vector<MatrixXd> m_orientation_constraint;
-        std::vector<MatrixXd> mCO;
+        std::vector<MatrixXd> m_position_constraints;
         std::vector<VectorXd> m_orientation_constraint_weight;
-        std::vector<VectorXd> mCOw;
+        std::vector<VectorXd> m_position_constraint_weights;
 
         int with_scale;
 

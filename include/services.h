@@ -27,6 +27,8 @@ namespace services {
 
         std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
 
+        void find_position_singularities(bool with_scale);
+
         std::tuple<MatrixXd, MatrixXd> estimate_slope(
                 Hierarchy &hierarchy,
                 std::vector<MatrixXd> &triangle_space,

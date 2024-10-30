@@ -13,25 +13,25 @@ namespace services {
         m_vertices.resize(MAX_DEPTH + 1);
         m_normals.resize(MAX_DEPTH + 1);
         mA.resize(MAX_DEPTH + 1);
-        mPhases.resize(MAX_DEPTH + 1);
+        m_phases.resize(MAX_DEPTH + 1);
         mToLower.resize(MAX_DEPTH);
         mToUpper.resize(MAX_DEPTH);
         rng_seed = 0;
 
         m_orientation_constraint.reserve(MAX_DEPTH + 1);
         m_orientation_constraint_weight.reserve(MAX_DEPTH + 1);
-        mCO.reserve(MAX_DEPTH + 1);
-        mCOw.reserve(MAX_DEPTH + 1);
+        m_position_constraints.reserve(MAX_DEPTH + 1);
+        m_position_constraint_weights.reserve(MAX_DEPTH + 1);
     }
 
     void Hierarchy::Initialize(double scale, int with_scale) {
         this->with_scale = with_scale;
-        generate_graph_coloring_deterministic(m_adjacencies[0], m_vertices[0].cols(), mPhases[0]);
+        generate_graph_coloring_deterministic(m_adjacencies[0], m_vertices[0].cols(), m_phases[0]);
 
         for (int i = 0; i < MAX_DEPTH; ++i) {
             DownsampleGraph(m_adjacencies[i], m_vertices[i], m_normals[i], mA[i], m_vertices[i + 1], m_normals[i + 1], mA[i + 1], mToUpper[i],
                             mToLower[i], m_adjacencies[i + 1]);
-            generate_graph_coloring_deterministic(m_adjacencies[i + 1], m_vertices[i + 1].cols(), mPhases[i + 1]);
+            generate_graph_coloring_deterministic(m_adjacencies[i + 1], m_vertices[i + 1].cols(), m_phases[i + 1]);
             if (m_vertices[i + 1].cols() == 1) {
                 m_adjacencies.resize(i + 2);
                 m_vertices.resize(i + 2);
@@ -43,22 +43,22 @@ namespace services {
             }
         }
         m_orientation.resize(m_vertices.size());
-        mO.resize(m_vertices.size());
+        m_positions.resize(m_vertices.size());
         mS.resize(m_vertices.size());
         mK.resize(m_vertices.size());
 
-        mCO.resize(m_vertices.size());
-        mCOw.resize(m_vertices.size());
+        m_position_constraints.resize(m_vertices.size());
+        m_position_constraint_weights.resize(m_vertices.size());
         m_orientation_constraint.resize(m_vertices.size());
         m_orientation_constraint_weight.resize(m_vertices.size());
 
         // Set random seed
         srand(rng_seed);
 
-        mScale = scale;
+        m_scale = scale;
         for (int i = 0; i < m_vertices.size(); ++i) {
             m_orientation[i].resize(m_normals[i].rows(), m_normals[i].cols());
-            mO[i].resize(m_normals[i].rows(), m_normals[i].cols());
+            m_positions[i].resize(m_normals[i].rows(), m_normals[i].cols());
             mS[i].resize(2, m_normals[i].cols());
             mK[i].resize(2, m_normals[i].cols());
             for (int j = 0; j < m_normals[i].cols(); ++j) {
@@ -69,7 +69,7 @@ namespace services {
                 double x = ((double) rand()) / RAND_MAX * 2 - 1.f;
                 double y = ((double) rand()) / RAND_MAX * 2 - 1.f;
                 m_orientation[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
-                mO[i].col(j) = m_vertices[i].col(j) + (s * x + t * y) * scale;
+                m_positions[i].col(j) = m_vertices[i].col(j) + (s * x + t * y) * scale;
                 if (with_scale) {
                     mS[i].col(j) = Vector2d(1.0f, 1.0f);
                     mK[i].col(j) = Vector2d(0.0, 0.0);
@@ -675,11 +675,11 @@ namespace services {
         for (int i = 0; i < levels; ++i) {
             int size = m_vertices[i].cols();
             m_orientation_constraint[i].resize(3, size);
-            mCO[i].resize(3, size);
+            m_position_constraints[i].resize(3, size);
             m_orientation_constraint_weight[i].resize(size);
-            mCOw[i].resize(size);
+            m_position_constraint_weights[i].resize(size);
             m_orientation_constraint_weight[i].setZero();
-            mCOw[i].setZero();
+            m_position_constraint_weights[i].setZero();
         }
     }
 
@@ -696,10 +696,10 @@ namespace services {
             auto &CQ_next = m_orientation_constraint[l + 1];
             auto &CQw = m_orientation_constraint_weight[l];
             auto &CQw_next = m_orientation_constraint_weight[l + 1];
-            auto &CO = mCO[l];
-            auto &CO_next = mCO[l + 1];
-            auto &COw = mCOw[l];
-            auto &COw_next = mCOw[l + 1];
+            auto &CO = m_position_constraints[l];
+            auto &CO_next = m_position_constraints[l + 1];
+            auto &COw = m_position_constraint_weights[l];
+            auto &COw_next = m_position_constraint_weights[l + 1];
             auto &toUpper = mToUpper[l];
             MatrixXd &S = mS[l];
 
@@ -741,8 +741,8 @@ namespace services {
                     co = CO.col(upper[1]);
                     cow = COw[upper[1]];
                 } else if (has_co1 && has_co0) {
-                    double scale_x = mScale;
-                    double scale_y = mScale;
+                    double scale_x = m_scale;
+                    double scale_y = m_scale;
                     if (with_scale) {
                         // FIXME
                         // scale_x *= S(0, i);
@@ -751,8 +751,8 @@ namespace services {
                     double inv_scale_x = 1.0f / scale_x;
                     double inv_scale_y = 1.0f / scale_y;
 
-                    double scale_x_1 = mScale;
-                    double scale_y_1 = mScale;
+                    double scale_x_1 = m_scale;
+                    double scale_y_1 = m_scale;
                     if (with_scale) {
                         // FIXME
                         // scale_x_1 *= S(0, j);

@@ -49,11 +49,11 @@ namespace services {
                 Vector3d edge = p1 - p0;
                 if (edge.squaredNorm() > 0) {
                     edge.normalize();
-                    hierarchy.mCO[0].col(i0) = p0;
-                    hierarchy.mCO[0].col(i1) = p1;
+                    hierarchy.m_position_constraints[0].col(i0) = p0;
+                    hierarchy.m_position_constraints[0].col(i1) = p1;
                     hierarchy.m_orientation_constraint[0].col(i0) = hierarchy.m_orientation_constraint[0].col(
                             i1) = edge;
-                    hierarchy.m_orientation_constraint_weight[0][i0] = hierarchy.m_orientation_constraint_weight[0][i1] = hierarchy.mCOw[0][i0] = hierarchy.mCOw[0][i1] =
+                    hierarchy.m_orientation_constraint_weight[0][i0] = hierarchy.m_orientation_constraint_weight[0][i1] = hierarchy.m_position_constraint_weights[0][i0] = hierarchy.m_position_constraint_weights[0][i1] =
                             1.0;
                 }
             }
@@ -128,7 +128,7 @@ namespace services {
             faces_orientation.col(i) = q.normalized();
         }
         for (int i = 0; i < faces.cols(); ++i) {
-            double step = hierarchy.mScale * 1.f;
+            double step = hierarchy.m_scale * 1.f;
 
             const Vector3d &n = normals_faces.col(i);
             Vector3d p = (vertices.col(faces(0, i)) + vertices.col(faces(1, i)) + vertices.col(faces(2, i))) * (1.0 / 3.0);

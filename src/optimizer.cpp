@@ -26,7 +26,7 @@ namespace services {
             const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
             const VectorXd &CQw = hierarchy.m_orientation_constraint_weight[level];
             MatrixXd &Q = hierarchy.m_orientation[level];
-            auto &phases = hierarchy.mPhases[level];
+            auto &phases = hierarchy.m_phases[level];
             for (int iter = 0; iter < levelIterations; ++iter) {
                 for (auto &p: phases) {
                     for (int i: p) {
@@ -127,7 +127,7 @@ namespace services {
             for (int i = 0; i < V.cols(); ++i) {
                 for (int j = 0; j < 2; ++j) {
                     S(j, i) = 1.0;
-                    double sc1 = std::max(0.75 * S(j, i), rho[i] * 1.0 / mRes.mScale);
+                    double sc1 = std::max(0.75 * S(j, i), rho[i] * 1.0 / mRes.m_scale);
                     S(j, i) = std::min(S(j, i), sc1);
                 }
             }
@@ -233,24 +233,28 @@ namespace services {
         }
     }
 
-    void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale = true) {
+    void Optimizer::optimize_positions(Hierarchy &hierarchy, bool with_scale) {
+        spdlog::info("Optimizing position field");
+
         int levelIterations = 6;
-        for (int level = mRes.m_adjacencies.size() - 1; level >= 0; --level) {
+        int n_adjacencies = static_cast<int>(hierarchy.m_normals.size());
+
+        for (int level = n_adjacencies - 1; level >= 0; --level) {
             for (int iter = 0; iter < levelIterations; ++iter) {
-                entities::AdjacentMatrix &adj = mRes.m_adjacencies[level];
-                const MatrixXd &N = mRes.m_normals[level], &Q = mRes.m_orientation[level], &V = mRes.m_vertices[level];
-                const MatrixXd &CQ = mRes.m_orientation_constraint[level];
-                const MatrixXd &CO = mRes.mCO[level];
-                const VectorXd &COw = mRes.mCOw[level];
-                MatrixXd &O = mRes.mO[level];
-                MatrixXd &S = mRes.mS[level];
-                auto &phases = mRes.mPhases[level];
+                entities::AdjacentMatrix &adj = hierarchy.m_adjacencies[level];
+                const MatrixXd &N = hierarchy.m_normals[level], &Q = hierarchy.m_orientation[level], &V = hierarchy.m_vertices[level];
+                const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
+                const MatrixXd &CO = hierarchy.m_position_constraints[level];
+                const VectorXd &COw = hierarchy.m_position_constraint_weights[level];
+                MatrixXd &O = hierarchy.m_positions[level];
+                MatrixXd &S = hierarchy.mS[level];
+                auto &phases = hierarchy.m_phases[level];
                 for (int phase = 0; phase < phases.size(); ++phase) {
                     auto &p = phases[phase];
                     for (int pi = 0; pi < p.size(); ++pi) {
                         int i = p[pi];
-                        double scale_x = mRes.mScale;
-                        double scale_y = mRes.mScale;
+                        double scale_x = hierarchy.m_scale;
+                        double scale_y = hierarchy.m_scale;
                         if (with_scale) {
                             scale_x *= S(0, i);
                             scale_y *= S(1, i);
@@ -268,8 +272,8 @@ namespace services {
                             const int j = link.id;
                             const double weight = link.weight;
                             if (weight == 0) continue;
-                            double scale_x_1 = mRes.mScale;
-                            double scale_y_1 = mRes.mScale;
+                            double scale_x_1 = hierarchy.m_scale;
+                            double scale_y_1 = hierarchy.m_scale;
                             if (with_scale) {
                                 scale_x_1 *= S(0, j);
                                 scale_y_1 *= S(1, j);
@@ -311,11 +315,11 @@ namespace services {
                 }
             }
             if (level > 0) {
-                const MatrixXd &srcField = mRes.mO[level];
-                const MatrixXi &toUpper = mRes.mToUpper[level - 1];
-                MatrixXd &destField = mRes.mO[level - 1];
-                const MatrixXd &N = mRes.m_normals[level - 1];
-                const MatrixXd &V = mRes.m_vertices[level - 1];
+                const MatrixXd &srcField = hierarchy.m_positions[level];
+                const MatrixXi &toUpper = hierarchy.mToUpper[level - 1];
+                MatrixXd &destField = hierarchy.m_positions[level - 1];
+                const MatrixXd &N = hierarchy.m_normals[level - 1];
+                const MatrixXd &V = hierarchy.m_vertices[level - 1];
                 for (int i = 0; i < srcField.cols(); ++i) {
                     for (int k = 0; k < 2; ++k) {
                         int dest = toUpper(k, i);
@@ -345,7 +349,7 @@ namespace services {
             std::map<std::pair<int, int>, int> &o2e,
             std::vector<int> &sharp_o,
             std::map<int, std::pair<Vector3d, Vector3d>> &compact_sharp_constraints,
-            int with_scale
+            bool with_scale
     ) {
         std::set<int> uncertain;
         for (auto &info: o2e) {
@@ -580,7 +584,7 @@ namespace services {
                     Vector3d offset = Vj - Vi;
 
                     //                target_offset.normalize();
-                    //                target_offset *= mScale;
+                    //                target_offset *= m_scale;
                     Vector3d C = target_offset - offset;
                     int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                     Vector3d weights[] = {qx2, qy2, -qx, -qy};
@@ -693,13 +697,13 @@ namespace services {
             std::vector<int> &sharp_edges,
             std::set<int> &sharp_vertices,
             std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-            int with_scale
+            bool with_scale
     ) {
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
         auto &Q = mRes.m_orientation[0];
         auto &N = mRes.m_normals[0];
-        auto &O = mRes.mO[0];
+        auto &O = mRes.m_positions[0];
         auto &S = mRes.mS[0];
 
         entities::DisjointTree tree(V.cols());
@@ -915,13 +919,13 @@ namespace services {
             std::vector<Vector2i> &edge_diff,
             std::set<int> &sharp_vertices,
             std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-            int with_scale
+            bool with_scale
     ) {
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
         auto &Q = mRes.m_orientation[0];
         auto &N = mRes.m_normals[0];
-        auto &O = mRes.mO[0];
+        auto &O = mRes.m_positions[0];
         auto &S = mRes.mS[0];
 
         entities::DisjointTree tree(V.cols());
@@ -986,8 +990,8 @@ namespace services {
             if (rank_diff % 2 == 1) std::swap(s_x2, s_y2);
             Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
             Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * mRes.mScale;
-            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.mScale;
+            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * mRes.m_scale;
+            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.m_scale;
             Vector2i diff = edge_diff[e];
 
             Vector3d origin1 =
