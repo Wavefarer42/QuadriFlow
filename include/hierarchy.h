@@ -36,10 +36,6 @@ namespace qflow {
 
         void FixFlip();
 
-        int FixFlipSat(int depth, int threshold = 0);
-
-        void PushDownwardFlip(int depth);
-
         void PropagateEdge();
 
         void DownsampleEdgeGraph(
@@ -60,10 +56,6 @@ namespace qflow {
             MAX_DEPTH = 25
         };
 
-        void SaveToFile(FILE *fp);
-
-        void LoadFromFile(FILE *fp);
-
         void clearConstraints();
 
         void propagateConstraints();
@@ -82,7 +74,7 @@ namespace qflow {
         std::vector<MatrixXd> mQ;
         std::vector<MatrixXd> mO;
         std::vector<VectorXi> mToLower;
-        std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in V; i \in [0, 2); j \in V
+        std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in m_vertices; i \in [0, 2); j \in m_vertices
         std::vector<MatrixXd> mS;
         std::vector<MatrixXd> mK;
 
@@ -100,7 +92,7 @@ namespace qflow {
         std::vector<std::vector<int>> mToUpperEdges; // edge correspondance
         std::vector<std::vector<int>> mToUpperOrients; // rotation of edges from fine to coarse
         std::vector<std::vector<Vector3i>> mFQ; // face_edgeOrients
-        std::vector<std::vector<Vector3i>> mF2E; // face_edgeIds
+        std::vector<std::vector<Vector3i>> mF2E; // m_face_edge_ids
         std::vector<std::vector<Vector2i>> mE2F; // undirect edges to face ID
         std::vector<std::vector<int> > mAllowChanges;
         std::vector<std::vector<Vector2i>> mEdgeDiff; // face_edgeDiff

@@ -35,26 +35,26 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
         } else if (strcmp(argv[i], "-seed") == 0) {
-            field.hierarchy.rng_seed = atoi(argv[i + 1]);
+            field.m_hierarchy.rng_seed = atoi(argv[i + 1]);
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
     if (input_obj.size() >= 1) {
-        field.Load(input_obj.c_str());
+        field.load_from_obj(input_obj.c_str());
     } else {
         assert(0);
-        // field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
+        // field.load_from_obj((std::string(DATA_PATH) + "/fertility.obj").c_str());
     }
 
-    printf("Initialize...\n");
+    printf("initialize_parameterizer...\n");
     t1 = GetCurrentTime64();
-    field.Initialize(faces);
+    field.initialize_parameterizer(faces);
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     if (field.flag_preserve_boundary) {
         printf("Add boundary constrains...\n");
-        Hierarchy &mRes = field.hierarchy;
+        Hierarchy &mRes = field.m_hierarchy;
         mRes.clearConstraints();
         for (uint32_t i = 0; i < 3 * mRes.mF.cols(); ++i) {
             if (mRes.mE2E[i] == -1) {
@@ -78,44 +78,44 @@ int main(int argc, char **argv) {
     printf("Solve Orientation Field...\n");
     t1 = GetCurrentTime64();
 
-    Optimizer::optimize_orientations(field.hierarchy);
-    field.ComputeOrientationSingularities();
+    Optimizer::optimize_orientations(field.m_hierarchy);
+    field.find_orientation_singularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     if (field.flag_adaptive_scale == 1) {
         printf("Estimate Slop...\n");
         t1 = GetCurrentTime64();
-        field.EstimateSlope();
+        field.estimate_slope();
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     }
     printf("Solve for scale...\n");
     t1 = GetCurrentTime64();
-    Optimizer::optimize_scale(field.hierarchy, field.rho, field.flag_adaptive_scale);
+    Optimizer::optimize_scale(field.m_hierarchy, field.rho, field.flag_adaptive_scale);
     field.flag_adaptive_scale = 1;
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     printf("Solve for position field...\n");
     t1 = GetCurrentTime64();
-    Optimizer::optimize_positions(field.hierarchy, field.flag_adaptive_scale);
+    Optimizer::optimize_positions(field.m_hierarchy, field.flag_adaptive_scale);
 
-    field.ComputePositionSingularities();
+    field.find_position_singularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     t1 = GetCurrentTime64();
     printf("Solve index map...\n");
-    field.ComputeIndexMap();
+    field.compute_index_map();
     t2 = GetCurrentTime64();
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
     printf("Writing the file...\n");
 
     if (output_obj.size() < 1) {
         assert(0);
-        // field.OutputMesh((std::string(DATA_PATH) + "/result.obj").c_str());
+        // field.save_to_obj((std::string(DATA_PATH) + "/result.obj").c_str());
     } else {
-        field.OutputMesh(output_obj.c_str());
+        field.save_to_obj(output_obj.c_str());
     }
     printf("finish...\n");
     //	field.LoopFace(2);

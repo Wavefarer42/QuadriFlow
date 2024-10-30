@@ -48,10 +48,4 @@ add_executable(
         src/main.cpp
         src/optimizer.cpp
         src/parametrizer.cpp
-        src/parametrizer-flip.cpp
-        src/parametrizer-int.cpp
-        src/parametrizer-mesh.cpp
-        src/parametrizer-scale.cpp
-        src/parametrizer-sing.cpp
-        src/subdivide.cpp
 )

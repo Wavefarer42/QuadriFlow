@@ -646,7 +646,7 @@ namespace qflow {
             //        VectorXd x0 = VectorXd::Map(x.data(), x.size());
             //        solver.setMaxIterations(40);
 
-            //        solver.compute(A);
+            //        solver.compute(m_vertex_area);
             VectorXd x_new = solver.solve(rhs);  // solver.solveWithGuess(rhs, x0);
 
 //            int t2 = GetCurrentTime64();
@@ -654,7 +654,7 @@ namespace qflow {
             for (int i = 0; i < O_compact.size(); ++i) {
                 // Vector3d q = Q.col(Vind[i]);
                 Vector3d q = Q_compact[i];
-                // Vector3d n = N.col(Vind[i]);
+                // Vector3d n = m_normals_vertices.col(Vind[i]);
                 Vector3d n = N_compact[i];
                 Vector3d q_y = n.cross(q);
                 auto Vi = V_compact[i];
