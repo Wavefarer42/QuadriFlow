@@ -1,0 +1,3 @@
+[submodule "libs/OpenMesh"]
+	path = libs/OpenMesh
+	url = https://gitlab.vci.rwth-aachen.de:9000/OpenMesh/OpenMesh.git

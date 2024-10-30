@@ -17,6 +17,7 @@ set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
 find_package(Eigen REQUIRED)
 find_package(Boost REQUIRED)
+find_package(OpenMesh REQUIRED)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-int-in-bool-context -Wno-sign-compare")
@@ -49,3 +50,5 @@ add_executable(
         src/optimizer.cpp
         src/parametrizer.cpp
 )
+
+target_link_libraries(quadriflow PRIVATE OpenMeshCore OpenMeshTools)
