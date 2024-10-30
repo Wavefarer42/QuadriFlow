@@ -11,7 +11,7 @@ namespace services {
     public:
         Optimizer();
 
-        static void optimize_orientations(Hierarchy &mRes);
+        static void optimize_orientations(Hierarchy &hierarchy);
 
         static void optimize_scale(Hierarchy &mRes, VectorXd &rho, int adaptive);
 

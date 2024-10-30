@@ -64,15 +64,15 @@ namespace services {
         double mScale;
         int rng_seed;
 
-        MatrixXi mF;    // mF(i, j) i \in [0, 3) ith index in face j
-        VectorXi mE2E;  // inverse edge
-        std::vector<entities::AdjacentMatrix> mAdj;
-        std::vector<MatrixXd> mV;
-        std::vector<MatrixXd> mN;
+        MatrixXi m_faces;    // m_faces(i, j) i \in [0, 3) ith index in face j
+        VectorXi m_E2E;  // inverse edge
+        std::vector<entities::AdjacentMatrix> m_adjacencies;
+        std::vector<MatrixXd> m_vertices;
+        std::vector<MatrixXd> m_normals;
         std::vector<VectorXd> mA;
         std::vector<std::vector<std::vector<int>>> mPhases;
         // parameters
-        std::vector<MatrixXd> mQ;
+        std::vector<MatrixXd> m_orientation;
         std::vector<MatrixXd> mO;
         std::vector<VectorXi> mToLower;
         std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in m_vertices; i \in [0, 2); j \in m_vertices
@@ -80,9 +80,9 @@ namespace services {
         std::vector<MatrixXd> mK;
 
         // constraints
-        std::vector<MatrixXd> mCQ;
+        std::vector<MatrixXd> m_orientation_constraint;
         std::vector<MatrixXd> mCO;
-        std::vector<VectorXd> mCQw;
+        std::vector<VectorXd> m_orientation_constraint_weight;
         std::vector<VectorXd> mCOw;
 
         int with_scale;

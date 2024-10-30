@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include <Eigen/Sparse>
+#include "spdlog/spdlog.h"
 
 #include "optimizer.h"
 #include "field-math.h"
@@ -14,22 +15,21 @@ namespace services {
 
     using LinearSolver = Eigen::SimplicialLLT<Eigen::SparseMatrix<double>>;
 
-    Optimizer::Optimizer() {}
+    void Optimizer::optimize_orientations(Hierarchy &hierarchy) {
+        spdlog::info("Optimize orientations");
 
-    void Optimizer::optimize_orientations(Hierarchy &mRes) {
-        int levelIterations = 6;
-        for (int level = mRes.mN.size() - 1; level >= 0; --level) {
-            entities::AdjacentMatrix &adj = mRes.mAdj[level];
-            const MatrixXd &N = mRes.mN[level];
-            const MatrixXd &CQ = mRes.mCQ[level];
-            const VectorXd &CQw = mRes.mCQw[level];
-            MatrixXd &Q = mRes.mQ[level];
-            auto &phases = mRes.mPhases[level];
+        const int levelIterations = 6;
+        int n_normals = static_cast<int>(hierarchy.m_normals.size());
+        for (int level = n_normals - 1; level >= 0; --level) {
+            entities::AdjacentMatrix &adj = hierarchy.m_adjacencies[level];
+            const MatrixXd &N = hierarchy.m_normals[level];
+            const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
+            const VectorXd &CQw = hierarchy.m_orientation_constraint_weight[level];
+            MatrixXd &Q = hierarchy.m_orientation[level];
+            auto &phases = hierarchy.mPhases[level];
             for (int iter = 0; iter < levelIterations; ++iter) {
-                for (int phase = 0; phase < phases.size(); ++phase) {
-                    auto &p = phases[phase];
-                    for (int pi = 0; pi < p.size(); ++pi) {
-                        int i = p[pi];
+                for (auto &p: phases) {
+                    for (int i: p) {
                         const Vector3d n_i = N.col(i);
                         double weight_sum = 0.0f;
                         Vector3d sum = Q.col(i);
@@ -49,14 +49,14 @@ namespace services {
                         }
 
                         if (CQw.size() > 0) {
-                            float cw = CQw[i];
+                            auto cw = CQw[i];
                             if (cw != 0) {
                                 std::pair<Vector3d, Vector3d> value =
                                         compat_orientation_extrinsic_4(sum, n_i, CQ.col(i), n_i);
                                 sum = value.first * (1 - cw) + value.second * cw;
                                 sum -= n_i * n_i.dot(sum);
 
-                                float norm = sum.norm();
+                                auto norm = sum.norm();
                                 if (norm > RCPOVERFLOW) sum /= norm;
                             }
                         }
@@ -68,27 +68,27 @@ namespace services {
                 }
             }
             if (level > 0) {
-                const MatrixXd &srcField = mRes.mQ[level];
-                const MatrixXi &toUpper = mRes.mToUpper[level - 1];
-                MatrixXd &destField = mRes.mQ[level - 1];
-                const MatrixXd &N = mRes.mN[level - 1];
+                const MatrixXd &srcField = hierarchy.m_orientation[level];
+                const MatrixXi &toUpper = hierarchy.mToUpper[level - 1];
+                MatrixXd &destField = hierarchy.m_orientation[level - 1];
+                const MatrixXd &normals_l1 = hierarchy.m_normals[level - 1];
                 for (int i = 0; i < srcField.cols(); ++i) {
                     for (int k = 0; k < 2; ++k) {
                         int dest = toUpper(k, i);
                         if (dest == -1) continue;
-                        Vector3d q = srcField.col(i), n = N.col(dest);
+                        Vector3d q = srcField.col(i), n = normals_l1.col(dest);
                         destField.col(dest) = q - n * n.dot(q);
                     }
                 }
             }
         }
 
-        for (int l = 0; l < mRes.mN.size() - 1; ++l) {
-            const MatrixXd &N = mRes.mN[l];
-            const MatrixXd &N_next = mRes.mN[l + 1];
-            const MatrixXd &Q = mRes.mQ[l];
-            MatrixXd &Q_next = mRes.mQ[l + 1];
-            auto &toUpper = mRes.mToUpper[l];
+        for (int l = 0; l < hierarchy.m_normals.size() - 1; ++l) {
+            const MatrixXd &N = hierarchy.m_normals[l];
+            const MatrixXd &N_next = hierarchy.m_normals[l + 1];
+            const MatrixXd &Q = hierarchy.m_orientation[l];
+            MatrixXd &Q_next = hierarchy.m_orientation[l + 1];
+            auto &toUpper = hierarchy.mToUpper[l];
             for (int i = 0; i < toUpper.cols(); ++i) {
                 Vector2i upper = toUpper.col(i);
                 Vector3d q0 = Q.col(upper[0]);
@@ -113,12 +113,12 @@ namespace services {
     }
 
     void Optimizer::optimize_scale(Hierarchy &mRes, VectorXd &rho, int adaptive) {
-        const MatrixXd &N = mRes.mN[0];
-        MatrixXd &Q = mRes.mQ[0];
-        MatrixXd &V = mRes.mV[0];
+        const MatrixXd &N = mRes.m_normals[0];
+        MatrixXd &Q = mRes.m_orientation[0];
+        MatrixXd &V = mRes.m_vertices[0];
         MatrixXd &S = mRes.mS[0];
         MatrixXd &K = mRes.mK[0];
-        MatrixXi &F = mRes.mF;
+        MatrixXi &F = mRes.m_faces;
 
         if (adaptive) {
             std::vector<Eigen::Triplet<double>> lhsTriplets;
@@ -233,13 +233,13 @@ namespace services {
         }
     }
 
-    void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale) {
+    void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale = true) {
         int levelIterations = 6;
-        for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
+        for (int level = mRes.m_adjacencies.size() - 1; level >= 0; --level) {
             for (int iter = 0; iter < levelIterations; ++iter) {
-                entities::AdjacentMatrix &adj = mRes.mAdj[level];
-                const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
-                const MatrixXd &CQ = mRes.mCQ[level];
+                entities::AdjacentMatrix &adj = mRes.m_adjacencies[level];
+                const MatrixXd &N = mRes.m_normals[level], &Q = mRes.m_orientation[level], &V = mRes.m_vertices[level];
+                const MatrixXd &CQ = mRes.m_orientation_constraint[level];
                 const MatrixXd &CO = mRes.mCO[level];
                 const VectorXd &COw = mRes.mCOw[level];
                 MatrixXd &O = mRes.mO[level];
@@ -314,8 +314,8 @@ namespace services {
                 const MatrixXd &srcField = mRes.mO[level];
                 const MatrixXi &toUpper = mRes.mToUpper[level - 1];
                 MatrixXd &destField = mRes.mO[level - 1];
-                const MatrixXd &N = mRes.mN[level - 1];
-                const MatrixXd &V = mRes.mV[level - 1];
+                const MatrixXd &N = mRes.m_normals[level - 1];
+                const MatrixXd &V = mRes.m_vertices[level - 1];
                 for (int i = 0; i < srcField.cols(); ++i) {
                     for (int k = 0; k < 2; ++k) {
                         int dest = toUpper(k, i);
@@ -695,10 +695,10 @@ namespace services {
             std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
             int with_scale
     ) {
-        auto &V = mRes.mV[0];
-        auto &F = mRes.mF;
-        auto &Q = mRes.mQ[0];
-        auto &N = mRes.mN[0];
+        auto &V = mRes.m_vertices[0];
+        auto &F = mRes.m_faces;
+        auto &Q = mRes.m_orientation[0];
+        auto &N = mRes.m_normals[0];
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 
@@ -710,7 +710,7 @@ namespace services {
         }
         tree.BuildCompactParent();
         std::map<int, int> compact_sharp_indices;
-        std::set<entities::DEdge> compact_sharp_edges;
+        std::set < entities::DEdge > compact_sharp_edges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 1) {
                 int v1 = tree.Index(F(i % 3, i / 3));
@@ -726,12 +726,12 @@ namespace services {
             }
         }
         std::map<int, std::set<int>> sharp_vertices_links;
-        std::set<entities::DEdge> sharp_dedges;
+        std::set < entities::DEdge > sharp_dedges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i]) {
                 int v1 = F(i % 3, i / 3);
                 int v2 = F((i + 1) % 3, i / 3);
-                if (sharp_vertices_links.count(v1) == 0) sharp_vertices_links[v1] = std::set<int>();
+                if (sharp_vertices_links.count(v1) == 0) sharp_vertices_links[v1] = std::set < int > ();
                 sharp_vertices_links[v1].insert(v2);
                 sharp_dedges.insert(entities::DEdge(v1, v2));
             }
@@ -917,10 +917,10 @@ namespace services {
             std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
             int with_scale
     ) {
-        auto &V = mRes.mV[0];
-        auto &F = mRes.mF;
-        auto &Q = mRes.mQ[0];
-        auto &N = mRes.mN[0];
+        auto &V = mRes.m_vertices[0];
+        auto &F = mRes.m_faces;
+        auto &Q = mRes.m_orientation[0];
+        auto &N = mRes.m_normals[0];
         auto &O = mRes.mO[0];
         auto &S = mRes.mS[0];
 

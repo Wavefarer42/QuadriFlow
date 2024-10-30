@@ -1,10 +1,8 @@
 #include <cstdlib>
-#include <chrono>
 #include <format>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
-#include "OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh"
 #include "adapters.h"
 #include "bootstrap.h"
 #include "services.h"
@@ -68,63 +66,49 @@ int main(int argc, char **argv) {
     spdlog::stopwatch watch, watch_total;
     spdlog::info("Initializing parameters");
 
-    field.initialize_parameterizer(args.face_count);
+    field.initialize_parameterizer(args.face_count, args.adaptive);
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
-    if (field.flag_preserve_boundary) {
-        printf("Add boundary constrains...\n");
-        Hierarchy &mRes = field.m_hierarchy;
-        mRes.clearConstraints();
-        for (uint32_t i = 0; i < 3 * mRes.mF.cols(); ++i) {
-            if (mRes.mE2E[i] == -1) {
-                uint32_t i0 = mRes.mF(i % 3, i / 3);
-                uint32_t i1 = mRes.mF((i + 1) % 3, i / 3);
-                Vector3d p0 = mRes.mV[0].col(i0), p1 = mRes.mV[0].col(i1);
-                Vector3d edge = p1 - p0;
-                if (edge.squaredNorm() > 0) {
-                    edge.normalize();
-                    mRes.mCO[0].col(i0) = p0;
-                    mRes.mCO[0].col(i1) = p1;
-                    mRes.mCQ[0].col(i0) = mRes.mCQ[0].col(i1) = edge;
-                    mRes.mCQw[0][i0] = mRes.mCQw[0][i1] = mRes.mCOw[0][i0] = mRes.mCOw[0][i1] =
-                            1.0;
-                }
-            }
-        }
-        mRes.propagateConstraints();
+    if (args.boundaries) {
+        service.set_boundary_constraints(field.m_hierarchy);
     }
 
     watch.reset();
     spdlog::info("Solving orientation field");
 
     Optimizer::optimize_orientations(field.m_hierarchy);
-    field.find_orientation_singularities();
+    service.find_orientation_singularities(field.m_hierarchy);
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
 
-    if (field.flag_adaptive_scale == 1) {
+    if (args.adaptive) {
         watch.reset();
         spdlog::info("Analyzing mesh for adaptive scaling");
 
-        field.estimate_slope();
+        const auto [faces_slope, faces_orientation] = service.estimate_slope(
+                field.m_hierarchy,
+                field.m_triangle_space,
+                field.m_faces_normals
+        );
+        field.m_faces_slope = faces_slope;
+        field.m_faces_orientation = faces_orientation;
 
         spdlog::info("Elapsed: {:.3} seconds\n", watch);
     }
 
     watch.reset();
-    spdlog::info("Solving for field for adaptive scale");
+    spdlog::info("Solving field for adaptive scale");
 
-    Optimizer::optimize_scale(field.m_hierarchy, field.rho, field.flag_adaptive_scale);
-    field.flag_adaptive_scale = 1;
+    Optimizer::optimize_scale(field.m_hierarchy, field.m_rho, args.adaptive);
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
     watch.reset();
     spdlog::info("Solving for position field");
 
-    Optimizer::optimize_positions(field.m_hierarchy, field.flag_adaptive_scale);
+    Optimizer::optimize_positions(field.m_hierarchy);
     field.find_position_singularities();
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);

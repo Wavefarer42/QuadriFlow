@@ -55,7 +55,8 @@ namespace services {
         average_edge_length = 0;
         max_edge_length = 0;
         for (int f = 0; f < m_faces.cols(); ++f) {
-            Vector3d v[3] = {m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)), m_vertices.col(m_faces(2, f))};
+            Vector3d v[3] = {m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)),
+                             m_vertices.col(m_faces(2, f))};
             double area = 0.5f * (v[1] - v[0]).cross(v[2] - v[0]).norm();
             surface_area += area;
             for (int i = 0; i < 3; ++i) {
@@ -100,9 +101,10 @@ namespace services {
 
     void Parametrizer::compute_normals() {
         /* Compute face normals */
-        m_normals_faces.resize(3, m_faces.cols());
+        m_faces_normals.resize(3, m_faces.cols());
         for (int f = 0; f < m_faces.cols(); ++f) {
-            Vector3d v0 = m_vertices.col(m_faces(0, f)), v1 = m_vertices.col(m_faces(1, f)), v2 = m_vertices.col(m_faces(2, f)),
+            Vector3d v0 = m_vertices.col(m_faces(0, f)), v1 = m_vertices.col(m_faces(1, f)), v2 = m_vertices.col(
+                    m_faces(2, f)),
                     n = (v1 - v0).cross(v2 - v0);
             double norm = n.norm();
             if (norm < RCPOVERFLOW) {
@@ -110,7 +112,7 @@ namespace services {
             } else {
                 n /= norm;
             }
-            m_normals_faces.col(f) = n;
+            m_faces_normals.col(f) = n;
         }
 
         m_normals_vertices.resize(3, m_vertices.cols());
@@ -141,7 +143,7 @@ namespace services {
 
                 /* "Computing Vertex Normals from Polygonal Facets"
                  by Grit Thuermer and Charles A. Wuethrich, JGT 1998, Vol 3 */
-                if (std::isfinite(angle)) normal += m_normals_faces.col(edge / 3) * angle;
+                if (std::isfinite(angle)) normal += m_faces_normals.col(edge / 3) * angle;
 
                 int opp = E2E[edge];
                 if (opp == -1) break;
@@ -157,7 +159,7 @@ namespace services {
     void Parametrizer::find_edges_and_features_and_boundaries() {
         sharp_edges.resize(m_faces.cols() * 3, 0);
 
-        if (flag_preserve_boundary) {
+        if (should_preserve_boundary) {
             for (int i = 0; i < sharp_edges.size(); ++i) {
                 int re = E2E[i];
                 if (re == -1) {
@@ -359,14 +361,15 @@ namespace services {
         E2E.conservativeResize(nF * 3);
     }
 
-    void Parametrizer::initialize_parameterizer(int targetFaceCount) {
+    void Parametrizer::initialize_parameterizer(int targetFaceCount, bool with_scale) {
+        m_hierarchy.clearConstraints();
         normalize_mesh();
         analyze_mesh();
 
-        // initialize rho
-        rho.resize(m_vertices.cols(), 1);
+        // initialize m_rho
+        m_rho.resize(m_vertices.cols(), 1);
         for (int i = 0; i < m_vertices.cols(); ++i) {
-            rho[i] = 1;
+            m_rho[i] = 1;
         }
 
         // initialize the scale of the mesh
@@ -380,7 +383,7 @@ namespace services {
         double target_len = std::min(scale / 2, average_edge_length * 2);
         if (target_len < max_edge_length) {
             while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
-            subdivide_edges_to_length(m_faces, m_vertices, rho, V2E, E2E, boundary, nonManifold, target_len);
+            subdivide_edges_to_length(m_faces, m_vertices, m_rho, V2E, E2E, boundary, nonManifold, target_len);
         }
         while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
 
@@ -389,14 +392,14 @@ namespace services {
 
         // Computes the shortest edge per vertex. FIXME
         for (int iter = 0; iter < 5; ++iter) {
-            VectorXd r(rho.size());
-            for (int i = 0; i < rho.size(); ++i) {
-                r[i] = rho[i];
+            VectorXd r(m_rho.size());
+            for (int i = 0; i < m_rho.size(); ++i) {
+                r[i] = m_rho[i];
                 for (auto &id: m_adjacency_matrix[i]) {
-                    r[i] = std::min(r[i], rho[id.id]);
+                    r[i] = std::min(r[i], m_rho[id.id]);
                 }
             }
-            rho = r;
+            m_rho = r;
         }
 
         find_edges_and_features_and_boundaries();
@@ -404,56 +407,41 @@ namespace services {
         compute_normals();
         compute_vertex_area();
 
-        if (flag_adaptive_scale) compute_inverse_affine_transformation();
+        if (with_scale) {
+            m_triangle_space.resize(m_faces.cols());
+            for (int i = 0; i < m_faces.cols(); ++i) {
+                Matrix3d p, q;
+                p.col(0) = m_vertices.col(m_faces(1, i)) - m_vertices.col(m_faces(0, i));
+                p.col(1) = m_vertices.col(m_faces(2, i)) - m_vertices.col(m_faces(0, i));
+                p.col(2) = m_faces_normals.col(i);
+                q = p.inverse();
+                m_triangle_space[i].resize(2, 3);
+                for (int j = 0; j < 2; ++j) {
+                    for (int k = 0; k < 3; ++k) {
+                        m_triangle_space[i](j, k) = q(j, k);
+                    }
+                }
+            }
+        }
 
         m_hierarchy.mA[0] = std::move(m_vertex_area);
-        m_hierarchy.mAdj[0] = std::move(m_adjacency_matrix);
-        m_hierarchy.mN[0] = std::move(m_normals_vertices);
-        m_hierarchy.mV[0] = std::move(m_vertices);
-        m_hierarchy.mE2E = std::move(E2E);
-        m_hierarchy.mF = std::move(m_faces);
-        m_hierarchy.Initialize(scale, flag_adaptive_scale);
+        m_hierarchy.m_adjacencies[0] = std::move(m_adjacency_matrix);
+        m_hierarchy.m_normals[0] = std::move(m_normals_vertices);
+        m_hierarchy.m_vertices[0] = std::move(m_vertices);
+        m_hierarchy.m_E2E = std::move(E2E);
+        m_hierarchy.m_faces = std::move(m_faces);
+        m_hierarchy.Initialize(scale, with_scale);
     }
 
     // Singularities
-    void Parametrizer::find_orientation_singularities() {
-        const MatrixXd &N = m_hierarchy.mN[0];
-        const MatrixXi &F = m_hierarchy.mF;
-        MatrixXd &Q = m_hierarchy.mQ[0];
 
-        m_singularities.clear();
 
-        for (int f = 0; f < F.cols(); ++f) {
-            int index = 0;
-            int abs_index = 0;
-            for (int k = 0; k < 3; ++k) {
-                int i = F(k, f), j = F(k == 2 ? 0 : (k + 1), f);
-                auto value = compat_orientation_extrinsic_index_4(
-                        Q.col(i),
-                        N.col(i),
-                        Q.col(j),
-                        N.col(j)
-                );
-                index += value.second - value.first;
-                abs_index += std::abs(value.second - value.first);
-            }
-            int index_mod = modulo(index, 4);
-            if (index_mod == 1 || index_mod == 3) {
-                if (index >= 4 || index < 0) {
-                    // TODO is the negative sign a marking?
-                    Q.col(F(0, f)) = -Q.col(F(0, f));
-                }
-                m_singularities[f] = index_mod;
-            }
-        }
-    }
-
-    void Parametrizer::find_position_singularities() {
-        const MatrixXd &V = m_hierarchy.mV[0];
-        const MatrixXd &N = m_hierarchy.mN[0];
-        const MatrixXd &Q = m_hierarchy.mQ[0];
+    void Parametrizer::find_position_singularities(bool with_scale = true) {
+        const MatrixXd &V = m_hierarchy.m_vertices[0];
+        const MatrixXd &N = m_hierarchy.m_normals[0];
+        const MatrixXd &Q = m_hierarchy.m_orientation[0];
         const MatrixXd &O = m_hierarchy.mO[0];
-        const MatrixXi &F = m_hierarchy.mF;
+        const MatrixXi &F = m_hierarchy.m_faces;
 
         m_singularity_position.clear();
         m_singularity_rank.resize(F.rows(), F.cols());
@@ -494,7 +482,7 @@ namespace services {
                 int kn = k == 2 ? 0 : (k + 1);
                 double scale_x = m_hierarchy.mScale, scale_y = m_hierarchy.mScale,
                         scale_x_1 = m_hierarchy.mScale, scale_y_1 = m_hierarchy.mScale;
-                if (flag_adaptive_scale) {
+                if (with_scale) {
                     scale_x *= m_hierarchy.mS[0](0, F(k, f));
                     scale_y *= m_hierarchy.mS[0](1, F(k, f));
                     scale_x_1 *= m_hierarchy.mS[0](0, F(kn, f));
@@ -520,8 +508,8 @@ namespace services {
     }
 
     void Parametrizer::build_edge_info() {
-        auto &F = m_hierarchy.mF;
-        auto &E2E = m_hierarchy.mE2E;
+        auto &F = m_hierarchy.m_faces;
+        auto &E2E = m_hierarchy.m_E2E;
 
         m_edge_difference.clear();
         m_edge_values.clear();
@@ -572,9 +560,9 @@ namespace services {
     }
 
     void Parametrizer::build_integer_constraints() {
-        auto &F = m_hierarchy.mF;
-        auto &Q = m_hierarchy.mQ[0];
-        auto &N = m_hierarchy.mN[0];
+        auto &F = m_hierarchy.m_faces;
+        auto &Q = m_hierarchy.m_orientation[0];
+        auto &N = m_hierarchy.m_normals[0];
         face_edgeOrients.resize(F.cols());
 
         //Random number generator (for shuffling)
@@ -1313,10 +1301,10 @@ namespace services {
     }
 
     void Parametrizer::compute_index_map(int with_scale) {
-        auto &V = m_hierarchy.mV[0];
-        auto &F = m_hierarchy.mF;
-        auto &Q = m_hierarchy.mQ[0];
-        auto &N = m_hierarchy.mN[0];
+        auto &V = m_hierarchy.m_vertices[0];
+        auto &F = m_hierarchy.m_faces;
+        auto &Q = m_hierarchy.m_orientation[0];
+        auto &N = m_hierarchy.m_normals[0];
         auto &O = m_hierarchy.mO[0];
         auto &S = m_hierarchy.mS[0];
 
@@ -1372,7 +1360,7 @@ namespace services {
 
         // potential bug
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.mE2E,
+                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.m_E2E,
                 boundary, nonManifold,
                 m_edge_difference, m_edge_values, face_edgeOrients,
                 m_face_edge_ids, sharp_edges,
@@ -1391,7 +1379,7 @@ namespace services {
 
         fix_flip_hierarchy();
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.mE2E,
+                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.m_E2E,
                 boundary, nonManifold,
                 m_edge_difference, m_edge_values, face_edgeOrients,
                 m_face_edge_ids, sharp_edges,
@@ -1422,7 +1410,7 @@ namespace services {
                 m_edge_difference,
                 sharp_vertices,
                 sharp_constraints,
-                flag_adaptive_scale
+                with_scale
         );
 
         extract_quad();
@@ -1546,7 +1534,7 @@ namespace services {
                 o2e,
                 sharp_o,
                 compact_sharp_constraints,
-                flag_adaptive_scale
+                with_scale
         );
     }
 
@@ -1978,8 +1966,8 @@ namespace services {
     void Parametrizer::extract_quad() {
         Hierarchy fh;
         fh.DownsampleEdgeGraph(face_edgeOrients, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
-        auto &V = m_hierarchy.mV[0];
-        auto &F = m_hierarchy.mF;
+        auto &V = m_hierarchy.m_vertices[0];
+        auto &F = m_hierarchy.m_faces;
         disajoint_tree = entities::DisjointTree(V.cols());
         auto &diffs = fh.mEdgeDiff.front();
         for (int i = 0; i < diffs.size(); ++i) {
@@ -2014,8 +2002,8 @@ namespace services {
         fh.UpdateGraphValue(face_edgeOrients, m_face_edge_ids, m_edge_difference);
 
         auto &O = m_hierarchy.mO[0];
-        auto &Q = m_hierarchy.mQ[0];
-        auto &N = m_hierarchy.mN[0];
+        auto &Q = m_hierarchy.m_orientation[0];
+        auto &N = m_hierarchy.m_normals[0];
         int num_v = disajoint_tree.CompactNum();
         Vset.resize(num_v);
         O_compact.resize(num_v, Vector3d::Zero());
@@ -2054,7 +2042,7 @@ namespace services {
             std::vector<Vector2i> &EdgeDiff,
             std::vector<Vector3i> &FQ
     ) {
-        auto &F = m_hierarchy.mF;
+        auto &F = m_hierarchy.m_faces;
         std::vector<int> E2E(F2E.size() * 3, -1);
         for (int i = 0; i < E2F.size(); ++i) {
             int v1 = E2F[i][0];
@@ -2323,34 +2311,15 @@ namespace services {
     }
 
     // scale
-    void Parametrizer::compute_inverse_affine_transformation() {
-        if (flag_adaptive_scale == 0) return;
-
-        triangle_space.resize(m_faces.cols());
-        for (int i = 0; i < m_faces.cols(); ++i) {
-            Matrix3d p, q;
-            p.col(0) = m_vertices.col(m_faces(1, i)) - m_vertices.col(m_faces(0, i));
-            p.col(1) = m_vertices.col(m_faces(2, i)) - m_vertices.col(m_faces(0, i));
-            p.col(2) = m_normals_faces.col(i);
-            q = p.inverse();
-            triangle_space[i].resize(2, 3);
-            for (int j = 0; j < 2; ++j) {
-                for (int k = 0; k < 3; ++k) {
-                    triangle_space[i](j, k) = q(j, k);
-                }
-            }
-        }
-    }
-
     void Parametrizer::estimate_slope() {
-        auto &mF = m_hierarchy.mF;
-        auto &mQ = m_hierarchy.mQ[0];
-        auto &mN = m_hierarchy.mN[0];
-        auto &mV = m_hierarchy.mV[0];
-        FS.resize(2, mF.cols());
-        FQ.resize(3, mF.cols());
+        auto &mF = m_hierarchy.m_faces;
+        auto &mQ = m_hierarchy.m_orientation[0];
+        auto &mN = m_hierarchy.m_normals[0];
+        auto &mV = m_hierarchy.m_vertices[0];
+        m_faces_slope.resize(2, mF.cols());
+        m_faces_orientation.resize(3, mF.cols());
         for (int i = 0; i < mF.cols(); ++i) {
-            const Vector3d &n = m_normals_faces.col(i);
+            const Vector3d &n = m_faces_normals.col(i);
             const Vector3d &q_1 = mQ.col(mF(0, i)), &q_2 = mQ.col(mF(1, i)), &q_3 = mQ.col(mF(2, i));
             const Vector3d &n_1 = mN.col(mF(0, i)), &n_2 = mN.col(mF(1, i)), &n_3 = mN.col(mF(2, i));
             Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
@@ -2362,14 +2331,14 @@ namespace services {
             p = compat_orientation_extrinsic_4(q, n, q_3n, n);
             q = (p.first * 2 + p.second);
             q = q - n * q.dot(n);
-            FQ.col(i) = q.normalized();
+            m_faces_orientation.col(i) = q.normalized();
         }
         for (int i = 0; i < mF.cols(); ++i) {
             double step = m_hierarchy.mScale * 1.f;
 
-            const Vector3d &n = m_normals_faces.col(i);
+            const Vector3d &n = m_faces_normals.col(i);
             Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
-            Vector3d q_x = FQ.col(i), q_y = n.cross(q_x);
+            Vector3d q_x = m_faces_orientation.col(i), q_y = n.cross(q_x);
             Vector3d q_xl = -q_x, q_xr = q_x;
             Vector3d q_yl = -q_y, q_yr = q_y;
             Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
@@ -2378,26 +2347,30 @@ namespace services {
 
             f = i;
             len = step;
-            TravelField(p, q_xl, len, f, m_hierarchy.mE2E, mV, mF, m_normals_faces, FQ, mQ, mN, triangle_space, &tx, &ty,
+            TravelField(p, q_xl, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
+                        m_triangle_space, &tx, &ty,
                         &q_yl_unfold);
 
             f = i;
             len = step;
-            TravelField(p, q_xr, len, f, m_hierarchy.mE2E, mV, mF, m_normals_faces, FQ, mQ, mN, triangle_space, &tx, &ty,
+            TravelField(p, q_xr, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
+                        m_triangle_space, &tx, &ty,
                         &q_yr_unfold);
 
             f = i;
             len = step;
-            TravelField(p, q_yl, len, f, m_hierarchy.mE2E, mV, mF, m_normals_faces, FQ, mQ, mN, triangle_space, &tx, &ty,
+            TravelField(p, q_yl, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
+                        m_triangle_space, &tx, &ty,
                         &q_xl_unfold);
 
             f = i;
             len = step;
-            TravelField(p, q_yr, len, f, m_hierarchy.mE2E, mV, mF, m_normals_faces, FQ, mQ, mN, triangle_space, &tx, &ty,
+            TravelField(p, q_yr, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
+                        m_triangle_space, &tx, &ty,
                         &q_xr_unfold);
             double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * step);
             double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
-            FS.col(i) = Vector2d(dSx, dSy);
+            m_faces_slope.col(i) = Vector2d(dSx, dSy);
         }
 
         std::vector<double> areas(mV.cols(), 0.0);
@@ -2406,9 +2379,10 @@ namespace services {
             Vector3d p2 = mV.col(mF(2, i)) - mV.col(mF(0, i));
             double area = p1.cross(p2).norm();
             for (int j = 0; j < 3; ++j) {
-                auto index = compat_orientation_extrinsic_index_4(FQ.col(i), m_normals_faces.col(i), mQ.col(mF(j, i)),
+                auto index = compat_orientation_extrinsic_index_4(m_faces_orientation.col(i), m_faces_normals.col(i),
+                                                                  mQ.col(mF(j, i)),
                                                                   mN.col(mF(j, i)));
-                double scaleX = FS.col(i).x(), scaleY = FS.col(i).y();
+                double scaleX = m_faces_slope.col(i).x(), scaleY = m_faces_slope.col(i).y();
                 if (index.first != index.second % 2) {
                     std::swap(scaleX, scaleY);
                 }

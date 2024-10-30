@@ -9,67 +9,67 @@
 namespace services {
 
     Hierarchy::Hierarchy() {
-        mAdj.resize(MAX_DEPTH + 1);
-        mV.resize(MAX_DEPTH + 1);
-        mN.resize(MAX_DEPTH + 1);
+        m_adjacencies.resize(MAX_DEPTH + 1);
+        m_vertices.resize(MAX_DEPTH + 1);
+        m_normals.resize(MAX_DEPTH + 1);
         mA.resize(MAX_DEPTH + 1);
         mPhases.resize(MAX_DEPTH + 1);
         mToLower.resize(MAX_DEPTH);
         mToUpper.resize(MAX_DEPTH);
         rng_seed = 0;
 
-        mCQ.reserve(MAX_DEPTH + 1);
-        mCQw.reserve(MAX_DEPTH + 1);
+        m_orientation_constraint.reserve(MAX_DEPTH + 1);
+        m_orientation_constraint_weight.reserve(MAX_DEPTH + 1);
         mCO.reserve(MAX_DEPTH + 1);
         mCOw.reserve(MAX_DEPTH + 1);
     }
 
     void Hierarchy::Initialize(double scale, int with_scale) {
         this->with_scale = with_scale;
-        generate_graph_coloring_deterministic(mAdj[0], mV[0].cols(), mPhases[0]);
+        generate_graph_coloring_deterministic(m_adjacencies[0], m_vertices[0].cols(), mPhases[0]);
 
         for (int i = 0; i < MAX_DEPTH; ++i) {
-            DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1], mToUpper[i],
-                            mToLower[i], mAdj[i + 1]);
-            generate_graph_coloring_deterministic(mAdj[i + 1], mV[i + 1].cols(), mPhases[i + 1]);
-            if (mV[i + 1].cols() == 1) {
-                mAdj.resize(i + 2);
-                mV.resize(i + 2);
-                mN.resize(i + 2);
+            DownsampleGraph(m_adjacencies[i], m_vertices[i], m_normals[i], mA[i], m_vertices[i + 1], m_normals[i + 1], mA[i + 1], mToUpper[i],
+                            mToLower[i], m_adjacencies[i + 1]);
+            generate_graph_coloring_deterministic(m_adjacencies[i + 1], m_vertices[i + 1].cols(), mPhases[i + 1]);
+            if (m_vertices[i + 1].cols() == 1) {
+                m_adjacencies.resize(i + 2);
+                m_vertices.resize(i + 2);
+                m_normals.resize(i + 2);
                 mA.resize(i + 2);
                 mToUpper.resize(i + 1);
                 mToLower.resize(i + 1);
                 break;
             }
         }
-        mQ.resize(mV.size());
-        mO.resize(mV.size());
-        mS.resize(mV.size());
-        mK.resize(mV.size());
+        m_orientation.resize(m_vertices.size());
+        mO.resize(m_vertices.size());
+        mS.resize(m_vertices.size());
+        mK.resize(m_vertices.size());
 
-        mCO.resize(mV.size());
-        mCOw.resize(mV.size());
-        mCQ.resize(mV.size());
-        mCQw.resize(mV.size());
+        mCO.resize(m_vertices.size());
+        mCOw.resize(m_vertices.size());
+        m_orientation_constraint.resize(m_vertices.size());
+        m_orientation_constraint_weight.resize(m_vertices.size());
 
         // Set random seed
         srand(rng_seed);
 
         mScale = scale;
-        for (int i = 0; i < mV.size(); ++i) {
-            mQ[i].resize(mN[i].rows(), mN[i].cols());
-            mO[i].resize(mN[i].rows(), mN[i].cols());
-            mS[i].resize(2, mN[i].cols());
-            mK[i].resize(2, mN[i].cols());
-            for (int j = 0; j < mN[i].cols(); ++j) {
+        for (int i = 0; i < m_vertices.size(); ++i) {
+            m_orientation[i].resize(m_normals[i].rows(), m_normals[i].cols());
+            mO[i].resize(m_normals[i].rows(), m_normals[i].cols());
+            mS[i].resize(2, m_normals[i].cols());
+            mK[i].resize(2, m_normals[i].cols());
+            for (int j = 0; j < m_normals[i].cols(); ++j) {
                 Vector3d s, t;
-                coordinate_system(mN[i].col(j), s, t);
+                coordinate_system(m_normals[i].col(j), s, t);
                 // rand() is not thread safe!
                 double angle = ((double) rand()) / RAND_MAX * 2 * M_PI;
                 double x = ((double) rand()) / RAND_MAX * 2 - 1.f;
                 double y = ((double) rand()) / RAND_MAX * 2 - 1.f;
-                mQ[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
-                mO[i].col(j) = mV[i].col(j) + (s * x + t * y) * scale;
+                m_orientation[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
+                mO[i].col(j) = m_vertices[i].col(j) + (s * x + t * y) * scale;
                 if (with_scale) {
                     mS[i].col(j) = Vector2d(1.0f, 1.0f);
                     mK[i].col(j) = Vector2d(0.0, 0.0);
@@ -670,32 +670,32 @@ namespace services {
     }
 
     void Hierarchy::clearConstraints() {
-        int levels = mV.size();
+        int levels = m_vertices.size();
         if (levels == 0) return;
         for (int i = 0; i < levels; ++i) {
-            int size = mV[i].cols();
-            mCQ[i].resize(3, size);
+            int size = m_vertices[i].cols();
+            m_orientation_constraint[i].resize(3, size);
             mCO[i].resize(3, size);
-            mCQw[i].resize(size);
+            m_orientation_constraint_weight[i].resize(size);
             mCOw[i].resize(size);
-            mCQw[i].setZero();
+            m_orientation_constraint_weight[i].setZero();
             mCOw[i].setZero();
         }
     }
 
     void Hierarchy::propagateConstraints() {
-        int levels = mV.size();
+        int levels = m_vertices.size();
         if (levels == 0) return;
 
         for (int l = 0; l < levels - 1; ++l) {
-            auto &N = mN[l];
-            auto &N_next = mN[l + 1];
-            auto &V = mV[l];
-            auto &V_next = mV[l + 1];
-            auto &CQ = mCQ[l];
-            auto &CQ_next = mCQ[l + 1];
-            auto &CQw = mCQw[l];
-            auto &CQw_next = mCQw[l + 1];
+            auto &N = m_normals[l];
+            auto &N_next = m_normals[l + 1];
+            auto &V = m_vertices[l];
+            auto &V_next = m_vertices[l + 1];
+            auto &CQ = m_orientation_constraint[l];
+            auto &CQ_next = m_orientation_constraint[l + 1];
+            auto &CQw = m_orientation_constraint_weight[l];
+            auto &CQw_next = m_orientation_constraint_weight[l + 1];
             auto &CO = mCO[l];
             auto &CO_next = mCO[l + 1];
             auto &COw = mCOw[l];
@@ -703,7 +703,7 @@ namespace services {
             auto &toUpper = mToUpper[l];
             MatrixXd &S = mS[l];
 
-            for (uint32_t i = 0; i != mV[l + 1].cols(); ++i) {
+            for (uint32_t i = 0; i != m_vertices[l + 1].cols(); ++i) {
                 Vector2i upper = toUpper.col(i);
                 Vector3d cq = Vector3d::Zero(), co = Vector3d::Zero();
                 float cqw = 0.0f, cow = 0.0f;

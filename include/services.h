@@ -23,6 +23,15 @@ namespace services {
 
         void save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh);
 
+        void set_boundary_constraints(Hierarchy &hierarchy);
+
+        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
+
+        std::tuple<MatrixXd, MatrixXd> estimate_slope(
+                Hierarchy &hierarchy,
+                std::vector<MatrixXd> &triangle_space,
+                MatrixXd &normals_faces
+        );
 
     private:
         persistence::MeshDao mesh_dao;
@@ -60,16 +69,16 @@ namespace services {
         // input mesh
         MatrixXd m_vertices;
         MatrixXd m_normals_vertices;
-        MatrixXd m_normals_faces;
+        MatrixXd m_faces_normals;
         MatrixXi m_faces;
-        MatrixXd FS;
-        MatrixXd FQ;
+        MatrixXd m_faces_slope;
+        MatrixXd m_faces_orientation;
 
         double normalize_scale;
         Vector3d normalize_offset;
 
         // data structures
-        VectorXd rho;
+        VectorXd m_rho;
         VectorXi V2E;
         VectorXi E2E;
         VectorXi boundary;
@@ -144,11 +153,11 @@ namespace services {
         std::vector<QuadInfo> quad_info;
 
 
-        std::vector<MatrixXd> triangle_space;
+        std::vector<MatrixXd> m_triangle_space;
 
         // flag
         int flag_preserve_sharp = 0;
-        int flag_preserve_boundary = 0;
+        int should_preserve_boundary = 0;
         int flag_adaptive_scale = 0;
 
 
@@ -192,7 +201,7 @@ namespace services {
          * Initializes the mesh data structures.
          * TODO: Service level method to initialize datastructures
          */
-        void initialize_parameterizer(int targetFaceCount);
+        void initialize_parameterizer(int targetFaceCount, bool with_scale);
 
         // Singularity and Mesh property
         /**
@@ -205,7 +214,7 @@ namespace services {
          * Find singularities in the position field.
          * TODO : Use half edge for easier navigation.
          */
-        void find_position_singularities();
+        void find_position_singularities(bool with_scale = true);
 
         // Integer Grid Map
 
@@ -269,8 +278,6 @@ namespace services {
         );
 
         // scale
-        void compute_inverse_affine_transformation();
-
         void estimate_slope();
 
     };
