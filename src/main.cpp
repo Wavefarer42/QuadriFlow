@@ -1,9 +1,14 @@
 #include <cstdlib>
 #include <chrono>
+#include <format>
 
-#include "field-math.h"
-#include "optimizer.h"
+#include "OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh"
+#include "adapters.h"
+#include "bootstrap.h"
+#include "persistence.h"
 #include "services.h"
+#include "optimizer.h"
+#include "field-math.h"
 
 using namespace services;
 
@@ -39,11 +44,26 @@ int main(int argc, char **argv) {
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
-    if (input_obj.size() >= 1) {
-        field.load_from_obj(input_obj.c_str());
-    } else {
-        assert(0);
-        // field.load_from_obj((std::string(DATA_PATH) + "/fertility.obj").c_str());
+
+    bootstrap::Container container = bootstrap::Container();
+    MeshService service = container.mesh_service();
+    const auto mesh = service.load_trimesh_from_file(input_obj);
+
+    field.m_vertices = MatrixXd(3, mesh.n_vertices());
+    for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
+        auto idx = (*it_v).idx();
+        auto point = mesh.point(*it_v);
+        field.m_vertices.col(idx) = Vector3d(point[0], point[1], point[2]);
+    }
+
+    field.m_faces = MatrixXi(3, mesh.n_faces());
+    for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
+        auto idx = (*it_f).idx();
+        auto fv_it = mesh.cfv_iter(*it_f);
+        for (int i = 0; i < 3; ++i) {
+            field.m_faces(i, idx) = (*fv_it).idx();
+            ++fv_it;
+        }
     }
 
     printf("initialize_parameterizer...\n");
@@ -111,13 +131,16 @@ int main(int argc, char **argv) {
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
     printf("Writing the file...\n");
 
+
     if (output_obj.size() < 1) {
         assert(0);
         // field.save_to_obj((std::string(DATA_PATH) + "/result.obj").c_str());
     } else {
         field.save_to_obj(output_obj.c_str());
     }
+
+//    const auto mesh_out = adapters::from_parametrizer_to_quad_mesh(field);
+//    service.save_quadmesh_to_file(output_obj, mesh_out);
     printf("finish...\n");
-    //	field.LoopFace(2);
     return 0;
 }

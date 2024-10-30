@@ -327,7 +327,6 @@ namespace services {
             Vector3d t1 = V.col(F(1, f)) - V.col(F(0, f));
             Vector3d t2 = V.col(F(2, f)) - V.col(F(0, f));
             Vector3d N = NF.col(f);
-            //		printf("point dis: %f\n", (p - m_vertices.col(F(1, f))).dot(m_normals_vertices));
             int edge_id = f * 3;
             double max_len = 1e30;
             bool found = false;
@@ -448,7 +447,6 @@ namespace services {
             Vector3d t2 = V.col(F(2, f)) - V.col(F(0, f));
             Vector3d N = NF.col(f);
             Ns.push_back(N);
-            //		printf("point dis: %f\n", (p - m_vertices.col(F(1, f))).dot(m_normals_vertices));
             int edge_id = f * 3;
             double max_len = 1e30;
             bool found = false;

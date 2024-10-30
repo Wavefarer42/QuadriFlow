@@ -10,15 +10,9 @@
 #include "field-math.h"
 #include "optimizer.h"
 #include "dedge.h"
-#include "loader.h"
 
 
 namespace services {
-
-    void Parametrizer::load_from_obj(const char *filename) {
-        load(filename, m_vertices, F);
-        normalize_mesh();
-    }
 
     void Parametrizer::save_to_obj(const char *obj_name) {
         std::ofstream os(obj_name);
@@ -60,8 +54,8 @@ namespace services {
         surface_area = 0;
         average_edge_length = 0;
         max_edge_length = 0;
-        for (int f = 0; f < F.cols(); ++f) {
-            Vector3d v[3] = {m_vertices.col(F(0, f)), m_vertices.col(F(1, f)), m_vertices.col(F(2, f))};
+        for (int f = 0; f < m_faces.cols(); ++f) {
+            Vector3d v[3] = {m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)), m_vertices.col(m_faces(2, f))};
             double area = 0.5f * (v[1] - v[0]).cross(v[2] - v[0]).norm();
             surface_area += area;
             for (int i = 0; i < 3; ++i) {
@@ -70,7 +64,7 @@ namespace services {
                 if (len > max_edge_length) max_edge_length = len;
             }
         }
-        average_edge_length /= (F.cols() * 3);
+        average_edge_length /= (m_faces.cols() * 3);
     }
 
     void Parametrizer::compute_vertex_area() {
@@ -84,9 +78,9 @@ namespace services {
             do {
                 int ep = dedge_prev_3(edge), en = dedge_next_3(edge);
 
-                Vector3d v = m_vertices.col(F(edge % 3, edge / 3));
-                Vector3d vn = m_vertices.col(F(en % 3, en / 3));
-                Vector3d vp = m_vertices.col(F(ep % 3, ep / 3));
+                Vector3d v = m_vertices.col(m_faces(edge % 3, edge / 3));
+                Vector3d vn = m_vertices.col(m_faces(en % 3, en / 3));
+                Vector3d vp = m_vertices.col(m_faces(ep % 3, ep / 3));
 
                 Vector3d face_center = (v + vp + vn) * (1.0f / 3.0f);
                 Vector3d prev = (v + vp) * 0.5f;
@@ -106,9 +100,9 @@ namespace services {
 
     void Parametrizer::compute_normals() {
         /* Compute face normals */
-        m_normals_faces.resize(3, F.cols());
-        for (int f = 0; f < F.cols(); ++f) {
-            Vector3d v0 = m_vertices.col(F(0, f)), v1 = m_vertices.col(F(1, f)), v2 = m_vertices.col(F(2, f)),
+        m_normals_faces.resize(3, m_faces.cols());
+        for (int f = 0; f < m_faces.cols(); ++f) {
+            Vector3d v0 = m_vertices.col(m_faces(0, f)), v1 = m_vertices.col(m_faces(1, f)), v2 = m_vertices.col(m_faces(2, f)),
                     n = (v1 - v0).cross(v2 - v0);
             double norm = n.norm();
             if (norm < RCPOVERFLOW) {
@@ -141,8 +135,8 @@ namespace services {
             do {
                 int idx = edge % 3;
 
-                Vector3d d0 = m_vertices.col(F((idx + 1) % 3, edge / 3)) - m_vertices.col(i);
-                Vector3d d1 = m_vertices.col(F((idx + 2) % 3, edge / 3)) - m_vertices.col(i);
+                Vector3d d0 = m_vertices.col(m_faces((idx + 1) % 3, edge / 3)) - m_vertices.col(i);
+                Vector3d d1 = m_vertices.col(m_faces((idx + 2) % 3, edge / 3)) - m_vertices.col(i);
                 double angle = fast_acos(d0.dot(d1) / std::sqrt(d0.squaredNorm() * d1.squaredNorm()));
 
                 /* "Computing Vertex Normals from Polygonal Facets"
@@ -161,7 +155,7 @@ namespace services {
     }
 
     void Parametrizer::find_edges_and_features_and_boundaries() {
-        sharp_edges.resize(F.cols() * 3, 0);
+        sharp_edges.resize(m_faces.cols() * 3, 0);
 
         if (flag_preserve_boundary) {
             for (int i = 0; i < sharp_edges.size(); ++i) {
@@ -174,11 +168,11 @@ namespace services {
 
         if (flag_preserve_sharp == 0) return;
 
-        std::vector<Vector3d> face_normals(F.cols());
-        for (int i = 0; i < F.cols(); ++i) {
-            Vector3d p1 = m_vertices.col(F(0, i));
-            Vector3d p2 = m_vertices.col(F(1, i));
-            Vector3d p3 = m_vertices.col(F(2, i));
+        std::vector<Vector3d> face_normals(m_faces.cols());
+        for (int i = 0; i < m_faces.cols(); ++i) {
+            Vector3d p1 = m_vertices.col(m_faces(0, i));
+            Vector3d p2 = m_vertices.col(m_faces(1, i));
+            Vector3d p3 = m_vertices.col(m_faces(2, i));
             face_normals[i] = (p2 - p1).cross(p3 - p1).normalized();
         }
 
@@ -366,6 +360,7 @@ namespace services {
     }
 
     void Parametrizer::initialize_parameterizer(int targetFaceCount) {
+        normalize_mesh();
         analyze_mesh();
 
         // initialize rho
@@ -384,13 +379,13 @@ namespace services {
         // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
         double target_len = std::min(scale / 2, average_edge_length * 2);
         if (target_len < max_edge_length) {
-            while (!compute_direct_graph(m_vertices, F, V2E, E2E, boundary, nonManifold));
-            subdivide_edges_to_length(F, m_vertices, rho, V2E, E2E, boundary, nonManifold, target_len);
+            while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
+            subdivide_edges_to_length(m_faces, m_vertices, rho, V2E, E2E, boundary, nonManifold, target_len);
         }
-        while (!compute_direct_graph(m_vertices, F, V2E, E2E, boundary, nonManifold));
+        while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
 
         // Compute the adjacency matrix
-        generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, m_adjacency_matrix);
+        generate_adjacency_matrix_uniform(m_faces, V2E, E2E, nonManifold, m_adjacency_matrix);
 
         // Computes the shortest edge per vertex. FIXME
         for (int iter = 0; iter < 5; ++iter) {
@@ -416,7 +411,7 @@ namespace services {
         m_hierarchy.mN[0] = std::move(m_normals_vertices);
         m_hierarchy.mV[0] = std::move(m_vertices);
         m_hierarchy.mE2E = std::move(E2E);
-        m_hierarchy.mF = std::move(F);
+        m_hierarchy.mF = std::move(m_faces);
         m_hierarchy.Initialize(scale, flag_adaptive_scale);
     }
 
@@ -2331,11 +2326,11 @@ namespace services {
     void Parametrizer::compute_inverse_affine_transformation() {
         if (flag_adaptive_scale == 0) return;
 
-        triangle_space.resize(F.cols());
-        for (int i = 0; i < F.cols(); ++i) {
+        triangle_space.resize(m_faces.cols());
+        for (int i = 0; i < m_faces.cols(); ++i) {
             Matrix3d p, q;
-            p.col(0) = m_vertices.col(F(1, i)) - m_vertices.col(F(0, i));
-            p.col(1) = m_vertices.col(F(2, i)) - m_vertices.col(F(0, i));
+            p.col(0) = m_vertices.col(m_faces(1, i)) - m_vertices.col(m_faces(0, i));
+            p.col(1) = m_vertices.col(m_faces(2, i)) - m_vertices.col(m_faces(0, i));
             p.col(2) = m_normals_faces.col(i);
             q = p.inverse();
             triangle_space[i].resize(2, 3);

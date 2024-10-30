@@ -10,9 +10,24 @@
 #include "entities.h"
 #include "field-math.h"
 #include "hierarchy.h"
+#include "persistence.h"
 
 namespace services {
     using namespace Eigen;
+
+    class MeshService {
+    public:
+        explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
+
+        entities::QuadMesh load_trimesh_from_file(const std::string &filename);
+
+        void save_quadmesh_to_file(const std::string &filename,
+                                   const entities::QuadMesh &mesh);
+
+    private:
+        persistence::MeshDao mesh_dao;
+
+    };
 
     class Parametrizer {
     public:
@@ -46,9 +61,9 @@ namespace services {
         MatrixXd m_vertices;
         MatrixXd m_normals_vertices;
         MatrixXd m_normals_faces;
+        MatrixXi m_faces;
         MatrixXd FS;
         MatrixXd FQ;
-        MatrixXi F;
 
         double normalize_scale;
         Vector3d normalize_offset;
@@ -129,7 +144,6 @@ namespace services {
         std::vector<QuadInfo> quad_info;
 
 
-
         std::vector<MatrixXd> triangle_space;
 
         // flag
@@ -138,9 +152,7 @@ namespace services {
         int flag_adaptive_scale = 0;
 
 
-
         // Mesh IO
-        void load_from_obj(const char *filename);
 
         void save_to_obj(const char *obj_name);
 
