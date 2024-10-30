@@ -27,7 +27,10 @@ namespace services {
 
         std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
 
-        void find_position_singularities(bool with_scale);
+        std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
+                Hierarchy &m_hierarchy,
+                bool with_scale
+        );
 
         std::tuple<MatrixXd, MatrixXd> estimate_slope(
                 Hierarchy &hierarchy,
@@ -204,19 +207,6 @@ namespace services {
          * TODO: Service level method to initialize datastructures
          */
         void initialize_parameterizer(int targetFaceCount, bool with_scale);
-
-        // Singularity and Mesh property
-        /**
-         * Find the m_singularities in the orientation field.
-         * TODO : Use half edge for easier navigation and find out what the negative sign is on the m_singularities.
-         */
-        void find_orientation_singularities();
-
-        /**
-         * Find singularities in the position field.
-         * TODO : Use half edge for easier navigation.
-         */
-        void find_position_singularities(bool with_scale = true);
 
         // Integer Grid Map
 

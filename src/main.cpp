@@ -109,7 +109,13 @@ int main(int argc, char **argv) {
     spdlog::info("Solving for position field");
 
     Optimizer::optimize_positions(field.m_hierarchy);
-    field.find_position_singularities();
+    const auto [singularity_position, singularity_rank, singularity_index] = service.find_position_singularities(
+            field.m_hierarchy,
+            true
+    );
+    field.m_singularity_position = singularity_position;
+    field.m_singularity_rank = singularity_rank;
+    field.m_singularity_index = singularity_index;
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
