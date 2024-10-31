@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
-    field.save_to_obj(args.path_out.c_str());
+    service.save_quadmesh_to_file(args.path_out, field);
 
     spdlog::info("Total elapsed: {:.3} seconds\n", watch_total);
     return 0;

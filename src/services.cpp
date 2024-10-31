@@ -2,6 +2,7 @@
 
 #include "services.h"
 #include "field-math.h"
+#include <fstream>
 
 
 namespace services {
@@ -32,10 +33,19 @@ namespace services {
         return mesh;
     }
 
-    void MeshService::save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh) {
+    void MeshService::save_quadmesh_to_file(const std::string &filename, Parametrizer &field) const {
         spdlog::info("Saving mesh to file {}", filename);
 
-        this->mesh_dao.save_mesh_to_file(filename, mesh);
+        std::ofstream os(filename);
+        for (int i = 0; i < field.m_positions_compact.size(); ++i) {
+            auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
+            os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
+        }
+        for (int i = 0; i < field.m_faces_compact.size(); ++i) {
+            os << "f " << field.m_faces_compact[i][0] + 1 << " " << field.m_faces_compact[i][1] + 1 << " "
+               << field.m_faces_compact[i][2] + 1 << " " << field.m_faces_compact[i][3] + 1 << "\n";
+        }
+        os.close();
     }
 
     void MeshService::set_boundary_constraints(Hierarchy &hierarchy) const {
@@ -295,6 +305,5 @@ namespace services {
 
         return std::make_tuple(faces_slope, faces_orientation);
     }
-
 
 }

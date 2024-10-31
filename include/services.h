@@ -15,34 +15,6 @@
 namespace services {
     using namespace Eigen;
 
-    class MeshService {
-    public:
-        explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
-
-        entities::QuadMesh load_trimesh_from_file(const std::string &filename) const;
-
-        void save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh);
-
-        void set_boundary_constraints(Hierarchy &hierarchy) const;
-
-        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy) const;
-
-        std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
-                Hierarchy &m_hierarchy,
-                bool with_scale
-        ) const;
-
-        std::tuple<MatrixXd, MatrixXd> estimate_slope(
-                Hierarchy &hierarchy,
-                std::vector<MatrixXd> &triangle_space,
-                MatrixXd &normals_faces
-        ) const;
-
-    private:
-        persistence::MeshDao mesh_dao;
-
-    };
-
     class Parametrizer {
     public:
 
@@ -274,6 +246,34 @@ namespace services {
 
         // scale
         void estimate_slope();
+
+    };
+
+    class MeshService {
+    public:
+        explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
+
+        [[nodiscard]] entities::QuadMesh load_trimesh_from_file(const std::string &filename) const;
+
+        void save_quadmesh_to_file(const std::string &filename, Parametrizer &field) const;
+
+        void set_boundary_constraints(Hierarchy &hierarchy) const;
+
+        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy) const;
+
+        std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
+                Hierarchy &m_hierarchy,
+                bool with_scale
+        ) const;
+
+        std::tuple<MatrixXd, MatrixXd> estimate_slope(
+                Hierarchy &hierarchy,
+                std::vector<MatrixXd> &triangle_space,
+                MatrixXd &normals_faces
+        ) const;
+
+    private:
+        persistence::MeshDao mesh_dao;
 
     };
 

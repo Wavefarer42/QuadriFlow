@@ -14,19 +14,6 @@
 
 namespace services {
 
-    void Parametrizer::save_to_obj(const char *obj_name) {
-        std::ofstream os(obj_name);
-        for (int i = 0; i < m_positions_compact.size(); ++i) {
-            auto t = m_positions_compact[i] * this->m_normalize_scale + this->m_normalize_offset;
-            os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
-        }
-        for (int i = 0; i < m_faces_compact.size(); ++i) {
-            os << "f " << m_faces_compact[i][0] + 1 << " " << m_faces_compact[i][1] + 1 << " "
-               << m_faces_compact[i][2] + 1 << " " << m_faces_compact[i][3] + 1 << "\n";
-        }
-        os.close();
-    }
-
     void Parametrizer::normalize_mesh() {
         double maxV[3] = {-1e30, -1e30, -1e30};
         double minV[3] = {1e30, 1e30, 1e30};
@@ -1904,14 +1891,14 @@ namespace services {
         fh.DownsampleEdgeGraph(m_face_edge_orientation, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
         auto &V = m_hierarchy.m_vertices[0];
         auto &F = m_hierarchy.m_faces;
-        disajoint_tree = entities::DisjointTree(V.cols());
+        m_disjoint_tree = entities::DisjointTree(V.cols());
         auto &diffs = fh.mEdgeDiff.front();
         for (int i = 0; i < diffs.size(); ++i) {
             if (diffs[i] == Vector2i::Zero()) {
-                disajoint_tree.Merge(m_edge_values[i].x, m_edge_values[i].y);
+                m_disjoint_tree.Merge(m_edge_values[i].x, m_edge_values[i].y);
             }
         }
-        disajoint_tree.BuildCompactParent();
+        m_disjoint_tree.BuildCompactParent();
         auto &F2E = fh.mF2E.back();
         auto &E2F = fh.mE2F.back();
         auto &EdgeDiff = fh.mEdgeDiff.back();
@@ -1940,14 +1927,14 @@ namespace services {
         auto &O = m_hierarchy.m_positions[0];
         auto &Q = m_hierarchy.m_orientation[0];
         auto &N = m_hierarchy.m_normals[0];
-        int num_v = disajoint_tree.CompactNum();
+        int num_v = m_disjoint_tree.CompactNum();
         m_vertices_set.resize(num_v);
         m_positions_compact.resize(num_v, Vector3d::Zero());
         m_orientations_compact.resize(num_v, Vector3d::Zero());
         m_normals_compact.resize(num_v, Vector3d::Zero());
         m_counter.resize(num_v, 0);
         for (int i = 0; i < O.cols(); ++i) {
-            int compact_v = disajoint_tree.Index(i);
+            int compact_v = m_disjoint_tree.Index(i);
             m_vertices_set[compact_v].push_back(i);
             m_positions_compact[compact_v] += O.col(i);
             m_normals_compact[compact_v] = m_normals_compact[compact_v] * m_counter[compact_v] + N.col(i);
@@ -1966,7 +1953,7 @@ namespace services {
             m_positions_compact[i] /= m_counter[i];
         }
 
-        build_triangle_manifold(disajoint_tree, edge, face, m_edge_values, F2E, E2F, EdgeDiff, FQ);
+        build_triangle_manifold(m_disjoint_tree, edge, face, m_edge_values, F2E, E2F, EdgeDiff, FQ);
     }
 
     void Parametrizer::build_triangle_manifold(
@@ -2247,109 +2234,4 @@ namespace services {
         );
     }
 
-    // scale
-    void Parametrizer::estimate_slope() {
-        auto &mF = m_hierarchy.m_faces;
-        auto &mQ = m_hierarchy.m_orientation[0];
-        auto &mN = m_hierarchy.m_normals[0];
-        auto &mV = m_hierarchy.m_vertices[0];
-        m_faces_slope.resize(2, mF.cols());
-        m_faces_orientation.resize(3, mF.cols());
-        for (int i = 0; i < mF.cols(); ++i) {
-            const Vector3d &n = m_faces_normals.col(i);
-            const Vector3d &q_1 = mQ.col(mF(0, i)), &q_2 = mQ.col(mF(1, i)), &q_3 = mQ.col(mF(2, i));
-            const Vector3d &n_1 = mN.col(mF(0, i)), &n_2 = mN.col(mF(1, i)), &n_3 = mN.col(mF(2, i));
-            Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
-            Vector3d q_2n = rotate_vector_into_plane(q_2, n_2, n);
-            Vector3d q_3n = rotate_vector_into_plane(q_3, n_3, n);
-
-            auto p = compat_orientation_extrinsic_4(q_1n, n, q_2n, n);
-            Vector3d q = (p.first + p.second).normalized();
-            p = compat_orientation_extrinsic_4(q, n, q_3n, n);
-            q = (p.first * 2 + p.second);
-            q = q - n * q.dot(n);
-            m_faces_orientation.col(i) = q.normalized();
-        }
-        for (int i = 0; i < mF.cols(); ++i) {
-            double step = m_hierarchy.m_scale * 1.f;
-
-            const Vector3d &n = m_faces_normals.col(i);
-            Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
-            Vector3d q_x = m_faces_orientation.col(i), q_y = n.cross(q_x);
-            Vector3d q_xl = -q_x, q_xr = q_x;
-            Vector3d q_yl = -q_y, q_yr = q_y;
-            Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
-            int f;
-            double tx, ty, len;
-
-            f = i;
-            len = step;
-            TravelField(p, q_xl, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
-                        m_triangle_space, &tx, &ty,
-                        &q_yl_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_xr, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
-                        m_triangle_space, &tx, &ty,
-                        &q_yr_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_yl, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
-                        m_triangle_space, &tx, &ty,
-                        &q_xl_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_yr, len, f, m_hierarchy.m_E2E, mV, mF, m_faces_normals, m_faces_orientation, mQ, mN,
-                        m_triangle_space, &tx, &ty,
-                        &q_xr_unfold);
-            double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * step);
-            double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
-            m_faces_slope.col(i) = Vector2d(dSx, dSy);
-        }
-
-        std::vector<double> areas(mV.cols(), 0.0);
-        for (int i = 0; i < mF.cols(); ++i) {
-            Vector3d p1 = mV.col(mF(1, i)) - mV.col(mF(0, i));
-            Vector3d p2 = mV.col(mF(2, i)) - mV.col(mF(0, i));
-            double area = p1.cross(p2).norm();
-            for (int j = 0; j < 3; ++j) {
-                auto index = compat_orientation_extrinsic_index_4(m_faces_orientation.col(i), m_faces_normals.col(i),
-                                                                  mQ.col(mF(j, i)),
-                                                                  mN.col(mF(j, i)));
-                double scaleX = m_faces_slope.col(i).x(), scaleY = m_faces_slope.col(i).y();
-                if (index.first != index.second % 2) {
-                    std::swap(scaleX, scaleY);
-                }
-                if (index.second >= 2) {
-                    scaleX = -scaleX;
-                    scaleY = -scaleY;
-                }
-                m_hierarchy.m_areas[0].col(mF(j, i)) += area * Vector2d(scaleX, scaleY);
-                areas[mF(j, i)] += area;
-            }
-        }
-        for (int i = 0; i < mV.cols(); ++i) {
-            if (areas[i] != 0)
-                m_hierarchy.m_areas[0].col(i) /= areas[i];
-        }
-        for (int l = 0; l < m_hierarchy.m_areas.size() - 1; ++l) {
-            const MatrixXd &K = m_hierarchy.m_areas[l];
-            MatrixXd &K_next = m_hierarchy.m_areas[l + 1];
-            auto &toUpper = m_hierarchy.mToUpper[l];
-            for (int i = 0; i < toUpper.cols(); ++i) {
-                Vector2i upper = toUpper.col(i);
-                Vector2d k0 = K.col(upper[0]);
-
-                if (upper[1] != -1) {
-                    Vector2d k1 = K.col(upper[1]);
-                    k0 = 0.5 * (k0 + k1);
-                }
-
-                K_next.col(i) = k0;
-            }
-        }
-    }
 }
