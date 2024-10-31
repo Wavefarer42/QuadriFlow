@@ -9,10 +9,10 @@
 namespace services {
 
     Hierarchy::Hierarchy() {
-        m_adjacencies.resize(MAX_DEPTH + 1);
+        m_adjacency.resize(MAX_DEPTH + 1);
         m_vertices.resize(MAX_DEPTH + 1);
         m_normals.resize(MAX_DEPTH + 1);
-        mA.resize(MAX_DEPTH + 1);
+        m_vertex_area.resize(MAX_DEPTH + 1);
         m_phases.resize(MAX_DEPTH + 1);
         mToLower.resize(MAX_DEPTH);
         mToUpper.resize(MAX_DEPTH);
@@ -26,17 +26,17 @@ namespace services {
 
     void Hierarchy::Initialize(double scale, int with_scale) {
         this->with_scale = with_scale;
-        generate_graph_coloring_deterministic(m_adjacencies[0], m_vertices[0].cols(), m_phases[0]);
+        generate_graph_coloring_deterministic(m_adjacency[0], m_vertices[0].cols(), m_phases[0]);
 
         for (int i = 0; i < MAX_DEPTH; ++i) {
-            DownsampleGraph(m_adjacencies[i], m_vertices[i], m_normals[i], mA[i], m_vertices[i + 1], m_normals[i + 1], mA[i + 1], mToUpper[i],
-                            mToLower[i], m_adjacencies[i + 1]);
-            generate_graph_coloring_deterministic(m_adjacencies[i + 1], m_vertices[i + 1].cols(), m_phases[i + 1]);
+            DownsampleGraph(m_adjacency[i], m_vertices[i], m_normals[i], m_vertex_area[i], m_vertices[i + 1], m_normals[i + 1], m_vertex_area[i + 1], mToUpper[i],
+                            mToLower[i], m_adjacency[i + 1]);
+            generate_graph_coloring_deterministic(m_adjacency[i + 1], m_vertices[i + 1].cols(), m_phases[i + 1]);
             if (m_vertices[i + 1].cols() == 1) {
-                m_adjacencies.resize(i + 2);
+                m_adjacency.resize(i + 2);
                 m_vertices.resize(i + 2);
                 m_normals.resize(i + 2);
-                mA.resize(i + 2);
+                m_vertex_area.resize(i + 2);
                 mToUpper.resize(i + 1);
                 mToLower.resize(i + 1);
                 break;
@@ -44,8 +44,8 @@ namespace services {
         }
         m_orientation.resize(m_vertices.size());
         m_positions.resize(m_vertices.size());
-        mS.resize(m_vertices.size());
-        mK.resize(m_vertices.size());
+        m_scales.resize(m_vertices.size());
+        m_areas.resize(m_vertices.size());
 
         m_position_constraints.resize(m_vertices.size());
         m_position_constraint_weights.resize(m_vertices.size());
@@ -59,8 +59,8 @@ namespace services {
         for (int i = 0; i < m_vertices.size(); ++i) {
             m_orientation[i].resize(m_normals[i].rows(), m_normals[i].cols());
             m_positions[i].resize(m_normals[i].rows(), m_normals[i].cols());
-            mS[i].resize(2, m_normals[i].cols());
-            mK[i].resize(2, m_normals[i].cols());
+            m_scales[i].resize(2, m_normals[i].cols());
+            m_areas[i].resize(2, m_normals[i].cols());
             for (int j = 0; j < m_normals[i].cols(); ++j) {
                 Vector3d s, t;
                 coordinate_system(m_normals[i].col(j), s, t);
@@ -71,8 +71,8 @@ namespace services {
                 m_orientation[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
                 m_positions[i].col(j) = m_vertices[i].col(j) + (s * x + t * y) * scale;
                 if (with_scale) {
-                    mS[i].col(j) = Vector2d(1.0f, 1.0f);
-                    mK[i].col(j) = Vector2d(0.0, 0.0);
+                    m_scales[i].col(j) = Vector2d(1.0f, 1.0f);
+                    m_areas[i].col(j) = Vector2d(0.0, 0.0);
                 }
             }
         }
@@ -500,7 +500,7 @@ namespace services {
         auto &EdgeDiff = mEdgeDiff[l];
         auto &AllowChange = mAllowChanges[l];
 
-        // build E2E
+        // build m_E2E
         std::vector<int> E2E(F2E.size() * 3, -1);
         for (int i = 0; i < E2F.size(); ++i) {
             int v1 = E2F[i][0];
@@ -701,7 +701,7 @@ namespace services {
             auto &COw = m_position_constraint_weights[l];
             auto &COw_next = m_position_constraint_weights[l + 1];
             auto &toUpper = mToUpper[l];
-            MatrixXd &S = mS[l];
+            MatrixXd &S = m_scales[l];
 
             for (uint32_t i = 0; i != m_vertices[l + 1].cols(); ++i) {
                 Vector2i upper = toUpper.col(i);

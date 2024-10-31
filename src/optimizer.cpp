@@ -21,7 +21,7 @@ namespace services {
         const int levelIterations = 6;
         int n_normals = static_cast<int>(hierarchy.m_normals.size());
         for (int level = n_normals - 1; level >= 0; --level) {
-            entities::AdjacentMatrix &adj = hierarchy.m_adjacencies[level];
+            entities::AdjacentMatrix &adj = hierarchy.m_adjacency[level];
             const MatrixXd &N = hierarchy.m_normals[level];
             const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
             const VectorXd &CQw = hierarchy.m_orientation_constraint_weight[level];
@@ -116,8 +116,8 @@ namespace services {
         const MatrixXd &N = mRes.m_normals[0];
         MatrixXd &Q = mRes.m_orientation[0];
         MatrixXd &V = mRes.m_vertices[0];
-        MatrixXd &S = mRes.mS[0];
-        MatrixXd &K = mRes.mK[0];
+        MatrixXd &S = mRes.m_scales[0];
+        MatrixXd &K = mRes.m_areas[0];
         MatrixXi &F = mRes.m_faces;
 
         if (adaptive) {
@@ -217,9 +217,9 @@ namespace services {
             }
         }
 
-        for (int l = 0; l < mRes.mS.size() - 1; ++l) {
-            const MatrixXd &S = mRes.mS[l];
-            MatrixXd &S_next = mRes.mS[l + 1];
+        for (int l = 0; l < mRes.m_scales.size() - 1; ++l) {
+            const MatrixXd &S = mRes.m_scales[l];
+            MatrixXd &S_next = mRes.m_scales[l + 1];
             auto &toUpper = mRes.mToUpper[l];
             for (int i = 0; i < toUpper.cols(); ++i) {
                 Vector2i upper = toUpper.col(i);
@@ -241,13 +241,13 @@ namespace services {
 
         for (int level = n_adjacencies - 1; level >= 0; --level) {
             for (int iter = 0; iter < levelIterations; ++iter) {
-                entities::AdjacentMatrix &adj = hierarchy.m_adjacencies[level];
+                entities::AdjacentMatrix &adj = hierarchy.m_adjacency[level];
                 const MatrixXd &N = hierarchy.m_normals[level], &Q = hierarchy.m_orientation[level], &V = hierarchy.m_vertices[level];
                 const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
                 const MatrixXd &CO = hierarchy.m_position_constraints[level];
                 const VectorXd &COw = hierarchy.m_position_constraint_weights[level];
                 MatrixXd &O = hierarchy.m_positions[level];
-                MatrixXd &S = hierarchy.mS[level];
+                MatrixXd &S = hierarchy.m_scales[level];
                 auto &phases = hierarchy.m_phases[level];
                 for (int phase = 0; phase < phases.size(); ++phase) {
                     auto &p = phases[phase];
@@ -704,7 +704,7 @@ namespace services {
         auto &Q = mRes.m_orientation[0];
         auto &N = mRes.m_normals[0];
         auto &O = mRes.m_positions[0];
-        auto &S = mRes.mS[0];
+        auto &S = mRes.m_scales[0];
 
         entities::DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {
@@ -926,7 +926,7 @@ namespace services {
         auto &Q = mRes.m_orientation[0];
         auto &N = mRes.m_normals[0];
         auto &O = mRes.m_positions[0];
-        auto &S = mRes.mS[0];
+        auto &S = mRes.m_scales[0];
 
         entities::DisjointTree tree(V.cols());
         for (int i = 0; i < edge_diff.size(); ++i) {

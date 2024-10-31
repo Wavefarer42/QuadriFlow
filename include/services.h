@@ -19,24 +19,24 @@ namespace services {
     public:
         explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
 
-        entities::QuadMesh load_trimesh_from_file(const std::string &filename);
+        entities::QuadMesh load_trimesh_from_file(const std::string &filename) const;
 
         void save_quadmesh_to_file(const std::string &filename, const entities::QuadMesh &mesh);
 
-        void set_boundary_constraints(Hierarchy &hierarchy);
+        void set_boundary_constraints(Hierarchy &hierarchy) const;
 
-        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
+        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy) const;
 
         std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
                 Hierarchy &m_hierarchy,
                 bool with_scale
-        );
+        ) const;
 
         std::tuple<MatrixXd, MatrixXd> estimate_slope(
                 Hierarchy &hierarchy,
                 std::vector<MatrixXd> &triangle_space,
                 MatrixXd &normals_faces
-        );
+        ) const;
 
     private:
         persistence::MeshDao mesh_dao;
@@ -79,47 +79,46 @@ namespace services {
         MatrixXd m_faces_slope;
         MatrixXd m_faces_orientation;
 
-        double normalize_scale;
-        Vector3d normalize_offset;
+        double m_normalize_scale;
+        Vector3d m_normalize_offset;
 
         // data structures
         VectorXd m_rho;
-        VectorXi V2E;
-        VectorXi E2E;
-        VectorXi boundary;
-        VectorXi nonManifold;  // nonManifold vertices, in boolean
+        VectorXi m_V2E;
+        VectorXi m_E2E;
+        VectorXi m_boundary;
+        VectorXi m_non_manifold;  // m_non_manifold vertices, in boolean
         entities::AdjacentMatrix m_adjacency_matrix;
         Hierarchy m_hierarchy;
 
         // Mesh Status;
-        double surface_area;
-        double scale;
-        double average_edge_length;
-        double max_edge_length;
+        double m_surface_area;
+        double m_scale;
+        double m_average_edge_length;
+        double m_max_edge_length;
         VectorXd m_vertex_area;
 
-        // just for test
-        entities::DisjointTree disajoint_tree;
+        entities::DisjointTree m_disjoint_tree;
 
         int compact_num_v;
-        std::vector<std::vector<int>> Vset;
-        std::vector<Vector3d> O_compact;
-        std::vector<Vector3d> Q_compact;
-        std::vector<Vector3d> N_compact;
-        std::vector<Vector4i> F_compact;
-        std::set<std::pair<int, int>> Quad_edges;
-        std::vector<int> V2E_compact;
-        std::vector<int> E2E_compact;
-        VectorXi boundary_compact;
-        VectorXi nonManifold_compact;
+        std::vector<std::vector<int>> m_vertices_set;
+        std::vector<Vector3d> m_positions_compact;
+        std::vector<Vector3d> m_orientations_compact;
+        std::vector<Vector3d> m_normals_compact;
+        std::vector<Vector4i> m_faces_compact;
+        std::set<std::pair<int, int>> m_quad_edges;
+        std::vector<int> m_V2E_compact;
+        std::vector<int> m_E2E_compact;
+        VectorXi m_boundary_compact;
+        VectorXi m_non_manifold_compact;
 
-        std::vector<int> bad_vertices;
-        std::vector<double> counter;
+        std::vector<int> m_bad_vertices;
+        std::vector<double> m_counter;
 
         /**
-         * sharp_edges[deid]: Whether the edge is a edge or feature that should be preserved
+         * m_sharp_edges[deid]: Whether the edge is a edge or feature that should be preserved
          */
-        std::vector<int> sharp_edges;
+        std::vector<int> m_sharp_edges;
 
         /**
          * m_allow_changes[variable_id]: Whether variable can be changed based on sharp edges
@@ -133,18 +132,22 @@ namespace services {
         std::vector<entities::DEdge> m_edge_values;   // see above
 
         /**
-         * m_face_edge_ids[i](j): "undirected edge ID" of the i'th face and the j'th edge
+         *  m_face_edge_ids[i](j): "undirected edge ID" of the i'th face and the j'th edge
          */
         std::vector<Vector3i> m_face_edge_ids;
 
-        // face_edgeOrients[i](j): Rotate from m_edge_difference space
-        //    (a) initially, to F(0, i)'s Q space
-        //    (b) later on, to a global Q space where some edges are fixed
-        std::vector<Vector3i> face_edgeOrients;
+        /**
+         * m_face_edge_orientation[i](j): Rotate from m_edge_difference space
+         * a) initially, to F(0, i)'s Q space
+         * b) later on, to a global Q space where some edges are fixed
+         */
+        std::vector<Vector3i> m_face_edge_orientation;
 
-        // variable[i].first: indices of the two equations corresponding to variable i
-        // variable[i].second: number of positive minus negative of variables' occurances
-        std::vector<std::pair<Vector2i, int>> variables;
+        /**
+         * variable[i].first: indices of the two equations corresponding to variable i
+         * variable[i].second: number of positive minus negative of variables' occurrences
+         */
+        std::vector<std::pair<Vector2i, int>> m_variables;
 
         struct QuadInfo {
             QuadInfo() : patchId(-1), coordinate(0x10000000, 0x10000000), singular(0), edge(0) {}
@@ -155,15 +158,10 @@ namespace services {
             int edge;
         };
 
-        std::vector<QuadInfo> quad_info;
+        std::vector<QuadInfo> m_quad_info;
 
 
         std::vector<MatrixXd> m_triangle_space;
-
-        // flag
-        int flag_preserve_sharp = 0;
-        int should_preserve_boundary = 0;
-        int flag_adaptive_scale = 0;
 
 
         // Mesh IO
@@ -200,13 +198,18 @@ namespace services {
          * Finds the edges, features and boundaries of the mesh.
          * TODO : Use the half edge iteration for boundaries. Use variance of normals for edges.
          */
-        void find_edges_and_features_and_boundaries();
+        void find_edges_and_features_and_boundaries(bool should_preserve_boundaries, bool should_preserve_edges);
 
         /**
          * Initializes the mesh data structures.
          * TODO: Service level method to initialize datastructures
          */
-        void initialize_parameterizer(int targetFaceCount, bool with_scale);
+        void initialize_parameterizer(
+                bool should_preserve_boundaries,
+                bool should_preserve_edges,
+                int target_face_count,
+                bool with_scale
+        );
 
         // Integer Grid Map
 
@@ -223,7 +226,7 @@ namespace services {
          *
          * TODO : Service level method for the meshing flow. Split and simplify
          */
-        void compute_index_map(int with_scale = 0);
+        void compute_index_map(Hierarchy &hierarchy, int with_scale = 0);
 
         // Post-Processing
 

@@ -6,7 +6,7 @@
 
 namespace services {
 
-    entities::QuadMesh MeshService::load_trimesh_from_file(const std::string &filename) {
+    entities::QuadMesh MeshService::load_trimesh_from_file(const std::string &filename) const {
         spdlog::info("Loading triangle mesh from file from {}", filename);
 
         const auto mesh = this->mesh_dao.load_mesh_from_file(filename);
@@ -38,7 +38,7 @@ namespace services {
         this->mesh_dao.save_mesh_to_file(filename, mesh);
     }
 
-    void MeshService::set_boundary_constraints(Hierarchy &hierarchy) {
+    void MeshService::set_boundary_constraints(Hierarchy &hierarchy) const {
         spdlog::info("Setting boundary constraints");
 
         for (uint32_t i = 0; i < 3 * hierarchy.m_faces.cols(); ++i) {
@@ -62,7 +62,7 @@ namespace services {
         hierarchy.propagateConstraints();
     }
 
-    std::map<int, int> MeshService::find_orientation_singularities(Hierarchy &hierarchy) {
+    std::map<int, int> MeshService::find_orientation_singularities(Hierarchy &hierarchy) const {
         spdlog::info("Finding orientation singularities");
 
         const MatrixXd &normals = hierarchy.m_normals[0];
@@ -100,7 +100,7 @@ namespace services {
     std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> MeshService::find_position_singularities(
             Hierarchy &m_hierarchy,
             bool with_scale
-    ) {
+    ) const {
         const MatrixXd &V = m_hierarchy.m_vertices[0];
         const MatrixXd &N = m_hierarchy.m_normals[0];
         const MatrixXd &Q = m_hierarchy.m_orientation[0];
@@ -148,10 +148,10 @@ namespace services {
                 double scale_x = m_hierarchy.m_scale, scale_y = m_hierarchy.m_scale,
                         scale_x_1 = m_hierarchy.m_scale, scale_y_1 = m_hierarchy.m_scale;
                 if (with_scale) {
-                    scale_x *= m_hierarchy.mS[0](0, F(k, f));
-                    scale_y *= m_hierarchy.mS[0](1, F(k, f));
-                    scale_x_1 *= m_hierarchy.mS[0](0, F(kn, f));
-                    scale_y_1 *= m_hierarchy.mS[0](1, F(kn, f));
+                    scale_x *= m_hierarchy.m_scales[0](0, F(k, f));
+                    scale_y *= m_hierarchy.m_scales[0](1, F(k, f));
+                    scale_x_1 *= m_hierarchy.m_scales[0](0, F(kn, f));
+                    scale_y_1 *= m_hierarchy.m_scales[0](1, F(kn, f));
                     if (best[k] % 2 != 0) std::swap(scale_x, scale_y);
                     if (best[kn] % 2 != 0) std::swap(scale_x_1, scale_y_1);
                 }
@@ -178,7 +178,7 @@ namespace services {
             Hierarchy &hierarchy,
             std::vector<MatrixXd> &triangle_space,
             MatrixXd &normals_faces
-    ) {
+    ) const {
         spdlog::info("Estimating adaptive slope");
 
         auto &faces = hierarchy.m_faces;
@@ -268,17 +268,17 @@ namespace services {
                     scaleX = -scaleX;
                     scaleY = -scaleY;
                 }
-                hierarchy.mK[0].col(faces(j, i)) += area * Vector2d(scaleX, scaleY);
+                hierarchy.m_areas[0].col(faces(j, i)) += area * Vector2d(scaleX, scaleY);
                 areas[faces(j, i)] += area;
             }
         }
         for (int i = 0; i < vertices.cols(); ++i) {
             if (areas[i] != 0)
-                hierarchy.mK[0].col(i) /= areas[i];
+                hierarchy.m_areas[0].col(i) /= areas[i];
         }
-        for (int l = 0; l < hierarchy.mK.size() - 1; ++l) {
-            const MatrixXd &K = hierarchy.mK[l];
-            MatrixXd &K_next = hierarchy.mK[l + 1];
+        for (int l = 0; l < hierarchy.m_areas.size() - 1; ++l) {
+            const MatrixXd &K = hierarchy.m_areas[l];
+            MatrixXd &K_next = hierarchy.m_areas[l + 1];
             auto &toUpper = hierarchy.mToUpper[l];
             for (int i = 0; i < toUpper.cols(); ++i) {
                 Vector2i upper = toUpper.col(i);
@@ -295,4 +295,6 @@ namespace services {
 
         return std::make_tuple(faces_slope, faces_orientation);
     }
+
+
 }

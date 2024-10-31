@@ -29,15 +29,15 @@ namespace adapters {
 
         entities::QuadMesh mesh_out;
 
-        std::vector<entities::QuadMesh::VertexHandle> handles(field.O_compact.size());
-        for (int i = 0; i < field.O_compact.size(); ++i) {
-            auto t = field.O_compact[i] * field.normalize_scale + field.normalize_offset;
+        std::vector<entities::QuadMesh::VertexHandle> handles(field.m_positions_compact.size());
+        for (int i = 0; i < field.m_positions_compact.size(); ++i) {
+            auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
             handles.emplace_back(
                     mesh_out.add_vertex(entities::QuadMesh::Point(t[0], t[1], t[2]))
             );
         }
 
-        const auto faces_compact = field.F_compact;
+        const auto faces_compact = field.m_faces_compact;
         for (const auto &i: faces_compact) {
             mesh_out.add_face({
                                       handles[i[0]],

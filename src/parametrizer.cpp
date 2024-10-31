@@ -16,17 +16,16 @@ namespace services {
 
     void Parametrizer::save_to_obj(const char *obj_name) {
         std::ofstream os(obj_name);
-        for (int i = 0; i < O_compact.size(); ++i) {
-            auto t = O_compact[i] * this->normalize_scale + this->normalize_offset;
+        for (int i = 0; i < m_positions_compact.size(); ++i) {
+            auto t = m_positions_compact[i] * this->m_normalize_scale + this->m_normalize_offset;
             os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
         }
-        for (int i = 0; i < F_compact.size(); ++i) {
-            os << "f " << F_compact[i][0] + 1 << " " << F_compact[i][1] + 1 << " "
-               << F_compact[i][2] + 1 << " " << F_compact[i][3] + 1 << "\n";
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
+            os << "f " << m_faces_compact[i][0] + 1 << " " << m_faces_compact[i][1] + 1 << " "
+               << m_faces_compact[i][2] + 1 << " " << m_faces_compact[i][3] + 1 << "\n";
         }
         os.close();
     }
-
 
     void Parametrizer::normalize_mesh() {
         double maxV[3] = {-1e30, -1e30, -1e30};
@@ -44,37 +43,37 @@ namespace services {
                 m_vertices(j, i) = (m_vertices(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
             }
         }
-        this->normalize_scale = scale;
-        this->normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]),
+        this->m_normalize_scale = scale;
+        this->m_normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]),
                                           0.5 * (maxV[1] + minV[1]),
                                           0.5 * (maxV[2] + minV[2]));
     }
 
     void Parametrizer::analyze_mesh() {
-        surface_area = 0;
-        average_edge_length = 0;
-        max_edge_length = 0;
+        m_surface_area = 0;
+        m_average_edge_length = 0;
+        m_max_edge_length = 0;
         for (int f = 0; f < m_faces.cols(); ++f) {
             Vector3d v[3] = {m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)),
                              m_vertices.col(m_faces(2, f))};
             double area = 0.5f * (v[1] - v[0]).cross(v[2] - v[0]).norm();
-            surface_area += area;
+            m_surface_area += area;
             for (int i = 0; i < 3; ++i) {
                 double len = (v[(i + 1) % 3] - v[i]).norm();
-                average_edge_length += len;
-                if (len > max_edge_length) max_edge_length = len;
+                m_average_edge_length += len;
+                if (len > m_max_edge_length) m_max_edge_length = len;
             }
         }
-        average_edge_length /= (m_faces.cols() * 3);
+        m_average_edge_length /= (m_faces.cols() * 3);
     }
 
     void Parametrizer::compute_vertex_area() {
         m_vertex_area.resize(m_vertices.cols());
         m_vertex_area.setZero();
 
-        for (int i = 0; i < V2E.size(); ++i) {
-            int edge = V2E[i], stop = edge;
-            if (nonManifold[i] || edge == -1) continue;
+        for (int i = 0; i < m_V2E.size(); ++i) {
+            int edge = m_V2E[i], stop = edge;
+            if (m_non_manifold[i] || edge == -1) continue;
             double vertex_area = 0;
             do {
                 int ep = dedge_prev_3(edge), en = dedge_next_3(edge);
@@ -90,7 +89,7 @@ namespace services {
                 vertex_area += 0.5f * ((v - prev).cross(v - face_center).norm() +
                                        (v - next).cross(v - face_center).norm());
 
-                int opp = E2E[edge];
+                int opp = m_E2E[edge];
                 if (opp == -1) break;
                 edge = dedge_next_3(opp);
             } while (edge != stop);
@@ -116,17 +115,17 @@ namespace services {
         }
 
         m_normals_vertices.resize(3, m_vertices.cols());
-        for (int i = 0; i < V2E.rows(); ++i) {
-            int edge = V2E[i];
-            if (nonManifold[i] || edge == -1) {
+        for (int i = 0; i < m_V2E.rows(); ++i) {
+            int edge = m_V2E[i];
+            if (m_non_manifold[i] || edge == -1) {
                 m_normals_vertices.col(i) = Vector3d::UnitX();
                 continue;
             }
 
             int stop = edge;
             do {
-                if (sharp_edges[edge]) break;
-                edge = E2E[edge];
+                if (m_sharp_edges[edge]) break;
+                edge = m_E2E[edge];
                 if (edge != -1) edge = dedge_next_3(edge);
             } while (edge != stop && edge != -1);
             if (edge == -1)
@@ -145,30 +144,33 @@ namespace services {
                  by Grit Thuermer and Charles A. Wuethrich, JGT 1998, Vol 3 */
                 if (std::isfinite(angle)) normal += m_faces_normals.col(edge / 3) * angle;
 
-                int opp = E2E[edge];
+                int opp = m_E2E[edge];
                 if (opp == -1) break;
 
                 edge = dedge_next_3(opp);
-                if (sharp_edges[edge]) break;
+                if (m_sharp_edges[edge]) break;
             } while (edge != stop);
             double norm = normal.norm();
             m_normals_vertices.col(i) = norm > RCPOVERFLOW ? Vector3d(normal / norm) : Vector3d::UnitX();
         }
     }
 
-    void Parametrizer::find_edges_and_features_and_boundaries() {
-        sharp_edges.resize(m_faces.cols() * 3, 0);
+    void Parametrizer::find_edges_and_features_and_boundaries(
+            bool should_preserve_boundaries,
+            bool should_preserve_edges
+    ) {
+        m_sharp_edges.resize(m_faces.cols() * 3, 0);
 
-        if (should_preserve_boundary) {
-            for (int i = 0; i < sharp_edges.size(); ++i) {
-                int re = E2E[i];
+        if (should_preserve_boundaries) {
+            for (int i = 0; i < m_sharp_edges.size(); ++i) {
+                int re = m_E2E[i];
                 if (re == -1) {
-                    sharp_edges[i] = 1;
+                    m_sharp_edges[i] = 1;
                 }
             }
         }
 
-        if (flag_preserve_sharp == 0) return;
+        if (should_preserve_edges) return;
 
         std::vector<Vector3d> face_normals(m_faces.cols());
         for (int i = 0; i < m_faces.cols(); ++i) {
@@ -179,13 +181,13 @@ namespace services {
         }
 
         double cos_thres = cos(60.0 / 180.0 * 3.141592654);
-        for (int i = 0; i < sharp_edges.size(); ++i) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
             int e = i;
-            int re = E2E[e];
+            int re = m_E2E[e];
             Vector3d &n1 = face_normals[e / 3];
             Vector3d &n2 = face_normals[re / 3];
             if (n1.dot(n2) < cos_thres) {
-                sharp_edges[i] = 1;
+                m_sharp_edges[i] = 1;
             }
         }
     }
@@ -291,7 +293,7 @@ namespace services {
             nonmanifold[vn] = false;
             boundary[vn] = is_boundary;
 
-            /* Update F and E2E */
+            /* Update F and m_E2E */
             int f2 = is_boundary ? -1 : (nF++);
             int f3 = nF++;
             if (nF > F.cols()) {
@@ -307,7 +309,7 @@ namespace services {
             }
             F.col(f3) << vn, v1, v0p;
 
-            /* Update E2E */
+            /* Update m_E2E */
             const int e0p = E2E[dedge_prev_3(e0)], e0n = E2E[dedge_next_3(e0)];
 
 #define sE2E(a, b) \
@@ -329,7 +331,7 @@ namespace services {
             }
 #undef sE2E
 
-            /* Update V2E */
+            /* Update m_V2E */
             V2E[v0] = 3 * f0 + 2;
             V2E[vn] = 3 * f0 + 0;
             V2E[v1] = 3 * f3 + 1;
@@ -361,7 +363,12 @@ namespace services {
         E2E.conservativeResize(nF * 3);
     }
 
-    void Parametrizer::initialize_parameterizer(int targetFaceCount, bool with_scale) {
+    void Parametrizer::initialize_parameterizer(
+            bool should_preserve_boundaries,
+            bool should_preserve_edges,
+            int target_face_count,
+            bool with_scale
+    ) {
         m_hierarchy.clearConstraints();
         normalize_mesh();
         analyze_mesh();
@@ -373,22 +380,22 @@ namespace services {
         }
 
         // initialize the scale of the mesh
-        if (targetFaceCount <= 0) {
-            scale = sqrt(surface_area / m_vertices.cols());
+        if (target_face_count <= 0) {
+            m_scale = sqrt(m_surface_area / m_vertices.cols());
         } else {
-            scale = std::sqrt(surface_area / targetFaceCount);
+            m_scale = std::sqrt(m_surface_area / target_face_count);
         }
 
         // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
-        double target_len = std::min(scale / 2, average_edge_length * 2);
-        if (target_len < max_edge_length) {
-            while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
-            subdivide_edges_to_length(m_faces, m_vertices, m_rho, V2E, E2E, boundary, nonManifold, target_len);
+        double target_len = std::min(m_scale / 2, m_average_edge_length * 2);
+        if (target_len < m_max_edge_length) {
+            while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
+            subdivide_edges_to_length(m_faces, m_vertices, m_rho, m_V2E, m_E2E, m_boundary, m_non_manifold, target_len);
         }
-        while (!compute_direct_graph(m_vertices, m_faces, V2E, E2E, boundary, nonManifold));
+        while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
 
         // Compute the adjacency matrix
-        generate_adjacency_matrix_uniform(m_faces, V2E, E2E, nonManifold, m_adjacency_matrix);
+        generate_adjacency_matrix_uniform(m_faces, m_V2E, m_E2E, m_non_manifold, m_adjacency_matrix);
 
         // Computes the shortest edge per vertex. FIXME
         for (int iter = 0; iter < 5; ++iter) {
@@ -402,7 +409,7 @@ namespace services {
             m_rho = r;
         }
 
-        find_edges_and_features_and_boundaries();
+        find_edges_and_features_and_boundaries(should_preserve_edges, should_preserve_boundaries);
 
         compute_normals();
         compute_vertex_area();
@@ -424,13 +431,13 @@ namespace services {
             }
         }
 
-        m_hierarchy.mA[0] = std::move(m_vertex_area);
-        m_hierarchy.m_adjacencies[0] = std::move(m_adjacency_matrix);
+        m_hierarchy.m_vertex_area[0] = std::move(m_vertex_area);
+        m_hierarchy.m_adjacency[0] = std::move(m_adjacency_matrix);
         m_hierarchy.m_normals[0] = std::move(m_normals_vertices);
         m_hierarchy.m_vertices[0] = std::move(m_vertices);
-        m_hierarchy.m_E2E = std::move(E2E);
+        m_hierarchy.m_E2E = std::move(m_E2E);
         m_hierarchy.m_faces = std::move(m_faces);
-        m_hierarchy.Initialize(scale, with_scale);
+        m_hierarchy.Initialize(m_scale, with_scale);
     }
 
     void Parametrizer::build_edge_info() {
@@ -489,7 +496,7 @@ namespace services {
         auto &F = m_hierarchy.m_faces;
         auto &Q = m_hierarchy.m_orientation[0];
         auto &N = m_hierarchy.m_normals[0];
-        face_edgeOrients.resize(F.cols());
+        m_face_edge_orientation.resize(F.cols());
 
         //Random number generator (for shuffling)
         std::random_device rd;
@@ -536,7 +543,7 @@ namespace services {
                 variable_id[2] = -variable_id[2];
                 orients[2] = 2;
             }
-            face_edgeOrients[i] = Vector3i(orients[0], orients[1], orients[2]);
+            m_face_edge_orientation[i] = Vector3i(orients[0], orients[1], orients[2]);
             for (int j = 0; j < 3; ++j) {
                 int eid = m_face_edge_ids[i][j];
                 if (E2D[eid].first == -1)
@@ -551,8 +558,8 @@ namespace services {
         // merge the whole face graph except for the singularity in which there exists a spanning tree
         // which contains consistent orientation
         std::vector<int> sharpUE(E2D.size());
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i]) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+            if (m_sharp_edges[i]) {
                 sharpUE[m_face_edge_ids[i / 3][i % 3]] = 1;
             }
         }
@@ -563,8 +570,8 @@ namespace services {
             int f1 = edge_c.second / 3;
             if (edge_c.first == -1 || edge_c.second == -1) continue;
             if (m_singularities.count(f0) || m_singularities.count(f1) || sharpUE[i]) continue;
-            int orient1 = face_edgeOrients[f0][edge_c.first % 3];
-            int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
+            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
+            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
             disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
         }
 
@@ -576,8 +583,8 @@ namespace services {
                 if (edge_c.first == -1 || edge_c.second == -1) continue;
                 int v0 = edge_c.first / 3;
                 int v1 = edge_c.second / 3;
-                int orient1 = face_edgeOrients[v0][edge_c.first % 3];
-                int orient0 = (face_edgeOrients[v1][edge_c.second % 3] + 2) % 4;
+                int orient1 = m_face_edge_orientation[v0][edge_c.first % 3];
+                int orient0 = (m_face_edge_orientation[v1][edge_c.second % 3] + 2) % 4;
                 disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
             }
         }
@@ -588,16 +595,16 @@ namespace services {
             if (edge_c.first == -1 || edge_c.second == -1) continue;
             int f0 = edge_c.first / 3;
             int f1 = edge_c.second / 3;
-            int orient1 = face_edgeOrients[f0][edge_c.first % 3];
-            int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
+            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
+            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
             disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
         }
 
         // all the face has the same parent.  we rotate every face to the space of that parent.
-        for (int i = 0; i < face_edgeOrients.size(); ++i) {
+        for (int i = 0; i < m_face_edge_orientation.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
-                face_edgeOrients[i][j] =
-                        (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
+                m_face_edge_orientation[i][j] =
+                        (m_face_edge_orientation[i][j] + disajoint_orient_tree.Orient(i)) % 4;
             }
         }
 
@@ -620,8 +627,8 @@ namespace services {
                     int deid1 = E2D[e].first;
                     int deid2 = E2D[e].second;
                     if (deid1 == -1 || deid2 == -1) continue;
-                    if (abs(face_edgeOrients[deid1 / 3][deid1 % 3] -
-                            face_edgeOrients[deid2 / 3][deid2 % 3] + 4) %
+                    if (abs(m_face_edge_orientation[deid1 / 3][deid1 % 3] -
+                            m_face_edge_orientation[deid2 / 3][deid2 % 3] + 4) %
                         4 !=
                         2 ||
                         sharpUE[e]) {
@@ -645,21 +652,21 @@ namespace services {
             for (int i = 0; i < m_face_edge_ids.size(); ++i) {
                 Vector2i diff(0, 0);
                 for (int j = 0; j < 3; ++j) {
-                    int orient = face_edgeOrients[i][j];
+                    int orient = m_face_edge_orientation[i][j];
                     diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
                 }
                 total_flows[sharp_colors[i]] += diff[0] + diff[1];
             }
 
             // build "variable"
-            variables.resize(m_edge_difference.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
+            m_variables.resize(m_edge_difference.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
             for (int i = 0; i < m_face_edge_ids.size(); ++i) {
                 for (int j = 0; j < 3; ++j) {
-                    Vector2i sign = rshift90(Vector2i(1, 1), face_edgeOrients[i][j]);
+                    Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
                     int eid = m_face_edge_ids[i][j];
-                    Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), face_edgeOrients[i][j]);
+                    Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
                     for (int k = 0; k < 2; ++k) {
-                        auto &p = variables[abs(index[k])];
+                        auto &p = m_variables[abs(index[k])];
                         if (p.first[0] == -1)
                             p.first[0] = i * 2 + k;
                         else
@@ -675,23 +682,23 @@ namespace services {
             // signs
             std::vector<std::vector<std::pair<int, int>>> modified_variables[2];
             for (int i = 0; i < 2; ++i) modified_variables[i].resize(total_flows.size());
-            for (int i = 0; i < variables.size(); ++i) {
-                if ((variables[i].first[1] == -1 || variables[i].second != 0) &&
+            for (int i = 0; i < m_variables.size(); ++i) {
+                if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) &&
                     m_allow_changes[i] == 1) {
-                    int find = sharp_colors[variables[i].first[0] / 2];
-                    int step = std::abs(variables[i].second) % 2;
+                    int find = sharp_colors[m_variables[i].first[0] / 2];
+                    int step = std::abs(m_variables[i].second) % 2;
                     if (total_flows[find] > 0) {
-                        if (variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
                             modified_variables[step][find].push_back(std::make_pair(i, -1));
                         }
-                        if (variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
                             modified_variables[step][find].push_back(std::make_pair(i, 1));
                         }
                     } else if (total_flows[find] < 0) {
-                        if (variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
                             modified_variables[step][find].push_back(std::make_pair(i, -1));
                         }
-                        if (variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
                             modified_variables[step][find].push_back(std::make_pair(i, 1));
                         }
                     }
@@ -731,7 +738,7 @@ namespace services {
         for (int i = 0; i < m_face_edge_ids.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int e = m_face_edge_ids[i][j];
-                Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2), face_edgeOrients[i][j]);
+                Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2), m_face_edge_orientation[i][j]);
                 for (int k = 0; k < 2; ++k) {
                     int l = abs(index[k]);
                     int s = index[k] / l;
@@ -768,7 +775,7 @@ namespace services {
         for (int i = 0; i < m_face_edge_ids.size(); ++i) {
             Vector2i diff(0, 0);
             for (int j = 0; j < 3; ++j) {
-                int orient = face_edgeOrients[i][j];
+                int orient = m_face_edge_orientation[i][j];
                 diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
             }
             for (int j = 0; j < 2; ++j) {
@@ -777,18 +784,18 @@ namespace services {
         }
 
         // build "variable"
-        variables.resize(m_edge_difference.size() * 2);
-        for (int i = 0; i < variables.size(); ++i) {
-            variables[i].first = Vector2i(-1, -1);
-            variables[i].second = 0;
+        m_variables.resize(m_edge_difference.size() * 2);
+        for (int i = 0; i < m_variables.size(); ++i) {
+            m_variables[i].first = Vector2i(-1, -1);
+            m_variables[i].second = 0;
         }
         for (int i = 0; i < m_face_edge_ids.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
-                Vector2i sign = rshift90(Vector2i(1, 1), face_edgeOrients[i][j]);
+                Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
                 int eid = m_face_edge_ids[i][j];
-                Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), face_edgeOrients[i][j]);
+                Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
                 for (int k = 0; k < 2; ++k) {
-                    auto &p = variables[abs(index[k])];
+                    auto &p = m_variables[abs(index[k])];
                     if (p.first[0] == -1)
                         p.first[0] = i * 2 + k;
                     else
@@ -805,22 +812,22 @@ namespace services {
         for (int i = 0; i < 2; ++i) {
             modified_variables[i].resize(total_flows.size());
         }
-        for (int i = 0; i < variables.size(); ++i) {
-            if ((variables[i].first[1] == -1 || variables[i].second != 0) && m_allow_changes[i] == 1) {
-                int find = tree.Index(variables[i].first[0]);
-                int step = abs(variables[i].second) % 2;
+        for (int i = 0; i < m_variables.size(); ++i) {
+            if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) && m_allow_changes[i] == 1) {
+                int find = tree.Index(m_variables[i].first[0]);
+                int step = abs(m_variables[i].second) % 2;
                 if (total_flows[find] > 0) {
-                    if (variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
                         modified_variables[step][find].push_back(std::make_pair(i, -1));
                     }
-                    if (variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
                         modified_variables[step][find].push_back(std::make_pair(i, 1));
                     }
                 } else if (total_flows[find] < 0) {
-                    if (variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
                         modified_variables[step][find].push_back(std::make_pair(i, -1));
                     }
-                    if (variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
                         modified_variables[step][find].push_back(std::make_pair(i, 1));
                     }
                 }
@@ -1226,20 +1233,20 @@ namespace services {
         }
     }
 
-    void Parametrizer::compute_index_map(int with_scale) {
-        auto &V = m_hierarchy.m_vertices[0];
-        auto &F = m_hierarchy.m_faces;
-        auto &Q = m_hierarchy.m_orientation[0];
-        auto &N = m_hierarchy.m_normals[0];
-        auto &O = m_hierarchy.m_positions[0];
-        auto &S = m_hierarchy.mS[0];
+    void Parametrizer::compute_index_map(Hierarchy &hierarchy, int with_scale) {
+        auto &V = hierarchy.m_vertices[0];
+        auto &F = hierarchy.m_faces;
+        auto &Q = hierarchy.m_orientation[0];
+        auto &N = hierarchy.m_normals[0];
+        auto &O = hierarchy.m_positions[0];
+        auto &S = hierarchy.m_scales[0];
 
         build_edge_info();
 
         // Constraints for the integer optimization
 
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i]) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+            if (m_sharp_edges[i]) {
                 int e = m_face_edge_ids[i / 3][i % 3];
                 if (m_edge_difference[e][0] * m_edge_difference[e][1] != 0) {
                     Vector3d d = O.col(m_edge_values[e].y) - O.col(m_edge_values[e].x);
@@ -1256,18 +1263,18 @@ namespace services {
         }
         std::map<int, std::pair<Vector3d, Vector3d>> sharp_constraints;
         std::set<int> sharpvert;
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i]) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+            if (m_sharp_edges[i]) {
                 sharpvert.insert(F(i % 3, i / 3));
                 sharpvert.insert(F((i + 1) % 3, i / 3));
             }
         }
 
         m_allow_changes.resize(m_edge_difference.size() * 2, 1);
-        for (int i = 0; i < sharp_edges.size(); ++i) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
             int e = m_face_edge_ids[i / 3][i % 3];
             if (sharpvert.count(m_edge_values[e].x) && sharpvert.count(m_edge_values[e].y)) {
-                if (sharp_edges[i] != 0) {
+                if (m_sharp_edges[i] != 0) {
                     for (int k = 0; k < 2; ++k) {
                         if (m_edge_difference[e][k] == 0) {
                             m_allow_changes[e * 2 + k] = 0;
@@ -1280,23 +1287,23 @@ namespace services {
         build_integer_constraints();
 
         // Compute Max Flow
-        m_hierarchy.DownsampleEdgeGraph(face_edgeOrients, m_face_edge_ids, m_edge_difference, m_allow_changes, 1);
-        Optimizer::optimize_integer_constraints(m_hierarchy, m_singularities);
-        m_hierarchy.UpdateGraphValue(face_edgeOrients, m_face_edge_ids, m_edge_difference);
+        hierarchy.DownsampleEdgeGraph(m_face_edge_orientation, m_face_edge_ids, m_edge_difference, m_allow_changes, 1);
+        Optimizer::optimize_integer_constraints(hierarchy, m_singularities);
+        hierarchy.UpdateGraphValue(m_face_edge_orientation, m_face_edge_ids, m_edge_difference);
 
         // potential bug
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.m_E2E,
-                boundary, nonManifold,
-                m_edge_difference, m_edge_values, face_edgeOrients,
-                m_face_edge_ids, sharp_edges,
+                F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
+                m_boundary, m_non_manifold,
+                m_edge_difference, m_edge_values, m_face_edge_orientation,
+                m_face_edge_ids, m_sharp_edges,
                 m_singularities, 1
         );
 
         m_allow_changes.clear();
         m_allow_changes.resize(m_edge_difference.size() * 2, 1);
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i] == 0) continue;
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+            if (m_sharp_edges[i] == 0) continue;
             int e = m_face_edge_ids[i / 3][i % 3];
             for (int k = 0; k < 2; ++k) {
                 if (m_edge_difference[e][k] == 0) m_allow_changes[e * 2 + k] = 0;
@@ -1305,33 +1312,33 @@ namespace services {
 
         fix_flip_hierarchy();
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &m_hierarchy.mS[0], V2E, m_hierarchy.m_E2E,
-                boundary, nonManifold,
-                m_edge_difference, m_edge_values, face_edgeOrients,
-                m_face_edge_ids, sharp_edges,
+                F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
+                m_boundary, m_non_manifold,
+                m_edge_difference, m_edge_values, m_face_edge_orientation,
+                m_face_edge_ids, m_sharp_edges,
                 m_singularities, 1
         );
 
         std::set<int> sharp_vertices;
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i] == 1) {
+        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+            if (m_sharp_edges[i] == 1) {
                 sharp_vertices.insert(F(i % 3, i / 3));
                 sharp_vertices.insert(F((i + 1) % 3, i / 3));
             }
         }
 
         Optimizer::optimize_positions_sharp(
-                m_hierarchy,
+                hierarchy,
                 m_edge_values,
                 m_edge_difference,
-                sharp_edges,
+                m_sharp_edges,
                 sharp_vertices,
                 sharp_constraints,
                 with_scale
         );
 
         Optimizer::optimize_positions_fixed(
-                m_hierarchy,
+                hierarchy,
                 m_edge_values,
                 m_edge_difference,
                 sharp_vertices,
@@ -1342,41 +1349,41 @@ namespace services {
         extract_quad();
         fix_valence();
 
-        std::vector<int> sharp_o(O_compact.size(), 0);
+        std::vector<int> sharp_o(m_positions_compact.size(), 0);
         std::map<int, std::pair<Vector3d, Vector3d>> compact_sharp_constraints;
-        for (int i = 0; i < Vset.size(); ++i) {
+        for (int i = 0; i < m_vertices_set.size(); ++i) {
             int sharpv = -1;
-            for (auto &p: Vset[i]) {
+            for (auto &p: m_vertices_set[i]) {
                 if (sharp_constraints.count(p)) {
                     sharpv = p;
                     sharp_o[i] = 1;
                     if (compact_sharp_constraints.count(i) == 0 ||
                         compact_sharp_constraints[i].second != Vector3d::Zero()) {
                         compact_sharp_constraints[i] = sharp_constraints[sharpv];
-                        O_compact[i] = O.col(sharpv);
-                        compact_sharp_constraints[i].first = O_compact[i];
+                        m_positions_compact[i] = O.col(sharpv);
+                        compact_sharp_constraints[i].first = m_positions_compact[i];
                     }
                 }
             }
         }
 
         std::map<std::pair<int, int>, int> o2e;
-        for (int i = 0; i < F_compact.size(); ++i) {
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
-                int v1 = F_compact[i][j];
-                int v2 = F_compact[i][(j + 1) % 4];
+                int v1 = m_faces_compact[i][j];
+                int v2 = m_faces_compact[i][(j + 1) % 4];
                 o2e[std::make_pair(v1, v2)] = i * 4 + j;
             }
         }
 
         std::vector<std::vector<int>> v2o(V.cols());
-        for (int i = 0; i < Vset.size(); ++i) {
-            for (auto v: Vset[i]) {
+        for (int i = 0; i < m_vertices_set.size(); ++i) {
+            for (auto v: m_vertices_set[i]) {
                 v2o[v].push_back(i);
             }
         }
-        std::vector<Vector3d> diffs(F_compact.size() * 4, Vector3d(0, 0, 0));
-        std::vector<int> diff_count(F_compact.size() * 4, 0);
+        std::vector<Vector3d> diffs(m_faces_compact.size() * 4, Vector3d(0, 0, 0));
+        std::vector<int> diff_count(m_faces_compact.size() * 4, 0);
 
         for (int i = 0; i < F.cols(); ++i) {
             for (int j = 0; j < 3; ++j) {
@@ -1403,8 +1410,8 @@ namespace services {
                             if (rank_diff % 2 == 1) std::swap(s_x2, s_y2);
                             Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
                             Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-                            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * m_hierarchy.m_scale;
-                            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * m_hierarchy.m_scale;
+                            double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * hierarchy.m_scale;
+                            double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * hierarchy.m_scale;
                             Vector2i diff = m_edge_difference[m_face_edge_ids[i][j]];
                             Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y;
 
@@ -1423,8 +1430,8 @@ namespace services {
         }
 
         for (int i = 0; i < F.cols(); ++i) {
-            Vector2i d1 = rshift90(m_edge_difference[m_face_edge_ids[i][0]], face_edgeOrients[i][0]);
-            Vector2i d2 = rshift90(m_edge_difference[m_face_edge_ids[i][1]], face_edgeOrients[i][1]);
+            Vector2i d1 = rshift90(m_edge_difference[m_face_edge_ids[i][0]], m_face_edge_orientation[i][0]);
+            Vector2i d2 = rshift90(m_edge_difference[m_face_edge_ids[i][1]], m_face_edge_orientation[i][1]);
             if (d1[0] * d2[1] - d1[1] * d2[0] < 0) {
                 for (int j = 0; j < 3; ++j) {
                     int v1 = F(j, i);
@@ -1452,9 +1459,9 @@ namespace services {
 
         Optimizer::optimize_positions_dynamic(
                 F, V, N, Q,
-                Vset, O_compact, F_compact, V2E_compact,
-                E2E_compact,
-                sqrt(surface_area / F_compact.size()),
+                m_vertices_set, m_positions_compact, m_faces_compact, m_V2E_compact,
+                m_E2E_compact,
+                sqrt(m_surface_area / m_faces_compact.size()),
                 diffs,
                 diff_count,
                 o2e,
@@ -1469,23 +1476,23 @@ namespace services {
         // Remove Valence 2
         while (true) {
             bool update = false;
-            std::vector<int> marks(V2E_compact.size(), 0);
-            std::vector<int> erasedF(F_compact.size(), 0);
-            for (int i = 0; i < V2E_compact.size(); ++i) {
-                int deid0 = V2E_compact[i];
+            std::vector<int> marks(m_V2E_compact.size(), 0);
+            std::vector<int> erasedF(m_faces_compact.size(), 0);
+            for (int i = 0; i < m_V2E_compact.size(); ++i) {
+                int deid0 = m_V2E_compact[i];
                 if (marks[i] || deid0 == -1) continue;
                 int deid = deid0;
                 std::vector<int> dedges;
                 do {
                     dedges.push_back(deid);
                     int deid1 = deid / 4 * 4 + (deid + 3) % 4;
-                    deid = E2E_compact[deid1];
+                    deid = m_E2E_compact[deid1];
                 } while (deid != deid0 && deid != -1);
                 if (dedges.size() == 2) {
-                    int v1 = F_compact[dedges[0] / 4][(dedges[0] + 1) % 4];
-                    int v2 = F_compact[dedges[0] / 4][(dedges[0] + 2) % 4];
-                    int v3 = F_compact[dedges[1] / 4][(dedges[1] + 1) % 4];
-                    int v4 = F_compact[dedges[1] / 4][(dedges[1] + 2) % 4];
+                    int v1 = m_faces_compact[dedges[0] / 4][(dedges[0] + 1) % 4];
+                    int v2 = m_faces_compact[dedges[0] / 4][(dedges[0] + 2) % 4];
+                    int v3 = m_faces_compact[dedges[1] / 4][(dedges[1] + 1) % 4];
+                    int v4 = m_faces_compact[dedges[1] / 4][(dedges[1] + 2) % 4];
                     if (marks[v1] || marks[v2] || marks[v3] || marks[v4]) continue;
                     marks[v1] = true;
                     marks[v2] = true;
@@ -1494,7 +1501,7 @@ namespace services {
                     if (v1 == v2 || v1 == v3 || v1 == v4 || v2 == v3 || v2 == v4 || v3 == v4) {
                         erasedF[dedges[0] / 4] = 1;
                     } else {
-                        F_compact[dedges[0] / 4] = Vector4i(v1, v2, v3, v4);
+                        m_faces_compact[dedges[0] / 4] = Vector4i(v1, v2, v3, v4);
                     }
                     erasedF[dedges[1] / 4] = 1;
                     update = true;
@@ -1504,23 +1511,23 @@ namespace services {
                 int top = 0;
                 for (int i = 0; i < erasedF.size(); ++i) {
                     if (erasedF[i] == 0) {
-                        F_compact[top++] = F_compact[i];
+                        m_faces_compact[top++] = m_faces_compact[i];
                     }
                 }
-                F_compact.resize(top);
-                compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact,
-                                          boundary_compact, nonManifold_compact);
+                m_faces_compact.resize(top);
+                compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
+                                          m_boundary_compact, m_non_manifold_compact);
             } else {
                 break;
             }
         }
-        std::vector<std::vector<int>> v_dedges(V2E_compact.size());
-        for (int i = 0; i < F_compact.size(); ++i) {
+        std::vector<std::vector<int>> v_dedges(m_V2E_compact.size());
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
-                v_dedges[F_compact[i][j]].push_back(i * 4 + j);
+                v_dedges[m_faces_compact[i][j]].push_back(i * 4 + j);
             }
         }
-        int top = V2E_compact.size();
+        int top = m_V2E_compact.size();
         for (int i = 0; i < v_dedges.size(); ++i) {
             std::map<int, int> groups;
             int group_id = 0;
@@ -1531,12 +1538,12 @@ namespace services {
                 do {
                     groups[deid] = group_id;
                     deid = deid / 4 * 4 + (deid + 3) % 4;
-                    deid = E2E_compact[deid];
+                    deid = m_E2E_compact[deid];
                 } while (deid != deid0 && deid != -1);
                 if (deid == -1) {
                     deid = deid0;
-                    while (E2E_compact[deid] != -1) {
-                        deid = E2E_compact[deid];
+                    while (m_E2E_compact[deid] != -1) {
+                        deid = m_E2E_compact[deid];
                         deid = deid / 4 * 4 + (deid + 1) % 4;
                         groups[deid] = group_id;
                     }
@@ -1545,33 +1552,34 @@ namespace services {
             }
             if (group_id > 1) {
                 for (auto &g: groups) {
-                    if (g.second >= 1) F_compact[g.first / 4][g.first % 4] = top - 1 + g.second;
+                    if (g.second >= 1) m_faces_compact[g.first / 4][g.first % 4] = top - 1 + g.second;
                 }
                 for (int j = 1; j < group_id; ++j) {
-                    Vset.push_back(Vset[i]);
-                    N_compact.push_back(N_compact[i]);
-                    Q_compact.push_back(Q_compact[i]);
-                    O_compact.push_back(O_compact[i]);
+                    m_vertices_set.push_back(m_vertices_set[i]);
+                    m_normals_compact.push_back(m_normals_compact[i]);
+                    m_orientations_compact.push_back(m_orientations_compact[i]);
+                    m_positions_compact.push_back(m_positions_compact[i]);
                 }
-                top = O_compact.size();
+                top = m_positions_compact.size();
             }
         }
-        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                  nonManifold_compact);
+        compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
+                                  m_boundary_compact,
+                                  m_non_manifold_compact);
 
         // Decrease Valence
         while (true) {
             bool update = false;
-            std::vector<int> marks(V2E_compact.size(), 0);
-            std::vector<int> valences(V2E_compact.size(), 0);
-            for (int i = 0; i < V2E_compact.size(); ++i) {
-                int deid0 = V2E_compact[i];
+            std::vector<int> marks(m_V2E_compact.size(), 0);
+            std::vector<int> valences(m_V2E_compact.size(), 0);
+            for (int i = 0; i < m_V2E_compact.size(); ++i) {
+                int deid0 = m_V2E_compact[i];
                 if (deid0 == -1) continue;
                 int deid = deid0;
                 int count = 0;
                 do {
                     count += 1;
-                    int deid1 = E2E_compact[deid];
+                    int deid1 = m_E2E_compact[deid];
                     if (deid1 == -1) {
                         count += 1;
                         break;
@@ -1589,17 +1597,17 @@ namespace services {
                 auto info = prior_queue.top();
                 prior_queue.pop();
                 if (marks[info.second]) continue;
-                int deid0 = V2E_compact[info.second];
+                int deid0 = m_V2E_compact[info.second];
                 if (deid0 == -1) continue;
                 int deid = deid0;
                 std::vector<int> loop_vertices, loop_dedges;;
                 bool marked = false;
                 do {
-                    int v = F_compact[deid / 4][(deid + 1) % 4];
+                    int v = m_faces_compact[deid / 4][(deid + 1) % 4];
                     loop_dedges.push_back(deid);
                     loop_vertices.push_back(v);
                     if (marks[v]) marked = true;
-                    int deid1 = E2E_compact[deid];
+                    int deid1 = m_E2E_compact[deid];
                     if (deid1 == -1) break;
                     deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
                 } while (deid != deid0 && deid != -1);
@@ -1623,17 +1631,17 @@ namespace services {
                     if (min_val.first >= info.first) continue;
                     update = true;
                     for (int id = split_idx; id < split_idx + step; ++id) {
-                        F_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = O_compact.size();
+                        m_faces_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = m_positions_compact.size();
                     }
-                    F_compact.push_back(Vector4i(
-                            O_compact.size(),
+                    m_faces_compact.push_back(Vector4i(
+                            m_positions_compact.size(),
                             loop_vertices[(split_idx + loop_vertices.size() - 1) % loop_vertices.size()],
                             info.second,
                             loop_vertices[(split_idx + step - 1 + loop_vertices.size()) %
                                           loop_vertices.size()]));
                 } else {
                     for (int id = loop_vertices.size() / 2; id < loop_vertices.size(); ++id) {
-                        F_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = O_compact.size();
+                        m_faces_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = m_positions_compact.size();
                     }
                     update = true;
                 }
@@ -1641,81 +1649,83 @@ namespace services {
                 for (int i = 0; i < loop_vertices.size(); ++i) {
                     marks[loop_vertices[i]] = 1;
                 }
-                Vset.push_back(Vset[info.second]);
-                O_compact.push_back(O_compact[info.second]);
-                N_compact.push_back(N_compact[info.second]);
-                Q_compact.push_back(Q_compact[info.second]);
+                m_vertices_set.push_back(m_vertices_set[info.second]);
+                m_positions_compact.push_back(m_positions_compact[info.second]);
+                m_normals_compact.push_back(m_normals_compact[info.second]);
+                m_orientations_compact.push_back(m_orientations_compact[info.second]);
             }
             if (!update) {
                 break;
             } else {
-                compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact,
-                                          boundary_compact, nonManifold_compact);
+                compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
+                                          m_boundary_compact, m_non_manifold_compact);
             }
         }
 
         // Remove Zero Valence
-        std::vector<int> valences(V2E_compact.size(), 0);
-        for (int i = 0; i < F_compact.size(); ++i) {
+        std::vector<int> valences(m_V2E_compact.size(), 0);
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
-                valences[F_compact[i][j]] = 1;
+                valences[m_faces_compact[i][j]] = 1;
             }
         }
         top = 0;
         std::vector<int> compact_indices(valences.size());
         for (int i = 0; i < valences.size(); ++i) {
             if (valences[i] == 0) continue;
-            N_compact[top] = N_compact[i];
-            O_compact[top] = O_compact[i];
-            Q_compact[top] = Q_compact[i];
-            Vset[top] = Vset[i];
+            m_normals_compact[top] = m_normals_compact[i];
+            m_positions_compact[top] = m_positions_compact[i];
+            m_orientations_compact[top] = m_orientations_compact[i];
+            m_vertices_set[top] = m_vertices_set[i];
             compact_indices[i] = top;
             top += 1;
         }
-        for (int i = 0; i < F_compact.size(); ++i) {
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
-                F_compact[i][j] = compact_indices[F_compact[i][j]];
+                m_faces_compact[i][j] = compact_indices[m_faces_compact[i][j]];
             }
         }
-        N_compact.resize(top);
-        O_compact.resize(top);
-        Q_compact.resize(top);
-        Vset.resize(top);
-        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                  nonManifold_compact);
+        m_normals_compact.resize(top);
+        m_positions_compact.resize(top);
+        m_orientations_compact.resize(top);
+        m_vertices_set.resize(top);
+        compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
+                                  m_boundary_compact,
+                                  m_non_manifold_compact);
         {
-            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                      nonManifold_compact);
-            std::vector<int> masks(F_compact.size() * 4, 0);
-            for (int i = 0; i < V2E_compact.size(); ++i) {
-                int deid0 = V2E_compact[i];
+            compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
+                                      m_boundary_compact,
+                                      m_non_manifold_compact);
+            std::vector<int> masks(m_faces_compact.size() * 4, 0);
+            for (int i = 0; i < m_V2E_compact.size(); ++i) {
+                int deid0 = m_V2E_compact[i];
                 if (deid0 == -1) continue;
                 int deid = deid0;
                 do {
                     masks[deid] = 1;
-                    deid = E2E_compact[deid];
+                    deid = m_E2E_compact[deid];
                     if (deid == -1) {
                         break;
                     }
                     deid = deid / 4 * 4 + (deid + 1) % 4;
                 } while (deid != deid0 && deid != -1);
             }
-            std::vector<std::vector<int>> v_dedges(V2E_compact.size());
-            for (int i = 0; i < F_compact.size(); ++i) {
+            std::vector<std::vector<int>> v_dedges(m_V2E_compact.size());
+            for (int i = 0; i < m_faces_compact.size(); ++i) {
                 for (int j = 0; j < 4; ++j) {
-                    v_dedges[F_compact[i][j]].push_back(i * 4 + j);
+                    v_dedges[m_faces_compact[i][j]].push_back(i * 4 + j);
                 }
             }
         }
         std::map<int, int> pts;
-        for (int i = 0; i < V2E_compact.size(); ++i) {
-            int deid0 = V2E_compact[i];
+        for (int i = 0; i < m_V2E_compact.size(); ++i) {
+            int deid0 = m_V2E_compact[i];
             if (deid0 == -1) continue;
             int deid = deid0;
             int count = 0;
             do {
                 count += 1;
-                int deid1 = E2E_compact[deid];
+                int deid1 = m_E2E_compact[deid];
                 if (deid1 == -1) break;
                 deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
             } while (deid != deid0 && deid != -1);
@@ -1728,9 +1738,9 @@ namespace services {
 
     void Parametrizer::fix_flip_hierarchy() {
         Hierarchy fh;
-        fh.DownsampleEdgeGraph(face_edgeOrients, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
+        fh.DownsampleEdgeGraph(m_face_edge_orientation, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
         fh.FixFlip();
-        fh.UpdateGraphValue(face_edgeOrients, m_face_edge_ids, m_edge_difference);
+        fh.UpdateGraphValue(m_face_edge_orientation, m_face_edge_ids, m_edge_difference);
     }
 
     void Parametrizer::close_hole(std::vector<int> &loop_vertices) {
@@ -1773,7 +1783,7 @@ namespace services {
                     int v1 = p[j];
                     int v2 = p[(j + 1) % 4];
                     auto key = std::make_pair(v1, v2);
-                    if (Quad_edges.count(key)) {
+                    if (m_quad_edges.count(key)) {
                         flag = true;
                         break;
                     }
@@ -1783,26 +1793,26 @@ namespace services {
                         int v1 = p[j];
                         int v2 = p[(j + 1) % 4];
                         auto key = std::make_pair(v1, v2);
-                        Quad_edges.insert(key);
+                        m_quad_edges.insert(key);
                     }
-                    F_compact.push_back(p);
+                    m_faces_compact.push_back(p);
                 }
             }
         }
     }
 
     void Parametrizer::find_fix_holes() {
-        for (int i = 0; i < F_compact.size(); ++i) {
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
-                int v1 = F_compact[i][j];
-                int v2 = F_compact[i][(j + 1) % 4];
+                int v1 = m_faces_compact[i][j];
+                int v2 = m_faces_compact[i][(j + 1) % 4];
                 auto key = std::make_pair(v1, v2);
-                Quad_edges.insert(key);
+                m_quad_edges.insert(key);
             }
         }
-        std::vector<int> detected_boundary(E2E_compact.size(), 0);
-        for (int i = 0; i < E2E_compact.size(); ++i) {
-            if (detected_boundary[i] != 0 || E2E_compact[i] != -1) continue;
+        std::vector<int> detected_boundary(m_E2E_compact.size(), 0);
+        for (int i = 0; i < m_E2E_compact.size(); ++i) {
+            if (detected_boundary[i] != 0 || m_E2E_compact[i] != -1) continue;
             std::vector<int> loop_edges;
             int current_e = i;
 
@@ -1810,14 +1820,14 @@ namespace services {
                 detected_boundary[current_e] = 1;
                 loop_edges.push_back(current_e);
                 current_e = current_e / 4 * 4 + (current_e + 1) % 4;
-                while (E2E_compact[current_e] != -1) {
-                    current_e = E2E_compact[current_e];
+                while (m_E2E_compact[current_e] != -1) {
+                    current_e = m_E2E_compact[current_e];
                     current_e = current_e / 4 * 4 + (current_e + 1) % 4;
                 }
             }
             std::vector<int> loop_vertices(loop_edges.size());
             for (int j = 0; j < loop_edges.size(); ++j) {
-                loop_vertices[j] = F_compact[loop_edges[j] / 4][loop_edges[j] % 4];
+                loop_vertices[j] = m_faces_compact[loop_edges[j] / 4][loop_edges[j] % 4];
             }
             if (loop_vertices.size() < 25) close_hole(loop_vertices);
         }
@@ -1836,11 +1846,11 @@ namespace services {
                 int v0 = loop_vertices[j];
                 int v2 = loop_vertices[(j + 1) % 4];
                 int v1 = loop_vertices[(j + 3) % 4];
-                Vector3d pt1 = (O_compact[v1] - O_compact[v0]).normalized();
-                Vector3d pt2 = (O_compact[v2] - O_compact[v0]).normalized();
+                Vector3d pt1 = (m_positions_compact[v1] - m_positions_compact[v0]).normalized();
+                Vector3d pt2 = (m_positions_compact[v2] - m_positions_compact[v0]).normalized();
                 Vector3d n = pt1.cross(pt2);
                 double sina = n.norm();
-                if (n.dot(N_compact[v0]) < 0) sina = -sina;
+                if (n.dot(m_normals_compact[v0]) < 0) sina = -sina;
                 double cosa = pt1.dot(pt2);
                 double angle = atan2(sina, cosa) / 3.141592654 * 180.0;
                 if (angle < 0) angle = 360 + angle;
@@ -1891,7 +1901,7 @@ namespace services {
 
     void Parametrizer::extract_quad() {
         Hierarchy fh;
-        fh.DownsampleEdgeGraph(face_edgeOrients, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
+        fh.DownsampleEdgeGraph(m_face_edge_orientation, m_face_edge_ids, m_edge_difference, m_allow_changes, -1);
         auto &V = m_hierarchy.m_vertices[0];
         auto &F = m_hierarchy.m_faces;
         disajoint_tree = entities::DisjointTree(V.cols());
@@ -1925,34 +1935,35 @@ namespace services {
             }
             if (t >= 0) face[t] = i;
         }
-        fh.UpdateGraphValue(face_edgeOrients, m_face_edge_ids, m_edge_difference);
+        fh.UpdateGraphValue(m_face_edge_orientation, m_face_edge_ids, m_edge_difference);
 
         auto &O = m_hierarchy.m_positions[0];
         auto &Q = m_hierarchy.m_orientation[0];
         auto &N = m_hierarchy.m_normals[0];
         int num_v = disajoint_tree.CompactNum();
-        Vset.resize(num_v);
-        O_compact.resize(num_v, Vector3d::Zero());
-        Q_compact.resize(num_v, Vector3d::Zero());
-        N_compact.resize(num_v, Vector3d::Zero());
-        counter.resize(num_v, 0);
+        m_vertices_set.resize(num_v);
+        m_positions_compact.resize(num_v, Vector3d::Zero());
+        m_orientations_compact.resize(num_v, Vector3d::Zero());
+        m_normals_compact.resize(num_v, Vector3d::Zero());
+        m_counter.resize(num_v, 0);
         for (int i = 0; i < O.cols(); ++i) {
             int compact_v = disajoint_tree.Index(i);
-            Vset[compact_v].push_back(i);
-            O_compact[compact_v] += O.col(i);
-            N_compact[compact_v] = N_compact[compact_v] * counter[compact_v] + N.col(i);
-            N_compact[compact_v].normalize();
-            if (counter[compact_v] == 0)
-                Q_compact[compact_v] = Q.col(i);
+            m_vertices_set[compact_v].push_back(i);
+            m_positions_compact[compact_v] += O.col(i);
+            m_normals_compact[compact_v] = m_normals_compact[compact_v] * m_counter[compact_v] + N.col(i);
+            m_normals_compact[compact_v].normalize();
+            if (m_counter[compact_v] == 0)
+                m_orientations_compact[compact_v] = Q.col(i);
             else {
-                auto pairs = compat_orientation_extrinsic_4(Q_compact[compact_v], N_compact[compact_v],
+                auto pairs = compat_orientation_extrinsic_4(m_orientations_compact[compact_v],
+                                                            m_normals_compact[compact_v],
                                                             Q.col(i), N.col(i));
-                Q_compact[compact_v] = (pairs.first * counter[compact_v] + pairs.second).normalized();
+                m_orientations_compact[compact_v] = (pairs.first * m_counter[compact_v] + pairs.second).normalized();
             }
-            counter[compact_v] += 1;
+            m_counter[compact_v] += 1;
         }
-        for (int i = 0; i < O_compact.size(); ++i) {
-            O_compact[i] /= counter[i];
+        for (int i = 0; i < m_positions_compact.size(); ++i) {
+            m_positions_compact[i] /= m_counter[i];
         }
 
         build_triangle_manifold(disajoint_tree, edge, face, m_edge_values, F2E, E2F, EdgeDiff, FQ);
@@ -1996,10 +2007,10 @@ namespace services {
                 if (triangle_vertices[i][j] != -1) continue;
                 int f = face[i];
                 int v = disajoint_tree.Index(F(j, f));
-                Vs.push_back(Vset[v]);
-                Q.push_back(Q_compact[v]);
-                N.push_back(N_compact[v]);
-                O.push_back(O_compact[v]);
+                Vs.push_back(m_vertices_set[v]);
+                Q.push_back(m_orientations_compact[v]);
+                N.push_back(m_normals_compact[v]);
+                O.push_back(m_positions_compact[v]);
                 int deid0 = i * 3 + j;
                 int deid = deid0;
                 do {
@@ -2153,38 +2164,38 @@ namespace services {
 
         for (auto &p: quads) {
             if (p.second.second[0] != -1 && p.second.first[2] != p.second.second[2]) {
-                F_compact.push_back(Vector4i(p.second.first[1], p.second.first[2], p.second.first[0],
-                                             p.second.second[2]));
+                m_faces_compact.push_back(Vector4i(p.second.first[1], p.second.first[2], p.second.first[0],
+                                                   p.second.second[2]));
             }
         }
-        std::swap(Vs, Vset);
-        std::swap(O_compact, O);
-        std::swap(N_compact, N);
-        std::swap(Q_compact, Q);
+        std::swap(Vs, m_vertices_set);
+        std::swap(m_positions_compact, O);
+        std::swap(m_normals_compact, N);
+        std::swap(m_orientations_compact, Q);
 
         compute_direct_graph_quad(
-                O_compact,
-                F_compact,
-                V2E_compact,
-                E2E_compact,
-                boundary_compact,
-                nonManifold_compact
+                m_positions_compact,
+                m_faces_compact,
+                m_V2E_compact,
+                m_E2E_compact,
+                m_boundary_compact,
+                m_non_manifold_compact
         );
 
         while (true) {
-            std::vector<int> erasedF(F_compact.size(), 0);
-            for (int i = 0; i < F_compact.size(); ++i) {
+            std::vector<int> erasedF(m_faces_compact.size(), 0);
+            for (int i = 0; i < m_faces_compact.size(); ++i) {
                 for (int j = 0; j < 3; ++j) {
                     for (int k = j + 1; k < 4; ++k) {
-                        if (F_compact[i][j] == F_compact[i][k]) {
+                        if (m_faces_compact[i][j] == m_faces_compact[i][k]) {
                             erasedF[i] = 1;
                         }
                     }
                 }
             }
-            for (int i = 0; i < O_compact.size(); ++i) {
+            for (int i = 0; i < m_positions_compact.size(); ++i) {
                 int v = 0;
-                int e0 = V2E_compact[i];
+                int e0 = m_V2E_compact[i];
                 if (e0 == -1) continue;
                 std::vector<int> dedges;
                 int e = e0;
@@ -2192,12 +2203,12 @@ namespace services {
                     dedges.push_back(e);
                     v += 1;
                     e = e / 4 * 4 + (e + 3) % 4;
-                    e = E2E_compact[e];
+                    e = m_E2E_compact[e];
                 } while (e != e0 && e != -1);
                 if (e == -1) {
                     int e = e0;
                     while (true) {
-                        e = E2E_compact[e];
+                        e = m_E2E_compact[e];
                         if (e == -1) break;
                         e = e / 4 * 4 + (e + 1) % 4;
                         v += 1;
@@ -2206,33 +2217,33 @@ namespace services {
                 }
                 if (v == 2) {
                     //                erasedF[dedges[1] / 4] = 1;
-                    //                F_compact[dedges[0]/4][dedges[0]%4] =
-                    //                F_compact[dedges[1]/4][(dedges[1]+2)%4];
+                    //                m_faces_compact[dedges[0]/4][dedges[0]%4] =
+                    //                m_faces_compact[dedges[1]/4][(dedges[1]+2)%4];
                 }
             }
             offset = 0;
-            for (int i = 0; i < F_compact.size(); ++i) {
-                if (erasedF[i] == 0) F_compact[offset++] = F_compact[i];
+            for (int i = 0; i < m_faces_compact.size(); ++i) {
+                if (erasedF[i] == 0) m_faces_compact[offset++] = m_faces_compact[i];
             }
-            if (offset == F_compact.size()) break;
-            F_compact.resize(offset);
+            if (offset == m_faces_compact.size()) break;
+            m_faces_compact.resize(offset);
             compute_direct_graph_quad(
-                    O_compact,
-                    F_compact,
-                    V2E_compact,
-                    E2E_compact,
-                    boundary_compact,
-                    nonManifold_compact
+                    m_positions_compact,
+                    m_faces_compact,
+                    m_V2E_compact,
+                    m_E2E_compact,
+                    m_boundary_compact,
+                    m_non_manifold_compact
             );
         }
         find_fix_holes();
         compute_direct_graph_quad(
-                O_compact,
-                F_compact,
-                V2E_compact,
-                E2E_compact,
-                boundary_compact,
-                nonManifold_compact
+                m_positions_compact,
+                m_faces_compact,
+                m_V2E_compact,
+                m_E2E_compact,
+                m_boundary_compact,
+                m_non_manifold_compact
         );
     }
 
@@ -2316,17 +2327,17 @@ namespace services {
                     scaleX = -scaleX;
                     scaleY = -scaleY;
                 }
-                m_hierarchy.mK[0].col(mF(j, i)) += area * Vector2d(scaleX, scaleY);
+                m_hierarchy.m_areas[0].col(mF(j, i)) += area * Vector2d(scaleX, scaleY);
                 areas[mF(j, i)] += area;
             }
         }
         for (int i = 0; i < mV.cols(); ++i) {
             if (areas[i] != 0)
-                m_hierarchy.mK[0].col(i) /= areas[i];
+                m_hierarchy.m_areas[0].col(i) /= areas[i];
         }
-        for (int l = 0; l < m_hierarchy.mK.size() - 1; ++l) {
-            const MatrixXd &K = m_hierarchy.mK[l];
-            MatrixXd &K_next = m_hierarchy.mK[l + 1];
+        for (int l = 0; l < m_hierarchy.m_areas.size() - 1; ++l) {
+            const MatrixXd &K = m_hierarchy.m_areas[l];
+            MatrixXd &K_next = m_hierarchy.m_areas[l + 1];
             auto &toUpper = m_hierarchy.mToUpper[l];
             for (int i = 0; i < toUpper.cols(); ++i) {
                 Vector2i upper = toUpper.col(i);

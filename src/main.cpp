@@ -59,14 +59,19 @@ int main(int argc, char **argv) {
     const auto args = read_args(argc, argv);
 
     bootstrap::Container container = bootstrap::Container();
-    MeshService service = container.mesh_service();
+    const MeshService service = container.mesh_service();
     const auto mesh = service.load_trimesh_from_file(args.path_in);
     adapters::initialize_parameterizer(field, mesh);
 
     spdlog::stopwatch watch, watch_total;
     spdlog::info("Initializing parameters");
 
-    field.initialize_parameterizer(args.face_count, args.adaptive);
+    field.initialize_parameterizer(
+            args.boundaries,
+            args.edges,
+            args.face_count,
+            args.adaptive
+    );
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
@@ -122,7 +127,7 @@ int main(int argc, char **argv) {
     watch.reset();
     spdlog::info("Solving for integer constraints");
 
-    field.compute_index_map();
+    field.compute_index_map(field.m_hierarchy);
 
     spdlog::info("Elapsed: {:.3} seconds\n", watch);
 
