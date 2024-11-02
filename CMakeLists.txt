@@ -101,6 +101,7 @@ add_executable(
         tests/test_persistence.cpp
         tests/test_openmesh.cpp
         tests/test_surfacenets.cpp
+
         src/dedge.cpp
         src/hierarchy.cpp
         src/optimizer.cpp

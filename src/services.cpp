@@ -306,10 +306,11 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
-    entities::QuadMesh mesh_sdfn(const std::string path_model) {
-        spdlog::info("Meshing SDFn via surface nets.");
+    entities::QuadMesh mesh_sdfn(const entities::SDFn sdfn, const int resolution) {
+        spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
         entities::QuadMesh mesh;
+
         return mesh;
     }
 
