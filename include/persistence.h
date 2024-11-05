@@ -12,6 +12,6 @@ namespace persistence {
 
         void save_mesh_to_file(const std::string &filename, const entities::QuadMesh &mesh) const;
 
-        [[nodiscard]] std::vector<entities::SDFn> load_sdfn_from_file(const std::string &path_model) const;
+        entities::UnboundModel load_unbound_model(const std::string &filename) const;
     };
 }

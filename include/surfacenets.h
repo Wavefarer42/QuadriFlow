@@ -5,12 +5,27 @@
 using namespace Eigen;
 
 namespace surfacenets {
-    MatrixXf cartesian_product(const ArrayXf X, const ArrayXf Y, const ArrayXf Z);
-    MatrixXf estimate_bounding_box(const entities::SDFn sdfn);
+
+    MatrixXf cartesian_product(
+            const VectorXf &X,
+            const VectorXf &Y,
+            const VectorXf &Z
+    );
+
+    MatrixXf create_sample_grid(
+            const AlignedBox3f &bounds,
+            float resolution
+    );
+
+    AlignedBox3f estimate_bounding_box(
+            entities::SDFn sdfn,
+            float resolution,
+            float threshold
+    );
 
     class SurfaceNetsMeshStrategy {
     public:
-        entities::QuadMesh mesh(const entities::SDFn sdfn, const int resolution) const;
+        entities::QuadMesh mesh(entities::SDFn sdfn, int resolution) const;
 
     private:
         const Matrix<int, 8, 3> CUBE_CORNERS = (Matrix<int, 8, 3>() << 0, 0, 0,

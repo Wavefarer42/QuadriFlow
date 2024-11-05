@@ -7,7 +7,11 @@ using namespace Eigen;
 
 namespace surfacenets {
 
-    MatrixXf cartesian_product(const ArrayXf X, const ArrayXf Y, const ArrayXf Z) {
+    MatrixXf cartesian_product(
+            const VectorXf &X,
+            const VectorXf &Y,
+            const VectorXf &Z
+    ) {
         spdlog::debug("Computing cartesian product");
 
         MatrixXf domain(X.size() * Y.size() * Z.size(), 3);
@@ -23,79 +27,59 @@ namespace surfacenets {
         return domain;
     }
 
-    MatrixXf estimate_bounding_box(const entities::SDFn sdfn) {
-        spdlog::debug("Estimating bounding box");
-
-        const float step = 16;
-        float x0 = -1e9, y0 = -1e9, z0 = -1e9;
-        float x1 = 1e9, y1 = 1e9, z1 = 1e9;
-
-        float threshold_prev = 1e9;
-        for (int i = 0; i < 32; ++i) {
-            const auto X = ArrayXf::LinSpaced(step, x0, x1);
-            const auto Y = ArrayXf::LinSpaced(step, y0, y1);
-            const auto Z = ArrayXf::LinSpaced(step, z0, z1);
-            const Vector3f distance(X[1] - X[0], Y[1] - Y[0], Z[1] - Z[0]);
-            const auto threshold = distance.norm() / 2;
-            if (std::abs(threshold - threshold_prev) < 1e-4) {
-                break;
-            }
-
-            threshold_prev = threshold;
-            const auto domain = cartesian_product(X, Y, Z);
-            const VectorXf sdf = sdfn(domain).col(0);
-
-            int lenX = X.size(), lenY = Y.size(), lenZ = Z.size();
-            MatrixXd volumeMatrix(lenX, lenY * lenZ);
-            for (int idx = 0; idx < sdf.size(); ++idx) {
-                int x_idx = idx / (lenY * lenZ);
-                int yz_idx = idx % (lenY * lenZ);
-                volumeMatrix(x_idx, yz_idx) = sdf(idx);
-            }
-
-            std::vector<Vector3i> withinThreshold;
-            for (int idx = 0; idx < sdf.size(); ++idx) {
-                if (std::abs(sdf(idx)) <= threshold) {
-                    int z_idx = idx % lenZ;
-                    int y_idx = (idx / lenZ) % lenY;
-                    int x_idx = idx / (lenY * lenZ);
-                    withinThreshold.emplace_back(x_idx, y_idx, z_idx);
-                }
-            }
-
-            Vector3i where_max = withinThreshold[0];
-            Vector3i where_min = withinThreshold[0];
-            for (const auto &vec: withinThreshold) {
-                where_max = where_max.cwiseMax(vec);
-                where_min = where_min.cwiseMin(vec);
-            }
-
-            x1 = x0 + where_max(0) * distance(0) + distance(0) / 2;
-            y1 = y0 + where_max(1) * distance(1) + distance(1) / 2;
-            z1 = z0 + where_max(2) * distance(2) + distance(2) / 2;
-
-            x0 = x0 + where_min(0) * distance(0) - distance(0) / 2;
-            y0 = y0 + where_min(1) * distance(1) - distance(1) / 2;
-            z0 = z0 + where_min(2) * distance(2) - distance(2) / 2;
-
-        }
-
-        MatrixXf result(2, 3);
-        result << x0, y0, z0, x1, y1, z1;
-        return result;
-    }
-
     MatrixXf create_sample_grid(
-            const MatrixXf &bounds,
-            const int resolution
+            const AlignedBox3f &bounds,
+            float resolution
     ) {
         spdlog::debug("Creating sample grid");
 
-        const auto X = ArrayXf::LinSpaced(resolution, bounds(0, 0), bounds(1, 0));
-        const auto Y = ArrayXf::LinSpaced(resolution, bounds(0, 1), bounds(1, 1));
-        const auto Z = ArrayXf::LinSpaced(resolution, bounds(0, 2), bounds(1, 2));
+        const auto X = VectorXf::LinSpaced(static_cast<int>(resolution), bounds.min().x(), bounds.max().x());
+        const auto Y = VectorXf::LinSpaced(static_cast<int>(resolution), bounds.min().y(), bounds.max().y());
+        const auto Z = VectorXf::LinSpaced(static_cast<int>(resolution), bounds.min().z(), bounds.max().z());
 
         return cartesian_product(X, Y, Z);
+    }
+
+    AlignedBox3f estimate_bounding_box(
+            entities::SDFn sdfn,
+            float resolution,
+            float threshold = 1e-3
+    ) {
+        spdlog::debug("Estimating bounding box");
+
+        AlignedBox3f bounds(Vector3f(-1e18, -1e18, -1e18),
+                            Vector3f(1e18, 1e18, 1e18));
+        AlignedBox3f bounds_prev(Vector3f(0, 0, 0),
+                                 Vector3f(0, 0, 0));
+
+        const int max_rounds = 32;
+        int round = 0;
+        while (round < max_rounds &&
+               (bounds.max() != bounds_prev.max() || bounds.min() != bounds_prev.min())) {
+            const auto domain = create_sample_grid(bounds, resolution);
+            const auto sdf = sdfn(domain);
+
+            for (auto i = 0; i < domain.rows(); ++i) {
+                if (std::abs(sdf(i)) < threshold) {
+                    const auto &point = domain.row(i);
+                    if (point.x() <= bounds.min().x() + resolution) bounds.min().x() -= resolution;
+                    if (point.x() >= bounds.max().x() - resolution) bounds.max().x() += resolution;
+                    if (point.y() <= bounds.min().y() + resolution) bounds.min().y() -= resolution;
+                    if (point.y() >= bounds.max().y() - resolution) bounds.max().y() += resolution;
+                    if (point.z() <= bounds.min().z() + resolution) bounds.min().z() -= resolution;
+                    if (point.z() >= bounds.max().z() - resolution) bounds.max().z() += resolution;
+                }
+            }
+
+            bounds_prev = bounds;
+            round++;
+        }
+
+        spdlog::debug("Estimated bounding box: min = ({}, {}, {}), max = ({}, {}, {}), rounds = {}",
+                      bounds.min().x(), bounds.min().y(), bounds.min().z(),
+                      bounds.max().x(), bounds.max().y(), bounds.max().z(),
+                      round);
+        return bounds;
     }
 
     entities::QuadMesh estimate_surface_vertices(
@@ -105,6 +89,9 @@ namespace surfacenets {
     ) {
         spdlog::debug("Estimating surface vertices");
         entities::QuadMesh mesh;
+
+        for (int i = 0; i < sdf.rows(); ++i) {
+        }
 
         return mesh;
     }
@@ -122,7 +109,7 @@ namespace surfacenets {
     entities::QuadMesh SurfaceNetsMeshStrategy::mesh(const entities::SDFn sdfn, const int resolution) const {
         spdlog::debug("Meshing SDFn with resolution {}", resolution);
 
-        const auto bounds = estimate_bounding_box(sdfn);
+        const auto bounds = estimate_bounding_box(sdfn, resolution);
         const auto domain = create_sample_grid(bounds, resolution);
         const MatrixXf sdf = sdfn(domain);
         entities::QuadMesh mesh = estimate_surface_vertices(sdfn, domain, sdf);

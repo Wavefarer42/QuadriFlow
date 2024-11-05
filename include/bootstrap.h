@@ -2,10 +2,15 @@
 
 #include "persistence.h"
 #include "services.h"
+#include "spdlog/spdlog.h"
 
 namespace bootstrap {
     class Container {
     public:
+        Container() {
+            spdlog::set_level(spdlog::level::debug);
+        }
+
         persistence::MeshDao &mesh_dao();
 
         services::MeshService &mesh_service();

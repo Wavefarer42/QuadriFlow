@@ -40,23 +40,66 @@ include_directories(third_party/pcg32/include)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 
+# Spdlog
 FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
         GIT_TAG v1.14.1
 )
 FetchContent_MakeAvailable(spdlog)
+include_directories(${spdlog_SOURCE_DIR})
 
+
+# GLM
+FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG 0.9.8  # Use a specific version here (latest tag is preferable)
+)
+FetchContent_MakeAvailable(glm)
+include_directories(${glm_SOURCE_DIR})
+
+# Nlohmann JSON
 FetchContent_Declare(
         nlohmann_json
         GIT_REPOSITORY https://github.com/nlohmann/json.git
         GIT_TAG v3.11.2  # Specify the version you want to use
 )
 FetchContent_MakeAvailable(nlohmann_json)
+include_directories(${nlohmann_json_SOURCE_DIR})
 
-# Tools
-set(UBTool ${CMAKE_SOURCE_DIR}/third_party/UbTool/UbTool)
-add_definitions(-DPATH_UBTOOL="${UBTool}")
+# ----- UnboundEval -----
+
+# Unbound
+set(UNBOUNDEVAL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/UnboundEval/include)
+set(UNBOUNDEVAL_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/UnboundEval/src)
+
+include_directories(third_party/UnboundEval/include)
+include_directories(third_party/UnboundEval/include/UB)
+include_directories(third_party/UnboundEval/include/Core)
+include_directories(third_party/UnboundEval/include/xxhash)
+include_directories(third_party/UnboundEval/include/stduuid)
+include_directories(third_party/UnboundEval/include/Math)
+
+add_library(
+        UnboundEval STATIC
+        ${UNBOUNDEVAL_SRC_DIR}/Collection.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/Collection.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/Edit.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/Instruction.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/Shape.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/UB.cpp
+        ${UNBOUNDEVAL_SRC_DIR}/Centripetal.cpp
+        third_party/UnboundEval/src/xxhash.cpp
+)
+
+target_compile_definitions(
+        UnboundEval
+        PRIVATE
+        GLM_ENABLE_EXPERIMENTAL
+)
+
+# ----- MeshBound ----
 
 # Targets
 add_executable(
@@ -82,6 +125,8 @@ target_link_libraries(
         OpenMeshTools
         spdlog::spdlog
         nlohmann_json::nlohmann_json
+        UnboundEval
+        "-framework CoreFoundation"
 )
 
 # Testing
@@ -95,6 +140,7 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
 
+# Build Targets
 add_executable(
         meshboundTests
 
@@ -122,6 +168,8 @@ target_link_libraries(
         OpenMeshTools
         spdlog::spdlog
         nlohmann_json::nlohmann_json
+        UnboundEval
+        "-framework CoreFoundation"
 )
 
 # Testing

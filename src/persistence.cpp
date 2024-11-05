@@ -1,10 +1,12 @@
 #include <fstream>
+#include <stdexcept>
 
 #include <boost/process.hpp>
 #include <nlohmann/json.hpp>
 #include <OpenMesh/Core/IO/MeshIO.hh>
-
 #include "spdlog/spdlog.h"
+#include "spdlog/stopwatch.h"
+
 #include "persistence.h"
 
 #ifndef PATH_UBTOOL
@@ -64,123 +66,23 @@ namespace persistence {
         }
     }
 
-    std::vector<entities::UnboundModelInfo> load_model_info(const std::string &path_model) {
-        spdlog::info("Loading model info for {}", path_model);
+    entities::UnboundModel MeshDao::load_unbound_model(const std::string &path_model) const {
+        spdlog::info("Loading unbound model for {}", path_model);
 
-        const auto tool = std::string(PATH_UBTOOL);
-        const auto command = std::format("{} info -u {}", tool, path_model);
-
-        boost::process::ipstream pipe_stream;
-        boost::process::child process(command, boost::process::std_out > pipe_stream);
-
-        std::string json_data;
-
-        std::string line;
-        while (pipe_stream && std::getline(pipe_stream, line) && !line.empty()) {
-            json_data += line;
-        }
-
-        process.wait();
-
-        if (process.exit_code() != 0 || json_data.empty()) {
-            throw std::runtime_error("Expected the model infos for " + path_model);
-        }
-
-        nlohmann::json json = nlohmann::json::parse(json_data);
-
-        std::vector<entities::UnboundModelInfo> infos;
-        for (auto &[id_model, entry]: json.items()) {
-            infos.push_back(
-                    {
-                            .id_model = id_model,
-                            .size_edits = entry["size_edits"],
-                            .resolution = entry["resolution"],
-                            .shape_density = entry["shape_density"]
-                    }
-            );
-        }
-
-        return infos;
-    }
-
-    void write_sample_domain(
-            const std::string &path_data,
-            const std::string &id_model,
-            const MatrixXf &domain
-    ) {
-        spdlog::debug("Writing sample domain data to {}", path_data);
-
-        nlohmann::json json;
-        json[id_model] = from_matrix_to_list_list(domain);
-
-        std::ofstream f(path_data);
+        std::ifstream f(path_model);
         if (f.is_open()) {
-            f << json.dump(4);
-            f.close();
+            try {
+                nlohmann::json data = nlohmann::json::parse(f);
+                const auto collection = data.get<UB::Collection>();
+                return entities::UnboundModel(collection);
+            }
+            catch (nlohmann::json::exception const &e) {
+                spdlog::error("Could not parse collection json:\n{}", e.what());
+                throw std::ios_base::failure("Could not parse collection json");
+            }
         } else {
-            spdlog::error("Could not open file {}", path_data);
-            throw std::runtime_error("Could not write sample domain data " + path_data);
+            spdlog::error("Could not open the collection file.");
+            throw std::ios_base::failure("Could not open the collection file.");
         }
-    }
-
-    MatrixXf sample_model(
-            const std::string &path_model,
-            const std::string &id_model,
-            const MatrixXf &domain
-    ) {
-        spdlog::debug("Loading model sample for {}", path_model);
-
-        const auto path_domain = "domain.json";
-        write_sample_domain(path_domain, id_model, domain);
-
-        const auto tool = std::string(PATH_UBTOOL);
-        const auto command = std::format("{} sample -u {} -d {}", tool, path_model, path_domain);
-
-        boost::process::ipstream pipe_stream;
-        boost::process::child process(command, boost::process::std_out > pipe_stream);
-
-        std::string json_data;
-
-        std::string line;
-        while (pipe_stream && std::getline(pipe_stream, line) && !line.empty()) {
-            json_data += line;
-        }
-
-        process.wait();
-
-        if (process.exit_code() != 0 || json_data.empty()) {
-            throw std::runtime_error("Expected the model infos for " + path_model);
-        }
-
-        nlohmann::json json = nlohmann::json::parse(json_data);
-        if (!json.contains(id_model)) {
-            throw std::runtime_error("Expected the model sample in the UbTool response for " + id_model);
-        }
-
-        const auto data = json[id_model];
-        const auto distances = from_list_to_vector(data["distances"]);
-        const auto gradients = from_list_list_to_matrix(data["gradients"]);
-
-        MatrixXf result(domain.rows(), 4);
-        result << distances, gradients;
-
-        return result;
-    }
-
-    std::vector<entities::SDFn> MeshDao::load_sdfn_from_file(const std::string &path_model) const {
-        spdlog::debug("Creating new Unbound sampler for file {}", path_model);
-
-        const auto models = load_model_info(path_model);
-
-        std::vector<entities::SDFn> sdfns;
-        for (const auto &model: models) {
-            const auto sampler = [model, path_model](const MatrixXf &domain) {
-                return sample_model(path_model, model.id_model, domain);
-            };
-
-            sdfns.emplace_back(sampler);
-        }
-
-        return sdfns;
     }
 }

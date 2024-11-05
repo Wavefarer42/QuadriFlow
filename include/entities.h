@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include <vector>
 #include <list>
 #include <map>
@@ -7,6 +8,9 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
+#include "Collection.h"
+#include "Serialization.h"
+#include "uuid.h"
 
 namespace entities {
     using namespace Eigen;
@@ -219,12 +223,40 @@ namespace entities {
 
     typedef OpenMesh::PolyMesh_ArrayKernelT<> QuadMesh;
 
-    struct UnboundModelInfo {
-        std::string id_model;
-        int size_edits;
-        int resolution;
-        int shape_density;
-    };
+    typedef std::function<VectorXf(MatrixXf)> SDFn;
 
-    typedef std::function<MatrixXf(MatrixXf)> SDFn;
+    class UnboundModel {
+    public:
+        const UB::Collection collection;
+        std::map<std::string, SDFn> sdfns;
+
+        explicit UnboundModel(UB::Collection collection)
+                : collection(collection) {
+
+            for (auto const &[id_model, model]: collection.models) {
+                UB::InstructionList evalList;
+                UB::compileEditList(model.editList, evalList);
+
+                const auto sampler = [model, evalList](MatrixXf domain) {
+                    VectorXf distances(domain.rows());
+                    for (int i = 0; i < domain.rows(); ++i) {
+                        distances[i] = UB::evalDistance(glm::vec3(domain(i, 0), domain(i, 1), domain(i, 2)),
+                                                        evalList);
+                    }
+                    return distances;
+                };
+
+                this->sdfns[uuids::to_string(id_model)] = sampler;
+            }
+        }
+
+
+        [[nodiscard]] std::vector<SDFn> sdfn_as_list() const {
+            std::vector<SDFn> sfdns;
+            for (auto const &[key, val]: sdfns) {
+                sfdns.push_back(val);
+            }
+            return sfdns;
+        }
+    };
 }
