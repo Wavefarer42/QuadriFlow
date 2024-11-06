@@ -20,6 +20,9 @@ include(FetchContent)
 include_directories(include)
 include_directories(src)
 
+# Tbb
+find_package(TBB REQUIRED)
+
 # Eigen
 find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS})
@@ -92,11 +95,6 @@ target_compile_definitions(
         GLM_ENABLE_EXPERIMENTAL
 )
 
-
-# OpenMP
-find_package(OpenMP)
-
-
 # ----- MeshBound ----
 
 # Targets
@@ -125,11 +123,8 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         UnboundEval
         "-framework CoreFoundation"
+        TBB::tbb
 )
-
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(meshbound PUBLIC OpenMP::OpenMP_CXX)
-endif()
 
 # Testing
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -172,11 +167,8 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         UnboundEval
         "-framework CoreFoundation"
+        TBB::tbb
 )
-
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(meshboundTests PUBLIC OpenMP::OpenMP_CXX)
-endif()
 
 # Testing
 

@@ -19,8 +19,7 @@ namespace surfacenets {
 
     AlignedBox3f estimate_bounding_box(
             entities::SDFn sdfn,
-            float resolution,
-            float threshold
+            int grid_resolution
     );
 
     class SurfaceNetsMeshStrategy {

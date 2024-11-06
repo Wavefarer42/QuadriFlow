@@ -5,9 +5,13 @@
 #include <list>
 #include <map>
 
+
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+
 #include "Collection.h"
 #include "Serialization.h"
 #include "uuid.h"
@@ -239,10 +243,16 @@ namespace entities {
 
                 const auto sampler = [model, evalList](MatrixXf domain) {
                     VectorXf distances(domain.rows());
-                    for (int i = 0; i < domain.rows(); ++i) {
-                        distances[i] = UB::evalDistance(glm::vec3(domain(i, 0), domain(i, 1), domain(i, 2)),
-                                                        evalList);
-                    }
+
+                    tbb::parallel_for(
+                            tbb::blocked_range<int>(0, domain.rows()),
+                            [&](const tbb::blocked_range<int> &range) {
+                                for (int i = range.begin(); i < range.end(); ++i) {
+                                    const auto point = glm::vec3(domain(i, 0), domain(i, 1), domain(i, 2));
+                                    distances[i] = UB::evalDistance(point, evalList);
+                                }
+                            }
+                    );
                     return distances;
                 };
 

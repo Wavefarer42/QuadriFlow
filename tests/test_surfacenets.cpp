@@ -12,7 +12,7 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
             .load_unbound_model(path_model)
             .sdfn_as_list()[0];
 
-    const AlignedBox3f result = surfacenets::estimate_bounding_box(sdfn, 100, 1e-3);
+    const AlignedBox3f result = surfacenets::estimate_bounding_box(sdfn, 100);
 
     EXPECT_LE(result.min().x(), 0);
     EXPECT_LE(result.min().y(), 0);
