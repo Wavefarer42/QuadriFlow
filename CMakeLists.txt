@@ -15,30 +15,24 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-int-in-bool-context -Wno-sign-compare")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
-    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
-    set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
-endif ()
-
-if (MSVC)
-    # Enable M_PI and disable fopen() etc. warnings
-    ADD_DEFINITIONS(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
-    # Disable the following warnings : C4267 and 4244 (conversions) C4018 (sign compare) and C4800 (bool to int)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /wd4267 /wd4244 /wd4018 /wd4800")
-endif ()
-
-find_package(Eigen REQUIRED)
-find_package(Boost REQUIRED)
-find_package(OpenMesh REQUIRED)
 
 include(FetchContent)
 include_directories(include)
 include_directories(src)
-include_directories(third_party/pcg32/include)
-include_directories(${Boost_INCLUDE_DIRS})
+
+# Eigen
+find_package(Eigen REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS})
+
+# Boost
+find_package(Boost REQUIRED COMPONENTS thread)
+include_directories(${Boost_INCLUDE_DIRS})
+
+# OpenMesh
+find_package(OpenMesh REQUIRED)
+
+# PCG32
+include_directories(third_party/pcg32/include)
 
 # Spdlog
 FetchContent_Declare(
@@ -48,7 +42,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 include_directories(${spdlog_SOURCE_DIR})
-
 
 # GLM
 FetchContent_Declare(
@@ -99,6 +92,11 @@ target_compile_definitions(
         GLM_ENABLE_EXPERIMENTAL
 )
 
+
+# OpenMP
+find_package(OpenMP)
+
+
 # ----- MeshBound ----
 
 # Targets
@@ -129,6 +127,10 @@ target_link_libraries(
         "-framework CoreFoundation"
 )
 
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(meshbound PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
 # Testing
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 
@@ -145,7 +147,7 @@ add_executable(
         meshboundTests
 
         tests/test_persistence.cpp
-        tests/test_openmesh.cpp
+        tests/test_libraries.cpp
         tests/test_surfacenets.cpp
 
         src/dedge.cpp
@@ -171,6 +173,10 @@ target_link_libraries(
         UnboundEval
         "-framework CoreFoundation"
 )
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(meshboundTests PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 # Testing
 
