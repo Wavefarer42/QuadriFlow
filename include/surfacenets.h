@@ -6,28 +6,14 @@ using namespace Eigen;
 
 namespace surfacenets {
 
-    MatrixXf cartesian_product(
-            const VectorXf &X,
-            const VectorXf &Y,
-            const VectorXf &Z
-    );
-
-    MatrixXf create_sample_grid(
-            const AlignedBox3f &bounds,
-            float resolution
-    );
-
-    AlignedBox3f estimate_bounding_box(
-            entities::SDFn sdfn,
-            int grid_resolution
-    );
-
     class SurfaceNetsMeshStrategy {
     public:
-        entities::QuadMesh mesh(entities::SDFn sdfn, int resolution) const;
+        [[nodiscard]] entities::Mesh mesh(
+                const entities::SDFn &sdfn,
+                const entities::Shape shape
+        ) const;
 
-    private:
-        const Matrix<int, 8, 3> CUBE_CORNERS = (Matrix<int, 8, 3>() << 0, 0, 0,
+        const MatrixXi CUBE_CORNERS = (MatrixXi(8, 3) << 0, 0, 0,
                 1, 0, 0,
                 0, 1, 0,
                 1, 1, 0,
@@ -49,8 +35,21 @@ namespace surfacenets {
                 0b101, 0b111,
                 0b110, 0b111).finished();
 
-        const Matrix<int, 3, 3> AXIS = (Matrix<int, 3, 3>() << 1, 0, 0,
-                0, 1, 0,
-                0, 0, 1).finished();
+        const Vector3i AXIS_X = Vector3i{1, 0, 0};
+        const Vector3i AXIS_Y = Vector3i{0, 1, 0};
+        const Vector3i AXIS_Z = Vector3i{0, 0, 1};
+
+        AlignedBox3f estimate_bounding_box(
+                entities::SDFn sdfn,
+                int resolution
+        ) const;
+
+        VectorXi create_face(
+                const VectorXi &face_indices,
+                const MatrixXf &face_vertices,
+                bool is_negative_face
+        ) const;
+
+        Vector3f estimate_centroid(const VectorXf &field_corners) const;
     };
 }

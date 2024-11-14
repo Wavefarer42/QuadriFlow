@@ -5,7 +5,7 @@
 namespace adapters {
     using namespace Eigen;
 
-    void initialize_parameterizer(services::Parametrizer &field, entities::QuadMesh mesh) {
+    void initialize_parameterizer(services::Parametrizer &field, entities::Mesh mesh) {
         field.m_vertices = MatrixXd(3, mesh.n_vertices());
         for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
             auto idx = (*it_v).idx();
@@ -24,16 +24,16 @@ namespace adapters {
         }
     }
 
-    entities::QuadMesh from_parametrizer_to_quad_mesh(services::Parametrizer &field) {
+    entities::Mesh from_parametrizer_to_quad_mesh(services::Parametrizer &field) {
         spdlog::info("Converting parametrizer to quad mesh");
 
-        entities::QuadMesh mesh_out;
+        entities::Mesh mesh_out;
 
-        std::vector<entities::QuadMesh::VertexHandle> handles(field.m_positions_compact.size());
+        std::vector<entities::Mesh::VertexHandle> handles(field.m_positions_compact.size());
         for (int i = 0; i < field.m_positions_compact.size(); ++i) {
             auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
             handles.emplace_back(
-                    mesh_out.add_vertex(entities::QuadMesh::Point(t[0], t[1], t[2]))
+                    mesh_out.add_vertex(entities::Mesh::Point(t[0], t[1], t[2]))
             );
         }
 

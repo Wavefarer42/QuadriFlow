@@ -253,7 +253,7 @@ namespace services {
     public:
         explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
 
-        [[nodiscard]] entities::QuadMesh load_trimesh_from_file(const std::string &filename) const;
+        [[nodiscard]] entities::Mesh load_trimesh_from_file(const std::string &filename) const;
 
         void save_quadmesh_to_file(const std::string &filename, Parametrizer &field) const;
 
@@ -272,7 +272,7 @@ namespace services {
                 MatrixXd &normals_faces
         ) const;
 
-        entities::QuadMesh mesh_sdfn(const std::string path_model) const;
+        entities::Mesh mesh_sdfn(const std::string path_model) const;
 
     private:
         persistence::MeshDao mesh_dao;

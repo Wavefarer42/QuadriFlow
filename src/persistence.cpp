@@ -49,9 +49,9 @@ namespace persistence {
         return vec;
     }
 
-    entities::QuadMesh MeshDao::load_mesh_from_file(const std::string &filename) const {
+    entities::Mesh MeshDao::load_mesh_from_file(const std::string &filename) const {
 
-        entities::QuadMesh mesh;
+        entities::Mesh mesh;
         if (!OpenMesh::IO::read_mesh(mesh, filename)) {
             throw std::runtime_error("Could not read mesh from file " + filename);
         }
@@ -59,8 +59,10 @@ namespace persistence {
         return mesh;
     }
 
-    void MeshDao::save_mesh_to_file(const std::string &filename,
-                                    const entities::QuadMesh &mesh) const {
+    void MeshDao::save_mesh_to_file(
+            const std::string &filename,
+            const entities::Mesh &mesh
+    ) const {
         if (!OpenMesh::IO::write_mesh(mesh, filename)) {
             throw std::runtime_error("Could not write mesh to file " + filename);
         }

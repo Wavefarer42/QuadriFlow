@@ -7,7 +7,7 @@
 
 namespace services {
 
-    entities::QuadMesh MeshService::load_trimesh_from_file(const std::string &filename) const {
+    entities::Mesh MeshService::load_trimesh_from_file(const std::string &filename) const {
         spdlog::info("Loading triangle mesh from file from {}", filename);
 
         const auto mesh = this->mesh_dao.load_mesh_from_file(filename);
@@ -306,10 +306,10 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
-    entities::QuadMesh mesh_sdfn(const entities::SDFn sdfn, const int resolution) {
+    entities::Mesh mesh_sdfn(const entities::SDFn sdfn, const int resolution) {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
-        entities::QuadMesh mesh;
+        entities::Mesh mesh;
 
         return mesh;
     }

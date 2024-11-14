@@ -8,9 +8,9 @@ namespace persistence {
 
     class MeshDao {
     public:
-        entities::QuadMesh load_mesh_from_file(const std::string &filename) const;
+        entities::Mesh load_mesh_from_file(const std::string &filename) const;
 
-        void save_mesh_to_file(const std::string &filename, const entities::QuadMesh &mesh) const;
+        void save_mesh_to_file(const std::string &filename, const entities::Mesh &mesh) const;
 
         entities::UnboundModel load_unbound_model(const std::string &filename) const;
     };
