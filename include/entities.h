@@ -269,22 +269,4 @@ namespace entities {
             return sfdns;
         }
     };
-
-    class Shape {
-    public:
-        int x, y, z;
-        int resolution;
-        AlignedBox3f bounds;
-
-        Shape(int x, int y, int z, int resolution, AlignedBox3f bounds)
-                : x(x), y(y), z(z), resolution(resolution), bounds(bounds) {}
-
-        [[nodiscard]] int size() const {
-            return x * y * z;
-        }
-
-        [[nodiscard]] int linearize(Vector3i idx_nd) const {
-            return idx_nd.x() + idx_nd.y() * this->resolution + idx_nd.z() * this->resolution * this->resolution;
-        }
-    };
 }

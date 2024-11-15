@@ -42,14 +42,12 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
 }
 
 TEST(SurfaceNetsSuite, mesh) {
-    const auto shape = entities::Shape(
-            34, 34, 34, 32,
-            AlignedBox3f(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1))
-    );
+    const int resolution = 32;
+    const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
-    const entities::Mesh result = sut.mesh(sphere, shape);
+    const entities::Mesh result = sut.mesh(sphere, bounds, resolution);
 
-    EXPECT_EQ(result.n_vertices(), 4760);
+    EXPECT_EQ(result.n_vertices(), 3992);
 }
 
 TEST(SurfaceNetsSuite, linear_indexing) {

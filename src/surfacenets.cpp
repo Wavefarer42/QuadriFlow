@@ -10,10 +10,24 @@ using namespace Eigen;
 
 namespace surfacenets {
 
+    bool is_on_surface(
+            const float distance1,
+            const float distance2
+    ) {
+        return (distance1 < 0 && 0 < distance2) || (distance2 < 0 && 0 < distance1);
+    }
+
+    bool is_negative_face(
+            const float distance1,
+            const float distance2
+    ) {
+        return distance1 < 0 && 0 < distance2;
+    }
+
     AlignedBox3f SurfaceNetsMeshStrategy::estimate_bounding_box(
-            entities::SDFn sdfn,
+            const entities::SDFn &sdfn,
             int resolution
-    ) const {
+    ) {
         spdlog::debug("Estimating bounding box");
         spdlog::stopwatch watch;
 
@@ -29,7 +43,9 @@ namespace surfacenets {
         for (int x = -resolution; x <= resolution; ++x) {
             for (int y = -resolution; y <= resolution; ++y) {
                 for (int z = -resolution; z <= resolution; ++z) {
-                    domain.row(index++) << x * step_size, y * step_size, z * step_size;
+                    domain.row(index++) << static_cast<float>(x) * step_size,
+                            static_cast<float>(y) * step_size,
+                            static_cast<float>(z) * step_size;
                 }
             }
         }
@@ -50,11 +66,10 @@ namespace surfacenets {
         return bounds;
     }
 
-    VectorXi SurfaceNetsMeshStrategy::create_face(
+    VectorXi create_face(
             const VectorXi &face_indices,
-            const MatrixXf &face_vertices,
             bool is_negative_face
-    ) const {
+    ) {
         VectorXi face(4);
 
         if (is_negative_face) {
@@ -69,37 +84,12 @@ namespace surfacenets {
                     face_indices[1];
         }
 
-
-
-//        VectorXi face(4);
-//        if (distance14 < distance23) {
-//            if (is_negative_face) {
-//                face << face_indices[0],
-//                        face_indices[3],
-//                        face_indices[1],
-//                        face_indices[2];
-//            } else {
-//                face << face_indices[0],
-//                        face_indices[1],
-//                        face_indices[3],
-//                        face_indices[2];
-//            }
-//        } else if (is_negative_face) {
-//            face << face_indices[1],
-//                    face_indices[2],
-//                    face_indices[3],
-//                    face_indices[0];
-//        } else {
-//            face << face_indices[1],
-//                    face_indices[3],
-//                    face_indices[2],
-//                    face_indices[0];
-//        }
-
         return face;
     }
 
-    Vector3f SurfaceNetsMeshStrategy::estimate_centroid(const VectorXf &distances_corners) const {
+    Vector3f SurfaceNetsMeshStrategy::estimate_centroid(
+            const VectorXf &distances_corners
+    ) const {
 
         int n = 0;
         Vector3f sum = Vector3f::Zero();
@@ -127,63 +117,95 @@ namespace surfacenets {
         }
     }
 
-    entities::Mesh SurfaceNetsMeshStrategy::mesh(
-            const entities::SDFn &sdfn,
-            const entities::Shape shape
-    ) const {
-        spdlog::stopwatch watch, watch_total;
+    MatrixXi create_indices(int resolution) {
 
-        AlignedBox3f bounds_ = shape.bounds;
-        if (bounds_.volume() == 0) {
-            bounds_ = estimate_bounding_box(sdfn, shape.resolution);
-        }
-
-        // Create domains
-        watch.reset();
-        spdlog::debug("Creating sample domain");
+        spdlog::debug("Creating domain indices");
+        spdlog::stopwatch watch;
 
         // [0:3]: Grid coordinate (x, y, z)
         // [3]: Mapping from grid coordinate to linear surface array index see vertices
-        MatrixXi indices(shape.size(), 4);
+        const auto grid_max = resolution + 1;
+        MatrixXi indices(grid_max * grid_max * grid_max, 4);
         int index = 0;
-        for (int z = 0; z < shape.resolution + 1; ++z) {
-            for (int y = 0; y < shape.resolution + 1; ++y) {
-                for (int x = 0; x < shape.resolution + 1; ++x) {
+        for (int z = 0; z < grid_max; ++z) {
+            for (int y = 0; y < grid_max; ++y) {
+                for (int x = 0; x < grid_max; ++x) {
                     indices.row(index++) << x, y, z, -1;
                 }
             }
         }
 
-        const auto linearize = [shape](Vector3i idx_nd) {
-            return idx_nd.x()
-                   + idx_nd.y() * (shape.resolution + 1)
-                   + idx_nd.z() * (shape.resolution + 1) * (shape.resolution + 1);
-        };
+        spdlog::debug("- Created domain indices ({:.3}s)", watch);
+
+        return indices;
+    }
+
+    MatrixXf scale_to_domain(
+            const MatrixXi &indices,
+            const AlignedBox3f &bounds,
+            const int resolution
+    ) {
+
+        spdlog::debug("Scaling domain to bounding box and resolution");
+        spdlog::stopwatch watch;
 
         MatrixXf domain = indices.block(0, 0, indices.rows(), 3).cast<float>();
-        domain /= static_cast<float>(shape.resolution);
-        domain.array().rowwise() *= bounds_.sizes().transpose().array();
-        domain.array().rowwise() += bounds_.min().transpose().array();
+        domain /= static_cast<float>(resolution);
+        domain.array().rowwise() *= bounds.sizes().transpose().array();
+        domain.array().rowwise() += bounds.min().transpose().array();
 
-        spdlog::debug("Finished creating sample domain ({:.3}s)", watch);
+        spdlog::debug("- Scaled domain to bounding box and resolution ({:.3}s)", watch);
 
-        watch.reset();
+        return domain;
+    }
+
+    Vector4i gather_face_indices(
+            const Vector3i &vidx,
+            const Vector3i &axis_b,
+            const Vector3i &axis_c,
+            const MatrixXi &indices,
+            const NdToFlatIndexer &linearize
+    ) {
+        Vector4i face_indices(4);
+        face_indices[0] = indices(linearize(vidx), 3);
+        face_indices[1] = indices(linearize(vidx - axis_b), 3);
+        face_indices[2] = indices(linearize(vidx - axis_c), 3);
+        face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
+
+        assert(face_indices.minCoeff() >= 0);
+
+        return face_indices;
+    }
+
+    MatrixXf sample_sdf(
+            const entities::SDFn &sdfn,
+            const MatrixXf &domain
+    ) {
+
         spdlog::debug("Sampling signed distance field");
+        spdlog::stopwatch watch;
 
         const MatrixXf sdf = sdfn(domain);
 
-        spdlog::debug("Finished sampling signed distance field ({:.3}s)", watch);
+        spdlog::debug("- Sampled signed distance field ({:.3}s)", watch);
 
+        return sdf;
+    }
 
-        // Create vertices
-        watch.reset();
-        spdlog::debug("Finding vertex positions");
+    std::vector<Vector3f> SurfaceNetsMeshStrategy::create_vertices(
+            MatrixXi &indices,
+            const MatrixXf &sdf,
+            const int resolution,
+            const NdToFlatIndexer &linearize
+    ) const {
+        spdlog::debug("Creating surface vertices");
+        spdlog::stopwatch watch;
 
         std::vector<Vector3f> vertices;
         for (int i = 0; i < indices.rows(); ++i) {
-            if (indices(i, 0) >= shape.resolution
-                || indices(i, 1) >= shape.resolution
-                || indices(i, 2) >= shape.resolution) {
+            if (indices(i, 0) >= resolution
+                || indices(i, 1) >= resolution
+                || indices(i, 2) >= resolution) {
                 continue;
             }
 
@@ -205,38 +227,20 @@ namespace surfacenets {
             }
         }
 
-        const auto on_surface = [](float d1, float d2) {
-            return (d1 < 0 && 0 < d2) || (d2 < 0 && 0 < d1);
-        };
-        const auto is_negative_face = [](float d1, float d2) {
-            return d1 < 0 && 0 < d2;
-        };
+        spdlog::debug("- Created surface vertices ({:.3}s)", watch);
 
-        const auto fn_face_vertices = [linearize, vertices, indices](
-                const Vector3i &vidx,
-                const Vector3i &axis_b,
-                const Vector3i &axis_c
-        ) {
-            Vector4i face_indices(4);
-            face_indices[0] = indices(linearize(vidx), 3);
-            face_indices[1] = indices(linearize(vidx - axis_b), 3);
-            face_indices[2] = indices(linearize(vidx - axis_c), 3);
-            face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
+        return vertices;
+    }
 
-            MatrixXf face_vertices(4, 3);
-            for (int i = 0; i < face_vertices.rows(); ++i) {
-                assert(face_indices[i] >= 0); // Index mapping points to invalid vertex
-                face_vertices.row(i) = vertices[face_indices[i]];
-            }
+    std::vector<VectorXi> SurfaceNetsMeshStrategy::create_faces(
+            const MatrixXi &indices,
+            const MatrixXf &sdf,
+            const int resolution,
+            const NdToFlatIndexer &linearize
+    ) const {
 
-            return std::make_pair(face_indices, face_vertices);
-        };
-
-        spdlog::debug("Finished finding vertex positions ({:.3}s)", watch);
-
-        // Create faces
-        watch.reset();
         spdlog::debug("Creating faces");
+        spdlog::stopwatch watch;
 
         std::vector<VectorXi> faces;
         for (int i = 0; i < indices.rows(); ++i) {
@@ -244,74 +248,72 @@ namespace surfacenets {
 
             Vector3i idx_vertex_1 = indices.row(i).head<3>();
 
-            if (idx_vertex_1.x() != shape.resolution
+            if (idx_vertex_1.x() != resolution
                 && idx_vertex_1.y() != 0
                 && idx_vertex_1.z() != 0) {
                 const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_X;
                 const auto d1 = sdf(linearize(idx_vertex_1));
                 const auto d2 = sdf(linearize(idx_vertex_2));
 
-                if (on_surface(d1, d2)) {
-                    const auto [face_indices, face_vertices] = fn_face_vertices(idx_vertex_1, AXIS_Y, AXIS_Z);
-                    const auto face = create_face(face_indices, face_vertices, is_negative_face(d1, d2));
+                if (is_on_surface(d1, d2)) {
+                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_Y, AXIS_Z, indices, linearize);
+                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
             }
 
             if (idx_vertex_1.x() != 0
-                && idx_vertex_1.y() != shape.resolution
+                && idx_vertex_1.y() != resolution
                 && idx_vertex_1.z() != 0) {
                 const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_Y;
                 const auto d1 = sdf(linearize(idx_vertex_1));
                 const auto d2 = sdf(linearize(idx_vertex_2));
 
-                if (on_surface(d1, d2)) {
-                    const auto [face_indices, face_vertices] = fn_face_vertices(idx_vertex_1, AXIS_Z, AXIS_X);
-                    const auto face = create_face(face_indices, face_vertices, is_negative_face(d1, d2));
+                if (is_on_surface(d1, d2)) {
+                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_Z, AXIS_X, indices, linearize);
+                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
             }
 
             if (idx_vertex_1.x() != 0
                 && idx_vertex_1.y() != 0
-                && idx_vertex_1.z() != shape.resolution) {
+                && idx_vertex_1.z() != resolution) {
                 const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_Z;
                 const auto d1 = sdf(linearize(idx_vertex_1));
                 const auto d2 = sdf(linearize(idx_vertex_2));
 
-                if (on_surface(d1, d2)) {
-                    const auto [face_indices, face_vertices] = fn_face_vertices(idx_vertex_1, AXIS_X, AXIS_Y);
-                    const auto face = create_face(face_indices, face_vertices, is_negative_face(d1, d2));
+                if (is_on_surface(d1, d2)) {
+                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_X, AXIS_Y, indices, linearize);
+                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
             }
         }
 
-        spdlog::debug("Finished creating faces ({:.3}s)", watch);
+        spdlog::debug("- Finished creating faces ({:.3}s)", watch);
 
+        return faces;
+    }
 
-        // Create final mesh;
-        watch.reset();
+    entities::Mesh finalize_mesh(
+            const std::vector<Vector3f> &vertices,
+            const std::vector<VectorXi> &faces
+    ) {
+
         spdlog::debug("Creating mesh data structure");
+        spdlog::stopwatch watch;
 
         entities::Mesh mesh;
-        std::vector<entities::Mesh::VertexHandle> vertex_handles;
+        std::vector<entities::Mesh::VertexHandle> handles;
         for (const auto &vertex: vertices) {
             const auto handle = mesh.add_vertex(entities::Mesh::Point(vertex.x(), vertex.y(), vertex.z()));
-            vertex_handles.emplace_back(handle);
+            handles.emplace_back(handle);
         }
 
         for (const auto &face: faces) {
-            mesh.add_face(vertex_handles[face[0]],
-                          vertex_handles[face[1]],
-                          vertex_handles[face[2]],
-                          vertex_handles[face[3]]);
+            mesh.add_face(handles[face[0]], handles[face[1]], handles[face[2]], handles[face[3]]);
         }
-
-        assert(OpenMesh::IO::write_mesh(mesh, "/Users/hannes/Projects/QuadriFlow/tests/resources/sphere.ply"));
-
-
-        spdlog::debug("Finished creating mesh data structure ({:.3}s)", watch);
 
         OpenMesh::Utils::MeshCheckerT<entities::Mesh> checker(mesh);
         if (checker.check()) {
@@ -319,6 +321,37 @@ namespace surfacenets {
         } else {
             spdlog::error("Mesh is invalid");
         }
+
+        spdlog::debug("- Created mesh data structure ({:.3}s)", watch);
+
+        return mesh;
+    }
+
+    entities::Mesh SurfaceNetsMeshStrategy::mesh(
+            const entities::SDFn &sdfn,
+            const AlignedBox3f &bounds,
+            const int resolution
+    ) const {
+        spdlog::stopwatch watch, watch_total;
+
+        AlignedBox3f bounds_ = bounds;
+        if (bounds_.volume() == 0) {
+            bounds_ = estimate_bounding_box(sdfn, resolution);
+        }
+
+        MatrixXi indices = create_indices(resolution);
+
+        const auto linearize = [resolution](Vector3i idx_nd) {
+            return idx_nd.x()
+                   + idx_nd.y() * (resolution + 1)
+                   + idx_nd.z() * (resolution + 1) * (resolution + 1);
+        };
+
+        const MatrixXf domain = scale_to_domain(indices, bounds_, resolution);
+        const MatrixXf sdf = sample_sdf(sdfn, domain);
+        const std::vector<Vector3f> vertices = create_vertices(indices, sdf, resolution, linearize);
+        const std::vector<VectorXi> faces = create_faces(indices, sdf, resolution, linearize);
+        const entities::Mesh mesh = finalize_mesh(vertices, faces);
 
         return mesh;
     }

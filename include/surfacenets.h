@@ -5,14 +5,24 @@
 using namespace Eigen;
 
 namespace surfacenets {
+    using NdToFlatIndexer = std::function<int(const Vector3i &)>;
 
     class SurfaceNetsMeshStrategy {
     public:
-        [[nodiscard]] entities::Mesh mesh(
+        [[nodiscard]]
+        entities::Mesh mesh(
                 const entities::SDFn &sdfn,
-                const entities::Shape shape
+                const AlignedBox3f &bounds,
+                int resolution
         ) const;
 
+        [[nodiscard]]
+        static AlignedBox3f estimate_bounding_box(
+                const entities::SDFn &sdfn,
+                int resolution
+        );
+
+    private:
         const MatrixXi CUBE_CORNERS = (MatrixXi(8, 3) << 0, 0, 0,
                 1, 0, 0,
                 0, 1, 0,
@@ -39,17 +49,22 @@ namespace surfacenets {
         const Vector3i AXIS_Y = Vector3i{0, 1, 0};
         const Vector3i AXIS_Z = Vector3i{0, 0, 1};
 
-        AlignedBox3f estimate_bounding_box(
-                entities::SDFn sdfn,
-                int resolution
-        ) const;
-
-        VectorXi create_face(
-                const VectorXi &face_indices,
-                const MatrixXf &face_vertices,
-                bool is_negative_face
-        ) const;
-
+        [[nodiscard]]
         Vector3f estimate_centroid(const VectorXf &field_corners) const;
+
+        std::vector<Vector3f> create_vertices(
+                MatrixXi &indices,
+                const MatrixXf &sdf,
+                int resolution,
+                const NdToFlatIndexer &linearize
+        ) const;
+
+        [[nodiscard]]
+        std::vector<VectorXi> create_faces(
+                const MatrixXi &indices,
+                const MatrixXf &sdf,
+                int resolution,
+                const NdToFlatIndexer &linearize
+        ) const;
     };
 }
