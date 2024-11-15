@@ -1,10 +1,10 @@
 #include "gtest/gtest.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include "spdlog/spdlog.h"
 
 #include "bootstrap.h"
 #include "surfacenets.h"
 #include "persistence.h"
-#include <OpenMesh/Core/IO/MeshIO.hh>
-
 
 const std::string path_model = "../tests/resources/Bear_2.ubs";
 
@@ -14,7 +14,9 @@ VectorXf sphere(const MatrixXf domain) {
     return (domain.rowwise() - origin.transpose()).rowwise().norm().array() - radius;
 }
 
-TEST(SurfaceNetsSuite, sphere) {
+
+
+TEST(SurfaceNetsSuite, SphereSDF) {
     MatrixXf domain(3, 3);
     domain << 0, 0, 0,
             1, 0, 0,
@@ -43,7 +45,9 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
     EXPECT_EQ(result.max().z(), 1);
 }
 
-TEST(SurfaceNetsSuite, mesh) {
+TEST(SurfaceNetsSuite, Meshing) {
+    spdlog::set_level(spdlog::level::debug);
+
     const int resolution = 100;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
@@ -54,7 +58,7 @@ TEST(SurfaceNetsSuite, mesh) {
     EXPECT_EQ(result.n_vertices(), 3992);
 }
 
-TEST(SurfaceNetsSuite, linear_indexing) {
+TEST(SurfaceNetsSuite, LinearIndexing) {
     const auto resolution = 32;
 
     auto index = 0;
@@ -75,4 +79,8 @@ TEST(SurfaceNetsSuite, linear_indexing) {
         const int linear_index = linearize(indices.row(i));
         EXPECT_EQ(i, linear_index);
     }
+}
+
+TEST(SurfaceNetsSuite, MeshingUnboundModel) {
+
 }

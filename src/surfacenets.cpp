@@ -1,10 +1,13 @@
 #include <Eigen/Dense>
 #include <OpenMesh/Tools/Utils/MeshCheckerT.hh>
-
-#include "surfacenets.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include <tbb/mutex.h>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
-#include <OpenMesh/Core/IO/MeshIO.hh>
+
+#include "surfacenets.h"
 
 using namespace Eigen;
 
@@ -202,30 +205,67 @@ namespace surfacenets {
         spdlog::stopwatch watch;
 
         std::vector<Vector3f> vertices;
-        for (int i = 0; i < indices.rows(); ++i) {
-            if (indices(i, 0) >= resolution
-                || indices(i, 1) >= resolution
-                || indices(i, 2) >= resolution) {
-                continue;
-            }
 
-            const Vector3i corner = indices.row(i).head<3>();
+        tbb::mutex mtx;
+        tbb::parallel_for(
+                tbb::blocked_range<int>(0, static_cast<int>(indices.rows())),
+                [&](const tbb::blocked_range<int> &range) {
+                    for (int i = range.begin(); i < range.end(); ++i) {
+                        if (indices(i, 0) >= resolution
+                            || indices(i, 1) >= resolution
+                            || indices(i, 2) >= resolution) {
+                            continue;
+                        }
 
-            // Get the field at the sample grid corner points
-            VectorXf distances_corners(CUBE_CORNERS.rows());
-            for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-                const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-                const int idx_flat = linearize(idx_nd);
-                distances_corners(j) = sdf(idx_flat);
-            }
+                        const Vector3i corner = indices.row(i).head<3>();
 
-            auto num_negatives = (distances_corners.array() < 0.0f).count();
-            if (num_negatives != 0 && num_negatives != 8) {
-                const auto centroid = estimate_centroid(distances_corners);
-                vertices.emplace_back(corner.cast<float>() + centroid);
-                indices(i, 3) = static_cast<int>(vertices.size()) - 1;
-            }
-        }
+                        // Get the field at the sample grid corner points
+                        VectorXf distances_corners(CUBE_CORNERS.rows());
+                        for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
+                            const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
+                            const int idx_flat = linearize(idx_nd);
+                            distances_corners(j) = sdf(idx_flat);
+                        }
+
+                        auto num_negatives = (distances_corners.array() < 0.0f).count();
+                        if (num_negatives != 0 && num_negatives != 8) {
+                            const auto centroid = estimate_centroid(distances_corners);
+                            tbb::mutex::scoped_lock lock(mtx);
+
+                            vertices.emplace_back(corner.cast<float>() + centroid);
+                            indices(i, 3) = static_cast<int>(vertices.size()) - 1;
+
+                            lock.release();
+                        }
+                    }
+                }
+        );
+
+
+//        for (int i = 0; i < indices.rows(); ++i) {
+//            if (indices(i, 0) >= resolution
+//                || indices(i, 1) >= resolution
+//                || indices(i, 2) >= resolution) {
+//                continue;
+//            }
+//
+//            const Vector3i corner = indices.row(i).head<3>();
+//
+//            // Get the field at the sample grid corner points
+//            VectorXf distances_corners(CUBE_CORNERS.rows());
+//            for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
+//                const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
+//                const int idx_flat = linearize(idx_nd);
+//                distances_corners(j) = sdf(idx_flat);
+//            }
+//
+//            auto num_negatives = (distances_corners.array() < 0.0f).count();
+//            if (num_negatives != 0 && num_negatives != 8) {
+//                const auto centroid = estimate_centroid(distances_corners);
+//                vertices.emplace_back(corner.cast<float>() + centroid);
+//                indices(i, 3) = static_cast<int>(vertices.size()) - 1;
+//            }
+//        }
 
         spdlog::debug("- Created surface vertices ({:.3}s)", watch);
 
