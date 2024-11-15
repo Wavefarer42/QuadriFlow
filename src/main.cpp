@@ -1,8 +1,11 @@
 #include <cstdlib>
 #include <format>
+#include <filesystem>
 
+#include <argparse/argparse.hpp>
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
+
 #include "adapters.h"
 #include "bootstrap.h"
 #include "services.h"
@@ -13,40 +16,83 @@ using namespace services;
 
 Parametrizer field;
 
-unsigned long long inline GetCurrentTime64() {
-    using namespace std::chrono;
-    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-}
-
 entities::CLIArgs read_args(int argc, char **argv) {
 
+    argparse::ArgumentParser program("meshbound");
+    program.add_argument("--input")
+            .help("Input mesh file [obj, ply, ubs]")
+            .required();
+    program.add_argument("--output")
+            .help("Output mesh file [obj, ply]")
+            .required();
+    program.add_argument("--sharp")
+            .help("Detect and preserve sharp edges")
+            .default_value(false)
+            .implicit_value(true);
+    program.add_argument("--boundary")
+            .help("Preserve shape boundaries")
+            .default_value(false)
+            .implicit_value(true);
+    program.add_argument("--adaptive")
+            .help("Adaptive scaling")
+            .default_value(false)
+            .implicit_value(true);
+    program.add_argument("--seed")
+            .help("Seed of the run")
+            .default_value(14)
+            .scan<'i', int>();
+    program.add_argument("--faces")
+            .help("Target face count")
+            .default_value(10000)
+            .scan<'i', int>();
+
+    spdlog::info("meshbound \n{}", program.help().str());
+
+    int valid_args = 0;
     entities::CLIArgs args;
-    for (int i = 0; i < argc; ++i) {
-        if (strcmp(argv[i], "--input") == 0) {
-            args.path_in = argv[i + 1];
-        } else if (strcmp(argv[i], "--output") == 0) {
-            args.path_out = argv[i + 1];
-        } else if (strcmp(argv[i], "--sharp") == 0) {
-            args.edges = 1;
-        } else if (strcmp(argv[i], "--boundary") == 0) {
-            args.boundaries = 1;
-        } else if (strcmp(argv[i], "--adaptive") == 0) {
-            args.adaptive = 1;
-        } else if (strcmp(argv[i], "--seed") == 0) {
-            field.m_hierarchy.rng_seed = std::stoi(argv[i + 1]);
-        } else if (strcmp(argv[i], "--faces") == 0) {
-            args.face_count = std::stoi(argv[i + 1]);
+    try {
+        program.parse_args(argc, argv);
+        args.path_in = program.get<std::string>("--input");
+        args.path_out = program.get<std::string>("--output");
+        args.face_count = program.get<int>("--faces");
+        args.adaptive = program.get<bool>("--adaptive");
+        args.boundaries = program.get<bool>("--boundary");
+        args.edges = program.get<bool>("--sharp");
+        args.seed = program.get<int>("--seed");
+
+        if (std::filesystem::exists(args.path_in)
+            && (args.path_in.ends_with(".obj")
+                || args.path_in.ends_with(".ply"))) {
+            valid_args++;
+        } else {
+            spdlog::error("Input file must exist and be .obj or .ply");
         }
+
+        if (args.path_out.ends_with(".obj") || args.path_out.ends_with(".ply")) {
+            valid_args++;
+        } else {
+            spdlog::error("Output file must be .obj or .ply");
+        }
+
+        if (args.face_count > 0) {
+            valid_args++;
+        } else {
+            spdlog::error("Face count must be greater than 0");
+        }
+
+        if (args.seed > 0) {
+            valid_args++;
+        } else {
+            spdlog::error("Seed must be greater than 0");
+        }
+    } catch (const std::runtime_error &err) {
+        spdlog::error("Error parsing arguments: {}", err.what());
     }
 
-    if (args.path_in.empty()) {
-        spdlog::error("Expected input mesh file [obj, ply] with argument --input");
-        exit(1);
-    }
-
-    if (args.path_out.empty()) {
-        spdlog::error("Expected output mesh file [obj, ply] with argument --output");
-        exit(1);
+    if (valid_args == 4) {
+        args.is_valid = true;
+    } else {
+        args.is_valid = false;
     }
 
     return args;
@@ -54,9 +100,9 @@ entities::CLIArgs read_args(int argc, char **argv) {
 
 
 int main(int argc, char **argv) {
-    spdlog::info("Meshbound --input <path>.[obj,ply] --output <path>.[obj,ply]");
-
     const auto args = read_args(argc, argv);
+    if (!args.is_valid) return 1;
+
 
     bootstrap::Container container = bootstrap::Container();
     const MeshService service = container.mesh_service();

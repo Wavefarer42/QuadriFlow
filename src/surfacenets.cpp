@@ -3,7 +3,6 @@
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <tbb/mutex.h>
 #include <tbb/parallel_for.h>
-#include <tbb/blocked_range.h>
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
@@ -140,6 +139,14 @@ namespace surfacenets {
 
         spdlog::debug("- Created domain indices ({:.3}s)", watch);
 
+#ifdef DEV_DEBUG
+        entities::Mesh mesh;
+        for (int i = 0; i < indices.rows(); ++i) {
+            mesh.add_vertex(entities::Mesh::Point(indices(i, 0), indices(i, 1), indices(i, 2)));
+        }
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/1-indices.ply");
+#endif
+
         return indices;
     }
 
@@ -158,6 +165,14 @@ namespace surfacenets {
         domain.array().rowwise() += bounds.min().transpose().array();
 
         spdlog::debug("- Scaled domain to bounding box and resolution ({:.3}s)", watch);
+
+#ifdef DEV_DEBUG
+        entities::Mesh mesh;
+        for (int i = 0; i < indices.rows(); ++i) {
+            mesh.add_vertex(entities::Mesh::Point(domain(i, 0), domain(i, 1), domain(i, 2)));
+        }
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/2-domain.ply");
+#endif
 
         return domain;
     }
@@ -191,6 +206,16 @@ namespace surfacenets {
         const MatrixXf sdf = sdfn(domain);
 
         spdlog::debug("- Sampled signed distance field ({:.3}s)", watch);
+
+#ifdef DEV_DEBUG
+        entities::Mesh mesh;
+        for (int i = 0; i < domain.rows(); ++i) {
+            if(sdf(i) < 0.0f){
+                mesh.add_vertex(entities::Mesh::Point(domain(i, 0), domain(i, 1), domain(i, 2)));
+            }
+        }
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/3-sdf.ply");
+#endif
 
         return sdf;
     }

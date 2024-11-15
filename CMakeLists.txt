@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.24)
 project(MeshBound LANGUAGES CXX)
 
+option(ENABLE_DEV_DEBUG "Enable development debugging artifacts" ON)
+
+if(ENABLE_DEV_DEBUG)
+    add_compile_definitions(DEV_DEBUG=1)
+else()
+    add_compile_definitions(DEV_DEBUG=0)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 set(Boost_USE_STATIC_LIBS ON)
@@ -64,6 +72,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 include_directories(${nlohmann_json_SOURCE_DIR})
 
+# Argparse
+include(FetchContent)
+FetchContent_Declare(
+        argparse
+        GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
+
 # ----- UnboundEval -----
 
 # Unbound
@@ -124,6 +140,7 @@ target_link_libraries(
         UnboundEval
         "-framework CoreFoundation"
         TBB::tbb
+        argparse
 )
 
 # Testing
@@ -155,7 +172,6 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
 )
-
 
 target_link_libraries(
         meshboundTests

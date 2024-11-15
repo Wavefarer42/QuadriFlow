@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
-#include <OpenMesh/Core/IO/MeshIO.hh>
 #include "spdlog/spdlog.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include <tbb/parallel_for.h>
 
 #include "bootstrap.h"
 #include "surfacenets.h"
@@ -14,6 +15,29 @@ VectorXf sphere(const MatrixXf domain) {
     return (domain.rowwise() - origin.transpose()).rowwise().norm().array() - radius;
 }
 
+VectorXf box(const MatrixXf domain) {
+    const Vector3f half_size(0.5f, 0.5f, 0.5f);
+    VectorXf distances(domain.rows());
+    tbb::parallel_for(
+            tbb::blocked_range<int>(0, domain.rows()),
+            [&](const tbb::blocked_range<int> &range) {
+                for (int i = range.begin(); i < range.end(); ++i) {
+                    Vector3f point = domain.row(i);
+
+                    Vector3f d = (point.cwiseAbs() - half_size).cwiseMax(0.0f);
+                    float outside_distance = d.norm();
+                    float inside_distance = std::min(std::max(point.x(), -half_size.x()), half_size.x());
+                    inside_distance = std::min(inside_distance, std::max(point.y(), -half_size.y()));
+                    inside_distance = std::min(inside_distance, std::max(point.z(), -half_size.z()));
+
+                    distances(i) = (point.cwiseAbs().maxCoeff() <= half_size.maxCoeff())
+                                   ? inside_distance : outside_distance;
+                }
+            }
+    );
+
+    return distances;
+}
 
 
 TEST(SurfaceNetsSuite, SphereSDF) {
@@ -55,7 +79,22 @@ TEST(SurfaceNetsSuite, Meshing) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/sphere.ply");
 
-    EXPECT_EQ(result.n_vertices(), 3992);
+    EXPECT_EQ(result.n_vertices(), 39008);
+}
+
+TEST(SurfaceNetsSuite, MeshingBox) {
+#ifdef DEV_DEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(box, bounds, resolution);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box.ply");
+
+    EXPECT_EQ(result.n_vertices(), 39008);
 }
 
 TEST(SurfaceNetsSuite, LinearIndexing) {
@@ -82,5 +121,17 @@ TEST(SurfaceNetsSuite, LinearIndexing) {
 }
 
 TEST(SurfaceNetsSuite, MeshingUnboundModel) {
+    spdlog::set_level(spdlog::level::debug);
 
+    const auto sdfn = bootstrap::Container()
+            .mesh_dao()
+            .load_unbound_model(path_model)
+            .sdfn_as_list()[1];
+
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(sdfn);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/bear.ply");
+
+    EXPECT_EQ(result.n_vertices(), 1928);
 }

@@ -27,6 +27,7 @@ namespace entities {
         int boundaries = 0;
         int adaptive = 0;
         int seed = 0;
+        bool is_valid = true;
     };
 
     // Adjacency matrix
