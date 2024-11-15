@@ -5,7 +5,6 @@
 #include <nlohmann/json.hpp>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include "spdlog/spdlog.h"
-#include "spdlog/stopwatch.h"
 
 #include "persistence.h"
 

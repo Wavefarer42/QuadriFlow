@@ -3,6 +3,8 @@
 #include "bootstrap.h"
 #include "surfacenets.h"
 #include "persistence.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
+
 
 const std::string path_model = "../tests/resources/Bear_2.ubs";
 
@@ -42,10 +44,12 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
 }
 
 TEST(SurfaceNetsSuite, mesh) {
-    const int resolution = 32;
+    const int resolution = 100;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
     const entities::Mesh result = sut.mesh(sphere, bounds, resolution);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/sphere.ply");
 
     EXPECT_EQ(result.n_vertices(), 3992);
 }
