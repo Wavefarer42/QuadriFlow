@@ -12,15 +12,15 @@ namespace surfacenets {
         [[nodiscard]]
         entities::Mesh mesh(
                 const entities::SDFn &sdfn,
-                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0)),
-                int resolution = 32
+                int resolution = 32,
+                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
         ) const;
 
         [[nodiscard]]
-        static AlignedBox3f estimate_bounding_box(
+        AlignedBox3f estimate_bounding_box(
                 const entities::SDFn &sdfn,
                 int resolution
-        );
+        ) const;
 
     private:
         const MatrixXi CUBE_CORNERS = (MatrixXi(8, 3) << 0, 0, 0,

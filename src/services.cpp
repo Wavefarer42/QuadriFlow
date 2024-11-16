@@ -1,13 +1,20 @@
 #include <fstream>
 
 #include "spdlog/spdlog.h"
+#include "spdlog/stopwatch.h"
 
 #include "services.h"
 #include "field-math.h"
+#include "optimizer.h"
+#include "adapters.h"
+#include "surfacenets.h"
+
 
 namespace services {
 
-    entities::Mesh MeshService::load_trimesh_from_file(const std::string &filename) const {
+    entities::Mesh MeshService::load_trimesh_from_file(
+            const std::string &filename
+    ) const {
         spdlog::info("Loading triangle mesh from file from {}", filename);
 
         const auto mesh = this->mesh_dao.load_mesh_from_file(filename);
@@ -33,7 +40,18 @@ namespace services {
         return mesh;
     }
 
-    void MeshService::save_quadmesh_to_file(const std::string &filename, Parametrizer &field) const {
+    entities::UnboundModel MeshService::load_unbound_model_from_file(
+            const std::string &filename
+    ) const {
+        spdlog::info("Loading SDFn from file {}", filename);
+
+        return this->mesh_dao.load_unbound_model(filename);
+    }
+
+    void MeshService::save_mesh(
+            const std::string &filename,
+            const Parametrizer &field
+    ) const {
         spdlog::info("Saving mesh to file {}", filename);
 
         std::ofstream os(filename);
@@ -41,14 +59,25 @@ namespace services {
             auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
             os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
         }
-        for (int i = 0; i < field.m_faces_compact.size(); ++i) {
-            os << "f " << field.m_faces_compact[i][0] + 1 << " " << field.m_faces_compact[i][1] + 1 << " "
-               << field.m_faces_compact[i][2] + 1 << " " << field.m_faces_compact[i][3] + 1 << "\n";
+        for (auto &i: field.m_faces_compact) {
+            os << "f " << i[0] + 1 << " " << i[1] + 1 << " "
+               << i[2] + 1 << " " << i[3] + 1 << "\n";
         }
         os.close();
     }
 
-    void MeshService::set_boundary_constraints(Hierarchy &hierarchy) const {
+    void MeshService::save_mesh(
+            const std::string &filename,
+            const entities::Mesh &mesh
+    ) const {
+        spdlog::info("Saving mesh to file {}", filename);
+
+        mesh_dao.save_mesh_to_file(filename, mesh);
+    }
+
+    void MeshService::set_boundary_constraints(
+            Hierarchy &hierarchy
+    ) {
         spdlog::info("Setting boundary constraints");
 
         for (uint32_t i = 0; i < 3 * hierarchy.m_faces.cols(); ++i) {
@@ -72,7 +101,9 @@ namespace services {
         hierarchy.propagateConstraints();
     }
 
-    std::map<int, int> MeshService::find_orientation_singularities(Hierarchy &hierarchy) const {
+    std::map<int, int> MeshService::find_orientation_singularities(
+            Hierarchy &hierarchy
+    ) {
         spdlog::info("Finding orientation singularities");
 
         const MatrixXd &normals = hierarchy.m_normals[0];
@@ -110,7 +141,7 @@ namespace services {
     std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> MeshService::find_position_singularities(
             Hierarchy &m_hierarchy,
             bool with_scale
-    ) const {
+    ) {
         const MatrixXd &V = m_hierarchy.m_vertices[0];
         const MatrixXd &N = m_hierarchy.m_normals[0];
         const MatrixXd &Q = m_hierarchy.m_orientation[0];
@@ -188,7 +219,7 @@ namespace services {
             Hierarchy &hierarchy,
             std::vector<MatrixXd> &triangle_space,
             MatrixXd &normals_faces
-    ) const {
+    ) {
         spdlog::info("Estimating adaptive slope");
 
         auto &faces = hierarchy.m_faces;
@@ -306,11 +337,100 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
-    entities::Mesh mesh_sdfn(const entities::SDFn sdfn, const int resolution) {
+    entities::Mesh MeshService::mesh(
+            const entities::SDFn &sdfn,
+            const AlignedBox3f &bounds,
+            const int resolution
+    ) const {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
-        entities::Mesh mesh;
+        surfacenets::SurfaceNetsMeshStrategy strategy;
+        return strategy.mesh(sdfn, resolution, bounds);
+    }
 
-        return mesh;
+    Parametrizer MeshService::remesh(
+            const entities::Mesh &mesh,
+            const int face_count,
+            const bool preserve_edges,
+            const bool preserve_boundaries,
+            const bool use_adaptive_meshing
+    ) const {
+        Parametrizer field;
+        spdlog::info("Re-meshing mesh with {} target faces", face_count);
+
+        spdlog::stopwatch watch;
+
+        spdlog::info("Initializing parameters");
+        spdlog::debug("Re-meshing mesh with vertices={}, faces={}", mesh.n_vertices(), mesh.n_faces());
+
+        adapters::initialize_parameterizer(field, mesh);
+        field.initialize_parameterizer(
+                preserve_boundaries,
+                preserve_edges,
+                face_count,
+                use_adaptive_meshing
+        );
+
+        spdlog::info("Finished initializing parameters ({:.3}s)", watch);
+
+        if (preserve_boundaries) {
+            set_boundary_constraints(field.m_hierarchy);
+        }
+
+        watch.reset();
+        spdlog::info("Solving orientation field");
+
+        Optimizer::optimize_orientations(field.m_hierarchy);
+        find_orientation_singularities(field.m_hierarchy);
+
+        spdlog::info("Finished solving orientation field ({:.3}s)", watch);
+
+
+        if (use_adaptive_meshing) {
+            watch.reset();
+            spdlog::info("Analyzing mesh for adaptive scaling");
+
+            const auto [faces_slope, faces_orientation] = estimate_slope(
+                    field.m_hierarchy,
+                    field.m_triangle_space,
+                    field.m_faces_normals
+            );
+            field.m_faces_slope = faces_slope;
+            field.m_faces_orientation = faces_orientation;
+
+            spdlog::info("Finished analyzing mesh for adaptive scaling ({:.3}s)", watch);
+        }
+
+
+        watch.reset();
+        spdlog::info("Solving field for adaptive scale");
+
+        Optimizer::optimize_scale(field.m_hierarchy, field.m_rho, use_adaptive_meshing);
+
+        spdlog::info("Finished solving field for adaptive scale ({:.3}s)", watch);
+
+
+        watch.reset();
+        spdlog::info("Solving for position field");
+
+        Optimizer::optimize_positions(field.m_hierarchy);
+        const auto [singularity_position, singularity_rank, singularity_index] = find_position_singularities(
+                field.m_hierarchy,
+                true
+        );
+        field.m_singularity_position = singularity_position;
+        field.m_singularity_rank = singularity_rank;
+        field.m_singularity_index = singularity_index;
+
+        spdlog::info("Finished solving for position field ({:.3}s)", watch);
+
+        watch.reset();
+        spdlog::info("Solving index map");
+
+        field.compute_index_map(field.m_hierarchy);
+
+        spdlog::info("Finished solving index map ({:.3}s)", watch);
+
+        return field;
     }
 }

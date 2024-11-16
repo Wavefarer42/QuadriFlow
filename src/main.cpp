@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include <format>
 #include <filesystem>
 
@@ -6,15 +5,11 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
-#include "adapters.h"
 #include "bootstrap.h"
 #include "services.h"
-#include "optimizer.h"
 #include "field-math.h"
 
 using namespace services;
-
-Parametrizer field;
 
 entities::CLIArgs read_args(int argc, char **argv) {
 
@@ -25,7 +20,7 @@ entities::CLIArgs read_args(int argc, char **argv) {
     program.add_argument("--output")
             .help("Output mesh file [obj, ply]")
             .required();
-    program.add_argument("--sharp")
+    program.add_argument("--edges")
             .help("Detect and preserve sharp edges")
             .default_value(false)
             .implicit_value(true);
@@ -45,6 +40,10 @@ entities::CLIArgs read_args(int argc, char **argv) {
             .help("Target face count")
             .default_value(10000)
             .scan<'i', int>();
+    program.add_argument("--resolution")
+            .help("Resolution of the SDFn pre-meshing.")
+            .default_value(100)
+            .scan<'i', int>();
 
     spdlog::info("meshbound \n{}", program.help().str());
 
@@ -55,10 +54,11 @@ entities::CLIArgs read_args(int argc, char **argv) {
         args.path_in = program.get<std::string>("--input");
         args.path_out = program.get<std::string>("--output");
         args.face_count = program.get<int>("--faces");
-        args.adaptive = program.get<bool>("--adaptive");
-        args.boundaries = program.get<bool>("--boundary");
-        args.edges = program.get<bool>("--sharp");
+        args.use_adaptive_meshing = program.get<bool>("--adaptive");
+        args.preserve_boundaries = program.get<bool>("--boundary");
+        args.preserve_edges = program.get<bool>("--edges");
         args.seed = program.get<int>("--seed");
+        args.resolution = program.get<int>("--resolution");
 
         if (std::filesystem::exists(args.path_in)
             && (args.path_in.ends_with(".obj")
@@ -85,11 +85,18 @@ entities::CLIArgs read_args(int argc, char **argv) {
         } else {
             spdlog::error("Seed must be greater than 0");
         }
+
+        if (args.resolution > 0) {
+            valid_args++;
+        } else {
+            spdlog::error("Resolution must be greater than 0");
+        }
+
     } catch (const std::runtime_error &err) {
         spdlog::error("Error parsing arguments: {}", err.what());
     }
 
-    if (valid_args == 4) {
+    if (valid_args == 5) {
         args.is_valid = true;
     } else {
         args.is_valid = false;
@@ -103,82 +110,29 @@ int main(int argc, char **argv) {
     const auto args = read_args(argc, argv);
     if (!args.is_valid) return 1;
 
-
     bootstrap::Container container = bootstrap::Container();
     const MeshService service = container.mesh_service();
-    const auto mesh = service.load_trimesh_from_file(args.path_in);
-    adapters::initialize_parameterizer(field, mesh);
 
-    spdlog::stopwatch watch, watch_total;
-    spdlog::info("Initializing parameters");
+    entities::Mesh mesh;
+    if (args.path_in.ends_with(".ubs")) {
+        const auto model = service.load_unbound_model_from_file(args.path_in);
+        mesh = service.mesh_sdfn(model.sdfn_as_list()[0], args.resolution);
+    } else {
+        mesh = service.load_trimesh_from_file(args.path_in);
+    }
 
-    field.initialize_parameterizer(
-            args.boundaries,
-            args.edges,
+    spdlog::stopwatch watch_total;
+
+    auto field = service.remesh(
+            mesh,
             args.face_count,
-            args.adaptive
+            args.preserve_edges,
+            args.preserve_boundaries,
+            args.use_adaptive_meshing
     );
 
-    spdlog::info("Elapsed: {:.3} seconds\n", watch);
+    services::MeshService::save_mesh(args.path_out, field);
 
-    if (args.boundaries) {
-        service.set_boundary_constraints(field.m_hierarchy);
-    }
-
-    watch.reset();
-    spdlog::info("Solving orientation field");
-
-    Optimizer::optimize_orientations(field.m_hierarchy);
-    service.find_orientation_singularities(field.m_hierarchy);
-
-    spdlog::info("Elapsed: {:.3} seconds\n", watch);
-
-
-    if (args.adaptive) {
-        watch.reset();
-        spdlog::info("Analyzing mesh for adaptive scaling");
-
-        const auto [faces_slope, faces_orientation] = service.estimate_slope(
-                field.m_hierarchy,
-                field.m_triangle_space,
-                field.m_faces_normals
-        );
-        field.m_faces_slope = faces_slope;
-        field.m_faces_orientation = faces_orientation;
-
-        spdlog::info("Elapsed: {:.3} seconds\n", watch);
-    }
-
-    watch.reset();
-    spdlog::info("Solving field for adaptive scale");
-
-    Optimizer::optimize_scale(field.m_hierarchy, field.m_rho, args.adaptive);
-
-    spdlog::info("Elapsed: {:.3} seconds\n", watch);
-
-    watch.reset();
-    spdlog::info("Solving for position field");
-
-    Optimizer::optimize_positions(field.m_hierarchy);
-    const auto [singularity_position, singularity_rank, singularity_index] = service.find_position_singularities(
-            field.m_hierarchy,
-            true
-    );
-    field.m_singularity_position = singularity_position;
-    field.m_singularity_rank = singularity_rank;
-    field.m_singularity_index = singularity_index;
-
-    spdlog::info("Elapsed: {:.3} seconds\n", watch);
-
-    watch.reset();
-    spdlog::info("Solving for integer constraints");
-
-    field.compute_index_map(field.m_hierarchy);
-
-    spdlog::info("Elapsed: {:.3} seconds\n", watch);
-
-    service.save_quadmesh_to_file(args.path_out, field);
-
-    spdlog::info("Total elapsed: {:.3} seconds\n", watch_total);
+    spdlog::info("Finished generating mesh ({:.3}s)", watch_total);
     return 0;
 }

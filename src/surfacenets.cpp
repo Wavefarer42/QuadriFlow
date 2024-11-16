@@ -29,7 +29,7 @@ namespace surfacenets {
     AlignedBox3f SurfaceNetsMeshStrategy::estimate_bounding_box(
             const entities::SDFn &sdfn,
             int resolution
-    ) {
+    ) const {
         spdlog::debug("Estimating bounding box");
         spdlog::stopwatch watch;
 
@@ -137,7 +137,7 @@ namespace surfacenets {
             }
         }
 
-        spdlog::debug("- Created domain indices ({:.3}s)", watch);
+        spdlog::debug("Finished creating domain indices ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
         entities::Mesh mesh;
@@ -164,7 +164,7 @@ namespace surfacenets {
         domain.array().rowwise() *= bounds.sizes().transpose().array();
         domain.array().rowwise() += bounds.min().transpose().array();
 
-        spdlog::debug("- Scaled domain to bounding box and resolution ({:.3}s)", watch);
+        spdlog::debug("Finished scaling domain to bounding box and resolution ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
         entities::Mesh mesh;
@@ -205,12 +205,12 @@ namespace surfacenets {
 
         const MatrixXf sdf = sdfn(domain);
 
-        spdlog::debug("- Sampled signed distance field ({:.3}s)", watch);
+        spdlog::debug("Finished sampling signed distance field ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
         entities::Mesh mesh;
         for (int i = 0; i < domain.rows(); ++i) {
-            if(sdf(i) < 0.0f){
+            if (sdf(i) < 0.0f) {
                 mesh.add_vertex(entities::Mesh::Point(domain(i, 0), domain(i, 1), domain(i, 2)));
             }
         }
@@ -266,33 +266,15 @@ namespace surfacenets {
                 }
         );
 
+        spdlog::debug("Finished creating surface vertices={} ({:.3}s)", vertices.size(), watch);
 
-//        for (int i = 0; i < indices.rows(); ++i) {
-//            if (indices(i, 0) >= resolution
-//                || indices(i, 1) >= resolution
-//                || indices(i, 2) >= resolution) {
-//                continue;
-//            }
-//
-//            const Vector3i corner = indices.row(i).head<3>();
-//
-//            // Get the field at the sample grid corner points
-//            VectorXf distances_corners(CUBE_CORNERS.rows());
-//            for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-//                const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-//                const int idx_flat = linearize(idx_nd);
-//                distances_corners(j) = sdf(idx_flat);
-//            }
-//
-//            auto num_negatives = (distances_corners.array() < 0.0f).count();
-//            if (num_negatives != 0 && num_negatives != 8) {
-//                const auto centroid = estimate_centroid(distances_corners);
-//                vertices.emplace_back(corner.cast<float>() + centroid);
-//                indices(i, 3) = static_cast<int>(vertices.size()) - 1;
-//            }
-//        }
-
-        spdlog::debug("- Created surface vertices ({:.3}s)", watch);
+#ifdef DEV_DEBUG
+        entities::Mesh mesh;
+        for (int i = 0; i < vertices.size(); ++i) {
+            mesh.add_vertex(entities::Mesh::Point(vertices[i].x(), vertices[i].y(), vertices[i].z()));
+        }
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/4-vertices.ply");
+#endif
 
         return vertices;
     }
@@ -356,7 +338,7 @@ namespace surfacenets {
             }
         }
 
-        spdlog::debug("- Finished creating faces ({:.3}s)", watch);
+        spdlog::debug("Finished creating faces={} ({:.3}s)", faces.size(), watch);
 
         return faces;
     }
@@ -387,15 +369,19 @@ namespace surfacenets {
             spdlog::error("Mesh is invalid");
         }
 
-        spdlog::debug("- Created mesh data structure ({:.3}s)", watch);
+        spdlog::debug("Finished creating mesh data structure ({:.3}s)", watch);
+
+#ifdef DEV_DEBUG
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/5-faces.ply");
+#endif
 
         return mesh;
     }
 
     entities::Mesh SurfaceNetsMeshStrategy::mesh(
             const entities::SDFn &sdfn,
-            const AlignedBox3f &bounds,
-            const int resolution
+            const int resolution,
+            const AlignedBox3f &bounds
     ) const {
         spdlog::stopwatch watch, watch_total;
 

@@ -61,7 +61,7 @@ namespace services {
 
         void propagateConstraints();
 
-        double m_scale;
+        double m_scale = 1;
         int rng_seed;
 
         MatrixXi m_faces;    // m_faces(i, j) i \in [0, 3) ith index in face j

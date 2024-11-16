@@ -128,6 +128,7 @@ add_executable(
         src/bootstrap.cpp
         src/adapters.cpp
         src/surfacenets.cpp
+        src/sdfn.cpp
 )
 
 target_link_libraries(
@@ -161,6 +162,7 @@ add_executable(
         tests/test_persistence.cpp
         tests/test_libraries.cpp
         tests/test_surfacenets.cpp
+        tests/test_e2e.cpp
 
         src/dedge.cpp
         src/hierarchy.cpp
@@ -171,6 +173,7 @@ add_executable(
         src/bootstrap.cpp
         src/adapters.cpp
         src/surfacenets.cpp
+        src/sdfn.cpp
 )
 
 target_link_libraries(

@@ -136,10 +136,6 @@ namespace services {
         std::vector<MatrixXd> m_triangle_space;
 
 
-        // Mesh IO
-
-        void save_to_obj(const char *obj_name);
-
         // Mesh Initialization
 
         /**
@@ -253,26 +249,52 @@ namespace services {
     public:
         explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
 
-        [[nodiscard]] entities::Mesh load_trimesh_from_file(const std::string &filename) const;
-
-        void save_quadmesh_to_file(const std::string &filename, Parametrizer &field) const;
-
-        void set_boundary_constraints(Hierarchy &hierarchy) const;
-
-        std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy) const;
-
-        std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
-                Hierarchy &m_hierarchy,
-                bool with_scale
+        [[nodiscard]] entities::Mesh load_trimesh_from_file(
+                const std::string &filename
         ) const;
 
-        std::tuple<MatrixXd, MatrixXd> estimate_slope(
+        [[nodiscard]] entities::UnboundModel load_unbound_model_from_file(
+                const std::string &filename
+        ) const;
+
+        void save_mesh(
+                const std::string &filename,
+                const Parametrizer &field
+        ) const;
+
+        void save_mesh(
+                const std::string &filename,
+                const entities::Mesh &mesh
+        ) const;
+
+        static void set_boundary_constraints(Hierarchy &hierarchy);
+
+        static std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
+
+        static std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
+                Hierarchy &m_hierarchy,
+                bool with_scale
+        );
+
+        static std::tuple<MatrixXd, MatrixXd> estimate_slope(
                 Hierarchy &hierarchy,
                 std::vector<MatrixXd> &triangle_space,
                 MatrixXd &normals_faces
+        );
+
+        entities::Mesh mesh(
+                const entities::SDFn &sdfn,
+                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0)),
+                const int resolution = 100
         ) const;
 
-        entities::Mesh mesh_sdfn(const std::string path_model) const;
+        Parametrizer remesh(
+                const entities::Mesh &mesh,
+                const int face_count = 10000,
+                const bool preserve_edges = false,
+                const bool preserve_boundaries = false,
+                const bool use_adaptive_meshing = false
+        ) const;
 
     private:
         persistence::MeshDao mesh_dao;

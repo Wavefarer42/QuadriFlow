@@ -23,10 +23,11 @@ namespace entities {
         std::string path_in;
         std::string path_out;
         int face_count = -1;
-        int edges = 0;
-        int boundaries = 0;
-        int adaptive = 0;
+        int preserve_edges = 0;
+        int preserve_boundaries = 0;
+        int use_adaptive_meshing = 0;
         int seed = 0;
+        int resolution = 100;
         bool is_valid = true;
     };
 
