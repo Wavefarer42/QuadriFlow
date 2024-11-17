@@ -249,8 +249,12 @@ namespace services {
     public:
         explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
 
-        [[nodiscard]] entities::Mesh load_trimesh_from_file(
+        [[nodiscard]] entities::Mesh load_mesh(
                 const std::string &filename
+        ) const;
+
+        bool is_trimesh(
+                const entities::Mesh &mesh
         ) const;
 
         [[nodiscard]] entities::UnboundModel load_unbound_model_from_file(
@@ -284,8 +288,8 @@ namespace services {
 
         entities::Mesh mesh(
                 const entities::SDFn &sdfn,
-                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0)),
-                const int resolution = 100
+                const int resolution = 100,
+                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
         ) const;
 
         Parametrizer remesh(
@@ -295,6 +299,11 @@ namespace services {
                 const bool preserve_boundaries = false,
                 const bool use_adaptive_meshing = false
         ) const;
+
+        entities::Mesh to_trimesh(
+                entities::Mesh &mesh
+        ) const;
+
 
     private:
         persistence::MeshDao mesh_dao;

@@ -37,7 +37,7 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
 TEST(SurfaceNetsSuite, Meshing) {
     spdlog::set_level(spdlog::level::debug);
 
-    const int resolution = 100;
+    const int resolution = 20;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
     const entities::Mesh result = sut.mesh(sdfn::sphere, resolution, bounds);
@@ -58,6 +58,22 @@ TEST(SurfaceNetsSuite, MeshingBox) {
     const entities::Mesh result = sut.mesh(sdfn::box, resolution, bounds);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box.ply");
+
+    EXPECT_EQ(result.n_vertices(), 39008);
+}
+
+TEST(SurfaceNetsSuite, MeshingRotatedBox) {
+#ifdef DEV_DEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-5, -5, -5), Vector3f(5, 5, 5));
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const auto sdfn = sdfn::rotate(sdfn::box, Vector3f(1, 0, 0), 0.5);
+    const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-rotated.ply");
 
     EXPECT_EQ(result.n_vertices(), 39008);
 }

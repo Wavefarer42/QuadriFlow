@@ -116,10 +116,12 @@ int main(int argc, char **argv) {
     entities::Mesh mesh;
     if (args.path_in.ends_with(".ubs")) {
         const auto model = service.load_unbound_model_from_file(args.path_in);
-        mesh = service.mesh_sdfn(model.sdfn_as_list()[0], args.resolution);
+        mesh = service.mesh(model.sdfn_as_list()[0], args.resolution);
     } else {
-        mesh = service.load_trimesh_from_file(args.path_in);
+        mesh = service.load_mesh(args.path_in);
     }
+
+    service.to_trimesh(mesh);
 
     spdlog::stopwatch watch_total;
 
@@ -131,7 +133,7 @@ int main(int argc, char **argv) {
             args.use_adaptive_meshing
     );
 
-    services::MeshService::save_mesh(args.path_out, field);
+    service.save_mesh(args.path_out, field);
 
     spdlog::info("Finished generating mesh ({:.3}s)", watch_total);
     return 0;

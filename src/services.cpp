@@ -12,14 +12,18 @@
 
 namespace services {
 
-    entities::Mesh MeshService::load_trimesh_from_file(
+    entities::Mesh MeshService::load_mesh(
             const std::string &filename
     ) const {
-        spdlog::info("Loading triangle mesh from file from {}", filename);
+        spdlog::info("Loading mesh from file {}", filename);
+        return this->mesh_dao.load_mesh_from_file(filename);
+    }
 
-        const auto mesh = this->mesh_dao.load_mesh_from_file(filename);
+    bool MeshService::is_trimesh(
+            const entities::Mesh &mesh
+    ) const {
+        spdlog::info("Checking if mesh is a triangle mesh");
 
-        // Validate that the mesh is a triangle mesh
         int n_triangles = 0;
         int n_non_triangles = 0;
         for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
@@ -30,14 +34,10 @@ namespace services {
             }
         }
 
-        if (n_non_triangles > 0) {
-            throw std::runtime_error(
-                    std::format("Please provide a triangle mesh as input. Triangles={}, Non Triangle={}",
-                                n_triangles, n_non_triangles)
-            );
-        }
+        spdlog::debug("Finished checking if the mesh is a triangle mesh with Triangles={}, Non Triangle={}",
+                      n_triangles, n_non_triangles);
 
-        return mesh;
+        return n_non_triangles == 0;
     }
 
     entities::UnboundModel MeshService::load_unbound_model_from_file(
@@ -337,10 +337,43 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
+    entities::Mesh MeshService::to_trimesh(
+            entities::Mesh &mesh
+    ) const {
+        spdlog::info("Converting mesh to triangle mesh vertices={} faces={}", mesh.n_vertices(), mesh.n_faces());
+
+        spdlog::stopwatch watch;
+
+        mesh.request_face_status();
+        for (entities::Mesh::FaceIter it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
+            if (mesh.valence(*it_f) == 3) continue;
+
+            if (mesh.valence(*it_f) == 4) { // quad
+                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(*it_f);
+                auto v0 = *fv_it;
+                auto v1 = *(++fv_it);
+                auto v2 = *(++fv_it);
+                auto v3 = *(++fv_it);
+
+                mesh.delete_face(*it_f, false);
+                mesh.add_face(v0, v1, v2);
+                mesh.add_face(v0, v2, v3);
+            } else {
+                spdlog::warn("Encountered non-quad face which is not yet supported in the triangle mesh conversion");
+            }
+        }
+
+        mesh.garbage_collection();
+        spdlog::debug("Finished converting mesh to triangle mesh vertices={} faces={} ({:.3}s)",
+                      mesh.n_vertices(), mesh.n_faces(), watch);
+
+        return mesh;
+    }
+
     entities::Mesh MeshService::mesh(
             const entities::SDFn &sdfn,
-            const AlignedBox3f &bounds,
-            const int resolution
+            const int resolution,
+            const AlignedBox3f &bounds
     ) const {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
@@ -355,6 +388,8 @@ namespace services {
             const bool preserve_boundaries,
             const bool use_adaptive_meshing
     ) const {
+        assert(is_trimesh(mesh));
+
         Parametrizer field;
         spdlog::info("Re-meshing mesh with {} target faces", face_count);
 
@@ -371,7 +406,7 @@ namespace services {
                 use_adaptive_meshing
         );
 
-        spdlog::info("Finished initializing parameters ({:.3}s)", watch);
+        spdlog::debug("Finished initializing parameters ({:.3}s)", watch);
 
         if (preserve_boundaries) {
             set_boundary_constraints(field.m_hierarchy);
@@ -383,7 +418,7 @@ namespace services {
         Optimizer::optimize_orientations(field.m_hierarchy);
         find_orientation_singularities(field.m_hierarchy);
 
-        spdlog::info("Finished solving orientation field ({:.3}s)", watch);
+        spdlog::debug("Finished solving orientation field ({:.3}s)", watch);
 
 
         if (use_adaptive_meshing) {
@@ -407,7 +442,7 @@ namespace services {
 
         Optimizer::optimize_scale(field.m_hierarchy, field.m_rho, use_adaptive_meshing);
 
-        spdlog::info("Finished solving field for adaptive scale ({:.3}s)", watch);
+        spdlog::debug("Finished solving field for adaptive scale ({:.3}s)", watch);
 
 
         watch.reset();
@@ -422,14 +457,14 @@ namespace services {
         field.m_singularity_rank = singularity_rank;
         field.m_singularity_index = singularity_index;
 
-        spdlog::info("Finished solving for position field ({:.3}s)", watch);
+        spdlog::debug("Finished solving for position field ({:.3}s)", watch);
 
         watch.reset();
         spdlog::info("Solving index map");
 
         field.compute_index_map(field.m_hierarchy);
 
-        spdlog::info("Finished solving index map ({:.3}s)", watch);
+        spdlog::debug("Finished solving index map ({:.3}s)", watch);
 
         return field;
     }

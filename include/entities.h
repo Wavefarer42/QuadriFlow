@@ -227,7 +227,7 @@ namespace entities {
         int x, y;
     };
 
-    typedef OpenMesh::PolyMesh_ArrayKernelT<> Mesh;
+    typedef OpenMesh::PolyMesh_ArrayKernelT<OpenMesh::DefaultTraits> Mesh;
 
     typedef std::function<VectorXf(MatrixXf)> SDFn;
 

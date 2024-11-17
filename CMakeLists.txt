@@ -174,6 +174,7 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
+        tests/test_services.cpp
 )
 
 target_link_libraries(

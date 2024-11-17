@@ -285,6 +285,7 @@ namespace surfacenets {
             const int resolution,
             const NdToFlatIndexer &linearize
     ) const {
+        // FIXME: Rotated box is missing faces
 
         spdlog::debug("Creating faces");
         spdlog::stopwatch watch;
