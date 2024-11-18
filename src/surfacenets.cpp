@@ -203,11 +203,13 @@ namespace surfacenets {
         spdlog::debug("Sampling signed distance field");
         spdlog::stopwatch watch;
 
-        const MatrixXf sdf = sdfn(domain);
+        const VectorXf sdf = sdfn(domain);
 
         spdlog::debug("Finished sampling signed distance field ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
+        spdlog::debug("SDF contains inside={}, outside={} points.", (sdf.array() < 0.0f).count(), (sdf.array() > 0.0f).count());
+
         entities::Mesh mesh;
         for (int i = 0; i < domain.rows(); ++i) {
             if (sdf(i) < 0.0f) {

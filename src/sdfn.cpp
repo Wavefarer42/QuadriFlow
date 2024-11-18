@@ -10,15 +10,20 @@ namespace sdfn {
 
     VectorXf box(const MatrixXf &domain) {
         const Vector3f boxSize = Vector3f(1, 1, 1);
-        // boxSize represents the half-extent of the box in each dimension.
-        Eigen::MatrixXf q = domain.array().cwiseAbs().rowwise() - boxSize.transpose().array();
+        MatrixXf q = domain.array().cwiseAbs().rowwise() - boxSize.transpose().array();
 
-        // Calculate the distance components
-        Eigen::MatrixXf a = q.cwiseMax(0);  // Points outside the box
-        Eigen::VectorXf b = q.rowwise().maxCoeff().cwiseMin(0); // Points inside the box or on the surface
+        MatrixXf a = q.cwiseMax(0);
+        VectorXf b = q.rowwise().maxCoeff().cwiseMin(0);
 
-        // Norm for each row
-        Eigen::VectorXf distances = a.rowwise().norm() + b;
+        VectorXf distances = a.rowwise().norm() + b;
+
+        return distances;
+    }
+
+    VectorXf cylinder(const MatrixXf &domain) {
+
+        const float radius = 0.8;
+        const VectorXf distances = domain.block(0, 1, domain.rows(), 2).rowwise().norm().array() - radius;
 
         return distances;
     }

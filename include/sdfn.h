@@ -15,6 +15,8 @@ namespace sdfn {
 
     VectorXf box(const MatrixXf &domain);
 
+    VectorXf cylinder(const MatrixXf &domain);
+
     entities::SDFn rotate(
             entities::SDFn sdfn,
             const Vector3f axis,
