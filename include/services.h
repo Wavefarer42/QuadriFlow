@@ -306,8 +306,9 @@ namespace services {
 
         entities::Mesh gradient_smoothing(
                 const entities::SDFn &sdfn,
-                const entities::Mesh &mesh,
-                const int iterations
+                entities::Mesh &mesh,
+                const int iterations = 3,
+                const float rate = 0.1
         ) const;
 
     private:

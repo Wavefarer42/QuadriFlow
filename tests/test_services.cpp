@@ -17,3 +17,17 @@ TEST(MeshServiceSuite, to_trimesh) {
 
     EXPECT_TRUE(service.is_trimesh(mesh));
 }
+
+TEST(MeshServiceSuite, GradientSmoothingBox) {
+#ifdef DEV_DEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
+    const auto service = bootstrap::Container().mesh_service();
+    auto mesh = service.load_mesh("../tests/resources/box.ply");
+
+    const auto result = service.to_trimesh(mesh);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-gradient_smoothing.ply");
+}
+

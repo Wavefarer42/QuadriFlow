@@ -2,12 +2,14 @@
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "services.h"
 #include "field-math.h"
 #include "optimizer.h"
 #include "adapters.h"
 #include "surfacenets.h"
+#include "sdfn.h"
 
 
 namespace services {
@@ -372,18 +374,49 @@ namespace services {
 
     entities::Mesh MeshService::gradient_smoothing(
             const entities::SDFn &sdfn,
-            const entities::Mesh &mesh,
-            const int iterations
-    )const {
+            entities::Mesh &mesh,
+            const int iterations,
+            const float rate
+    ) const {
+        spdlog::info("Smoothing mesh with SDFn gradient. iterations={}, rate={}", iterations, rate);
+        spdlog::stopwatch watch;
 
-        spdlog::info("Smoothing mesh with {} iterations", iterations);
-
-        entities::Mesh mesh_out = mesh;
-        for (int i = 0; i < iterations; ++i) {
-            spdlog::info("Smoothing iteration {}", i);
+        auto vertices = MatrixXf(mesh.n_vertices(), 3);
+        for (int i = 0; i < mesh.n_vertices(); ++i) {
+            auto point = mesh.point(entities::Mesh::VertexHandle(i));
+            vertices.row(i) = Vector3f(point[0], point[1], point[2]);
         }
 
-        return mesh_out;
+        const float error_before = sdfn(vertices).cwiseAbs().sum();
+
+        for (int i = 0; i < iterations; ++i) {
+            spdlog::debug("Smoothing iteration {}/{}", i, iterations);
+
+            const auto gradients = sdfn::gradient_of(sdfn, vertices);
+            vertices -= sdfn(vertices) * gradients * rate;
+        }
+
+        const float error_after = sdfn(vertices).cwiseAbs().sum();
+
+        for (int i = 0; i < mesh.n_vertices(); ++i) {
+            mesh.set_point(
+                    entities::Mesh::VertexHandle(i),
+                    entities::Mesh::Point(
+                            vertices(i, 0),
+                            vertices(i, 1),
+                            vertices(i, 2)
+                    )
+            );
+        }
+
+        spdlog::debug("Finished smoothing mesh with SDFn gradient distances before={} after={} ({:.3}s)",
+                      error_before, error_after, watch);
+
+#ifdef DEV_DEBUG
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/gradient_smoothing.ply");
+#endif
+
+        return mesh;
 
     }
 

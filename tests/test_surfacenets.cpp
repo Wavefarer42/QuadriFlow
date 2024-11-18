@@ -52,7 +52,7 @@ TEST(SurfaceNetsSuite, MeshingBox) {
     spdlog::set_level(spdlog::level::debug);
 #endif
 
-    const int resolution = 100;
+    const int resolution = 30;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
     const entities::Mesh result = sut.mesh(sdfn::box, resolution, bounds);

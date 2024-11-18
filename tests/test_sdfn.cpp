@@ -1,9 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "sdfn.h"
-#include "bootstrap.h"
 #include <Eigen/Core>
-#include <Eigen/Dense>
 
 using namespace Eigen;
 
