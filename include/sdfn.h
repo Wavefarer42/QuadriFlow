@@ -22,6 +22,12 @@ namespace sdfn {
             const Vector3f axis,
             float angle
     );
+
+    MatrixXf gradient_of(
+            const entities::SDFn &sdfn,
+            const MatrixXf &domain,
+            const float epsilon = 1e-5
+    );
 }
 
 

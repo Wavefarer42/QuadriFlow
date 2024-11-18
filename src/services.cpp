@@ -370,6 +370,23 @@ namespace services {
         return mesh;
     }
 
+    entities::Mesh MeshService::gradient_smoothing(
+            const entities::SDFn &sdfn,
+            const entities::Mesh &mesh,
+            const int iterations
+    )const {
+
+        spdlog::info("Smoothing mesh with {} iterations", iterations);
+
+        entities::Mesh mesh_out = mesh;
+        for (int i = 0; i < iterations; ++i) {
+            spdlog::info("Smoothing iteration {}", i);
+        }
+
+        return mesh_out;
+
+    }
+
     entities::Mesh MeshService::mesh(
             const entities::SDFn &sdfn,
             const int resolution,

@@ -304,10 +304,14 @@ namespace services {
                 entities::Mesh &mesh
         ) const;
 
+        entities::Mesh gradient_smoothing(
+                const entities::SDFn &sdfn,
+                const entities::Mesh &mesh,
+                const int iterations
+        ) const;
 
     private:
         persistence::MeshDao mesh_dao;
 
     };
-
 }

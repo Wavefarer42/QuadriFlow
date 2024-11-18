@@ -47,4 +47,38 @@ namespace sdfn {
 
         return _rotate;
     }
+
+    MatrixXf gradient_of(
+            const entities::SDFn &sdfn,
+            const MatrixXf &domain,
+            const float epsilon
+    ) {
+        auto gradient = MatrixXf(domain.rows(), 3);
+
+        for (int i = 0; i < domain.cols(); ++i) {
+            Vector3f eps = Vector3f::Zero();
+            eps(i) = epsilon;
+
+            const MatrixXf domain_plus = domain.rowwise() + eps.transpose();
+            const MatrixXf domain_minus = domain.rowwise() - eps.transpose();
+
+            const VectorXf sdf_plus = sdfn(domain_plus);
+            const VectorXf sdf_minus = sdfn(domain_minus);
+
+            gradient.col(i) = (sdf_plus - sdf_minus).array() / (2 * epsilon);
+        }
+
+        return gradient;
+    }
+
+    MatrixXf normal_of(
+            const entities::SDFn &sdfn,
+            const MatrixXf &domain,
+            const float epsilon
+    ) {
+        const MatrixXf gradient = gradient_of(sdfn, domain, epsilon);
+        const MatrixXf normals = gradient.rowwise().normalized();
+
+        return normals;
+    }
 }
