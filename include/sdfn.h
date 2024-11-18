@@ -28,6 +28,16 @@ namespace sdfn {
             const MatrixXf &domain,
             const float epsilon = 1e-5
     );
+
+    MatrixXf normal_of(
+            const entities::SDFn &sdfn,
+            const MatrixXf &domain,
+            const float epsilon
+    );
+
+    MatrixXf normal_of(
+            const MatrixXf &gradients
+    );
 }
 
 

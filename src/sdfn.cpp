@@ -77,8 +77,15 @@ namespace sdfn {
             const float epsilon
     ) {
         const MatrixXf gradient = gradient_of(sdfn, domain, epsilon);
-        const MatrixXf normals = gradient.rowwise().normalized();
+        return normal_of(gradient);
+    }
 
-        return normals;
+    MatrixXf normal_of(
+            const MatrixXf &gradients
+    ) {
+        VectorXf norms = gradients.rowwise().norm();
+        norms = (norms.array() == 0).select(1, norms);
+
+        return gradients.array().rowwise() / norms.transpose().array();
     }
 }

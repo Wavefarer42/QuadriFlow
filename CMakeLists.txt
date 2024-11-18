@@ -129,6 +129,7 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
+        src/svd.cpp
 )
 
 target_link_libraries(
