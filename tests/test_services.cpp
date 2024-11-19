@@ -31,6 +31,6 @@ TEST(MeshServiceSuite, GradientSmoothingBox) {
 
     const auto result = service.to_trimesh(mesh);
 
-    OpenMesh::IO::write_mesh(result, "../tests/out/box-gradient_smoothing.ply");
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-smoothing_surface_snapping.ply");
 }
 

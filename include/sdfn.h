@@ -32,7 +32,7 @@ namespace sdfn {
     MatrixXf normal_of(
             const entities::SDFn &sdfn,
             const MatrixXf &domain,
-            const float epsilon
+            const float epsilon = 1e-5
     );
 
     MatrixXf normal_of(

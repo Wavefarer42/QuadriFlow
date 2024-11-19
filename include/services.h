@@ -249,15 +249,9 @@ namespace services {
     public:
         explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
 
+        // IO
+
         [[nodiscard]] entities::Mesh load_mesh(
-                const std::string &filename
-        ) const;
-
-        bool is_trimesh(
-                const entities::Mesh &mesh
-        ) const;
-
-        [[nodiscard]] entities::UnboundModel load_unbound_model_from_file(
                 const std::string &filename
         ) const;
 
@@ -270,6 +264,24 @@ namespace services {
                 const std::string &filename,
                 const entities::Mesh &mesh
         ) const;
+
+        [[nodiscard]] entities::UnboundModel load_unbound_model_from_file(
+                const std::string &filename
+        ) const;
+
+        // Analysis
+
+        bool is_trimesh(
+                const entities::Mesh &mesh
+        ) const;
+
+        // Conversion
+
+        entities::Mesh to_trimesh(
+                entities::Mesh &mesh
+        ) const;
+
+        // Quadriflow
 
         static void set_boundary_constraints(Hierarchy &hierarchy);
 
@@ -286,6 +298,32 @@ namespace services {
                 MatrixXd &normals_faces
         );
 
+        // Smoothing and Snapping
+
+        entities::Mesh smoothing_surface_snapping(
+                const entities::SDFn &sdfn,
+                entities::Mesh &mesh,
+                const int iterations = 3,
+                const float rate = 0.1
+        ) const;
+
+        entities::Mesh smoothing_edge_snapping(
+                const entities::SDFn &sdfn,
+                entities::Mesh &mesh,
+                const int iterations = 3,
+                const float threshold_angle = 30,
+                const float max_error = 1e-1
+        ) const;
+
+        // Fields
+
+        Vector3f create_laplacian_angle_field(
+                const entities::SDFn &sdfn,
+                entities::Mesh &mesh
+        ) const;
+
+        // Top level
+
         entities::Mesh mesh(
                 const entities::SDFn &sdfn,
                 const int resolution = 100,
@@ -298,17 +336,6 @@ namespace services {
                 const bool preserve_edges = false,
                 const bool preserve_boundaries = false,
                 const bool use_adaptive_meshing = false
-        ) const;
-
-        entities::Mesh to_trimesh(
-                entities::Mesh &mesh
-        ) const;
-
-        entities::Mesh gradient_smoothing(
-                const entities::SDFn &sdfn,
-                entities::Mesh &mesh,
-                const int iterations = 3,
-                const float rate = 0.1
         ) const;
 
     private:

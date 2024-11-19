@@ -1,19 +1,87 @@
 #include <fstream>
+#include <algorithm>
+#include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
-#include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "services.h"
 #include "field-math.h"
 #include "optimizer.h"
 #include "adapters.h"
 #include "surfacenets.h"
+#include "transformations.h"
 #include "sdfn.h"
 
 
-namespace services {
+template<typename Derived>
+Eigen::Matrix<typename Derived::Scalar, Derived::RowsAtCompileTime, Derived::ColsAtCompileTime>
+clip(const Eigen::MatrixBase<Derived> &mat, typename Derived::Scalar minVal, typename Derived::Scalar maxVal) {
+    return mat.unaryExpr([minVal, maxVal](typename Derived::Scalar val) {
+        return std::min(std::max(val, minVal), maxVal);
+    });
+}
 
+template<typename MatrixType>
+typename MatrixType::Scalar frobenius_norm_off_diagonal(const MatrixType &A) {
+    using Scalar = typename MatrixType::Scalar;
+
+    int n = A.rows();
+    Scalar sum = 0;
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            if (i != j) {
+                sum += A(i, j) * A(i, j);
+            }
+        }
+    }
+
+    return std::sqrt(sum);
+}
+
+// Mesh functions
+Vector3f face_centroid(
+        entities::Mesh &mesh,
+        entities::Mesh::VertexFaceIter &face
+) {
+
+    int total = 0;
+    Vector3f centroid = Vector3f::Zero();
+    for (auto it_face_vertex = mesh.fv_iter(*face); it_face_vertex.is_valid(); ++it_face_vertex) {
+        if (*it_face_vertex != *face) {
+            const auto p = mesh.point(*it_face_vertex);
+            centroid += Vector3f(p[0], p[1], p[2]);
+            total++;
+        }
+    }
+
+    centroid /= total;
+
+    return centroid;
+};
+
+MatrixXf face_centroids_ring(
+        entities::Mesh &mesh,
+        entities::Mesh::VertexHandle vertex
+) {
+    std::vector<Vector3f> centroids_list(5);
+    for (entities::Mesh::VertexFaceIter it_face = mesh.vf_iter(vertex);
+         it_face.is_valid(); ++it_face) {
+
+        const auto centroid = face_centroid(mesh, it_face);
+        centroids_list.push_back(centroid);
+    }
+
+    MatrixXf centroids(centroids_list.size(), 3);
+    for (int i = 0; i < centroids_list.size(); ++i) {
+        centroids.row(i) = centroids_list[i];
+    }
+
+    return centroids;
+}
+
+namespace services {
 
     entities::Mesh MeshService::load_mesh(
             const std::string &filename
@@ -373,7 +441,7 @@ namespace services {
         return mesh;
     }
 
-    entities::Mesh MeshService::gradient_smoothing(
+    entities::Mesh MeshService::smoothing_surface_snapping(
             const entities::SDFn &sdfn,
             entities::Mesh &mesh,
             const int iterations,
@@ -414,7 +482,88 @@ namespace services {
                       error_before, error_after, watch);
 
 #ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/gradient_smoothing.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_surface_snapping.ply");
+#endif
+
+        return mesh;
+    }
+
+
+    Vector3f MeshService::create_laplacian_angle_field(
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh
+    ) const {
+
+        VectorXf divergences(mesh.n_vertices());
+
+        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
+            entities::Mesh::VertexHandle it_vertex(idx);
+
+            const auto centroids = face_centroids_ring(mesh, it_vertex);
+            const auto face_normals = sdfn::normal_of(sdfn, centroids);
+            MatrixXf angles = face_normals * face_normals.transpose();
+            angles = clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
+
+            divergences[idx] = frobenius_norm_off_diagonal(angles);
+        });
+
+        return divergences;
+    }
+
+    entities::Mesh MeshService::smoothing_edge_snapping(
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh,
+            const int iterations,
+            const float threshold_angle,
+            const float max_error
+    ) const {
+        spdlog::info("Smoothing mesh by snapping vertices to edges.");
+        spdlog::stopwatch watch;
+
+        for (int iteration = 0; iteration < iterations; ++iteration) {
+            const auto field = create_laplacian_angle_field(sdfn, mesh);
+
+            MatrixXf vertices_smoothed(mesh.n_vertices(), 3);
+
+            int i = 0;
+            for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
+                const auto point = mesh.point(*it_v);
+                const auto vertex = Vector3f(point[0], point[1], point[2]);
+                vertices_smoothed.row(i) = vertex;
+
+
+                if (field[i] > threshold_angle) {
+                    // Optimize: Neighborhood is computed twice
+                    const auto centroids = face_centroids_ring(mesh, *it_v);
+                    const auto face_normals = sdfn::normal_of(sdfn, centroids);
+                    const auto vertex_new = transformations::intersect_planes(centroids, face_normals);
+
+                    if (vertex_new[3] < max_error) {
+                        // TODO: Check if new location is outside neighborhood
+                        vertices_smoothed.row(i) = vertex_new.head(3);
+                    }
+                }
+
+                i++;
+            }
+
+            // FIXME: Remove once eigen is used as storage
+            for (int i = 0; i < mesh.n_vertices(); ++i) {
+                mesh.set_point(
+                        entities::Mesh::VertexHandle(i),
+                        entities::Mesh::Point(
+                                vertices_smoothed(i, 0),
+                                vertices_smoothed(i, 1),
+                                vertices_smoothed(i, 2)
+                        )
+                );
+            }
+        }
+
+        spdlog::debug("Finished smoothing mesh by snapping vertices to edges ({:.3}s)", watch);
+
+#ifdef DEV_DEBUG
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_edge_snapping.ply");
 #endif
 
         return mesh;
