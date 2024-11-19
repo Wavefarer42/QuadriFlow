@@ -1,12 +1,10 @@
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
-#include <OpenMesh/Tools/Utils/MeshCheckerT.hh>
+using namespace Eigen;
 
-namespace svd {
-    using namespace Eigen;
-
+namespace transformations {
     Vector4f intersect_planes(
             const MatrixXf &vertices,
             const MatrixXf &normals

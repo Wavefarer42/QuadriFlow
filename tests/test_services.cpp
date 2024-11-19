@@ -1,7 +1,10 @@
 #include "gtest/gtest.h"
 #include <OpenMesh/Core/IO/MeshIO.hh>
+#include "Eigen/Core"
 
 #include "bootstrap.h"
+
+using namespace Eigen;
 
 TEST(MeshServiceSuite, to_trimesh) {
 #ifdef DEV_DEBUG

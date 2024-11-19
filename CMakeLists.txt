@@ -129,7 +129,7 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
-        src/svd.cpp
+        src/transformations.cpp
 )
 
 target_link_libraries(
@@ -166,6 +166,7 @@ add_executable(
         tests/test_e2e.cpp
         tests/test_services.cpp
         tests/test_sdfn.cpp
+        tests/test_transformations.cpp
 
         src/dedge.cpp
         src/hierarchy.cpp
@@ -177,6 +178,7 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
+        src/transformations.cpp
 )
 
 target_link_libraries(

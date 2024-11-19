@@ -14,6 +14,7 @@
 
 namespace services {
 
+
     entities::Mesh MeshService::load_mesh(
             const std::string &filename
     ) const {
@@ -417,7 +418,6 @@ namespace services {
 #endif
 
         return mesh;
-
     }
 
     entities::Mesh MeshService::mesh(

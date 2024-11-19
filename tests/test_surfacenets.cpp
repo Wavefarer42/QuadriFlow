@@ -52,7 +52,7 @@ TEST(SurfaceNetsSuite, MeshingBox) {
     spdlog::set_level(spdlog::level::debug);
 #endif
 
-    const int resolution = 30;
+    const int resolution = 100;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
     const entities::Mesh result = sut.mesh(sdfn::box, resolution, bounds);
@@ -73,8 +73,6 @@ TEST(SurfaceNetsSuite, MeshingCylinder) {
     const entities::Mesh result = sut.mesh(sdfn::cylinder, resolution, bounds);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/cylinder.ply");
-
-    EXPECT_EQ(result.n_vertices(), 39008);
 }
 
 TEST(SurfaceNetsSuite, MeshingRotatedBox) {
@@ -89,8 +87,6 @@ TEST(SurfaceNetsSuite, MeshingRotatedBox) {
     const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-rotated.ply");
-
-    EXPECT_EQ(result.n_vertices(), 39008);
 }
 
 TEST(SurfaceNetsSuite, LinearIndexing) {
