@@ -60,7 +60,7 @@ namespace surfacenets {
         ) const;
 
         [[nodiscard]]
-        std::vector<VectorXi> create_faces(
+        std::vector<Vector4i> create_faces(
                 const MatrixXi &indices,
                 const MatrixXf &sdf,
                 int resolution,

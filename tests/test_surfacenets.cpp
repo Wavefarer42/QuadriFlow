@@ -5,9 +5,6 @@
 #include "sdfn.h"
 #include "bootstrap.h"
 #include "surfacenets.h"
-#include "persistence.h"
-
-const std::string path_model = "../tests/resources/Bear_2.ubs";
 
 
 TEST(SurfaceNetsSuite, SphereSDF) {
@@ -34,7 +31,7 @@ TEST(SurfaceNetsSuite, EstimateBounds) {
     EXPECT_EQ(result.max().z(), 1);
 }
 
-TEST(SurfaceNetsSuite, Meshing) {
+TEST(SurfaceNetsSuite, MeshingSphere) {
     spdlog::set_level(spdlog::level::debug);
 
     const int resolution = 20;
@@ -83,7 +80,7 @@ TEST(SurfaceNetsSuite, MeshingRotatedBox) {
     const int resolution = 100;
     const AlignedBox3f bounds(Vector3f(-5, -5, -5), Vector3f(5, 5, 5));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
-    const auto sdfn = sdfn::rotate(sdfn::box, Vector3f(1, 0, 0), 0.5);
+    const auto sdfn = sdfn::rotate(sdfn::box, Vector3f(0, 1, 0), 0.5);
     const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-rotated.ply");
@@ -112,18 +109,20 @@ TEST(SurfaceNetsSuite, LinearIndexing) {
     }
 }
 
-TEST(SurfaceNetsSuite, MeshingUnboundModel) {
+TEST(SurfaceNetsSuite, MeshingUnboundBox) {
     spdlog::set_level(spdlog::level::debug);
 
     const auto sdfn = bootstrap::Container()
             .mesh_dao()
-            .load_unbound_model(path_model)
-            .sdfn_as_list()[1];
+            .load_unbound_model("../tests/resources/box.ubs")
+            .sdfn_as_list()[0];
 
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-26, -26, -26), Vector3f(26, 26, 26));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
-    const entities::Mesh result = sut.mesh(sdfn);
+    const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
 
-    OpenMesh::IO::write_mesh(result, "../tests/out/bear.ply");
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-unbound.ply");
 
     EXPECT_EQ(result.n_vertices(), 1928);
 }

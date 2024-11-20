@@ -208,7 +208,8 @@ namespace surfacenets {
         spdlog::debug("Finished sampling signed distance field ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
-        spdlog::debug("SDF contains inside={}, outside={} points.", (sdf.array() < 0.0f).count(), (sdf.array() > 0.0f).count());
+        spdlog::debug("SDF contains inside={}, outside={} points.", (sdf.array() < 0.0f).count(),
+                      (sdf.array() > 0.0f).count());
 
         entities::Mesh mesh;
         for (int i = 0; i < domain.rows(); ++i) {
@@ -281,7 +282,7 @@ namespace surfacenets {
         return vertices;
     }
 
-    std::vector<VectorXi> SurfaceNetsMeshStrategy::create_faces(
+    std::vector<Vector4i> SurfaceNetsMeshStrategy::create_faces(
             const MatrixXi &indices,
             const MatrixXf &sdf,
             const int resolution,
@@ -292,49 +293,52 @@ namespace surfacenets {
         spdlog::debug("Creating faces");
         spdlog::stopwatch watch;
 
-        std::vector<VectorXi> faces;
+        std::vector<Vector4i> faces;
         for (int i = 0; i < indices.rows(); ++i) {
             if (indices(i, 3) == -1) continue;
 
-            Vector3i idx_vertex_1 = indices.row(i).head<3>();
+            Vector3i idx_vertex = indices.row(i).head<3>();
 
-            if (idx_vertex_1.x() != resolution
-                && idx_vertex_1.y() != 0
-                && idx_vertex_1.z() != 0) {
-                const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_X;
-                const auto d1 = sdf(linearize(idx_vertex_1));
-                const auto d2 = sdf(linearize(idx_vertex_2));
+            // Scan along the X-axis
+            if (idx_vertex.x() < resolution
+                && idx_vertex.y() > 0
+                && idx_vertex.z() > 0) {
+                const Vector3i idx_vertex_axis = idx_vertex + AXIS_X;
+                const auto d1 = sdf(linearize(idx_vertex));
+                const auto d2 = sdf(linearize(idx_vertex_axis));
 
                 if (is_on_surface(d1, d2)) {
-                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_Y, AXIS_Z, indices, linearize);
+                    const auto face_indices = gather_face_indices(idx_vertex, AXIS_Y, AXIS_Z, indices, linearize);
                     const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
             }
 
-            if (idx_vertex_1.x() != 0
-                && idx_vertex_1.y() != resolution
-                && idx_vertex_1.z() != 0) {
-                const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_Y;
-                const auto d1 = sdf(linearize(idx_vertex_1));
-                const auto d2 = sdf(linearize(idx_vertex_2));
+            // Scan along the Y-axis
+            if (idx_vertex.x() > 0
+                && idx_vertex.y() < resolution
+                && idx_vertex.z() > 0) {
+                const Vector3i idx_vertex_axis = idx_vertex + AXIS_Y;
+                const auto d1 = sdf(linearize(idx_vertex));
+                const auto d2 = sdf(linearize(idx_vertex_axis));
 
                 if (is_on_surface(d1, d2)) {
-                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_Z, AXIS_X, indices, linearize);
+                    const auto face_indices = gather_face_indices(idx_vertex, AXIS_Z, AXIS_X, indices, linearize);
                     const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
             }
 
-            if (idx_vertex_1.x() != 0
-                && idx_vertex_1.y() != 0
-                && idx_vertex_1.z() != resolution) {
-                const Vector3i idx_vertex_2 = idx_vertex_1 + AXIS_Z;
-                const auto d1 = sdf(linearize(idx_vertex_1));
-                const auto d2 = sdf(linearize(idx_vertex_2));
+            // Scan along the Z-axis
+            if (idx_vertex.x() > 0
+                && idx_vertex.y() > 0
+                && idx_vertex.z() < resolution) {
+                const Vector3i idx_vertex_axis = idx_vertex + AXIS_Z;
+                const auto d1 = sdf(linearize(idx_vertex));
+                const auto d2 = sdf(linearize(idx_vertex_axis));
 
                 if (is_on_surface(d1, d2)) {
-                    const auto face_indices = gather_face_indices(idx_vertex_1, AXIS_X, AXIS_Y, indices, linearize);
+                    const auto face_indices = gather_face_indices(idx_vertex, AXIS_X, AXIS_Y, indices, linearize);
                     const auto face = create_face(face_indices, is_negative_face(d1, d2));
                     faces.emplace_back(face);
                 }
@@ -348,7 +352,7 @@ namespace surfacenets {
 
     entities::Mesh finalize_mesh(
             const std::vector<Vector3f> &vertices,
-            const std::vector<VectorXi> &faces
+            const std::vector<Vector4i> &faces
     ) {
 
         spdlog::debug("Creating mesh data structure");
@@ -401,11 +405,11 @@ namespace surfacenets {
                    + idx_nd.z() * (resolution + 1) * (resolution + 1);
         };
 
-        const MatrixXf domain = scale_to_domain(indices, bounds_, resolution);
-        const MatrixXf sdf = sample_sdf(sdfn, domain);
-        const std::vector<Vector3f> vertices = create_vertices(indices, sdf, resolution, linearize);
-        const std::vector<VectorXi> faces = create_faces(indices, sdf, resolution, linearize);
-        const entities::Mesh mesh = finalize_mesh(vertices, faces);
+        const auto domain = scale_to_domain(indices, bounds_, resolution);
+        const auto sdf = sample_sdf(sdfn, domain);
+        const auto vertices = create_vertices(indices, sdf, resolution, linearize);
+        const auto faces = create_faces(indices, sdf, resolution, linearize);
+        const auto mesh = finalize_mesh(vertices, faces);
 
         return mesh;
     }
