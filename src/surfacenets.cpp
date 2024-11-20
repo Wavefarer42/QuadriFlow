@@ -303,13 +303,12 @@ namespace surfacenets {
             if (idx_vertex.x() < resolution
                 && idx_vertex.y() > 0
                 && idx_vertex.z() > 0) {
-                const Vector3i idx_vertex_axis = idx_vertex + AXIS_X;
-                const auto d1 = sdf(linearize(idx_vertex));
-                const auto d2 = sdf(linearize(idx_vertex_axis));
+                const auto d0 = sdf(linearize(idx_vertex));
+                const auto d1 = sdf(linearize(idx_vertex + AXIS_X));
 
-                if (is_on_surface(d1, d2)) {
+                if (is_on_surface(d0, d1)) {
                     const auto face_indices = gather_face_indices(idx_vertex, AXIS_Y, AXIS_Z, indices, linearize);
-                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
+                    const auto face = create_face(face_indices, is_negative_face(d0, d1));
                     faces.emplace_back(face);
                 }
             }
@@ -318,13 +317,12 @@ namespace surfacenets {
             if (idx_vertex.x() > 0
                 && idx_vertex.y() < resolution
                 && idx_vertex.z() > 0) {
-                const Vector3i idx_vertex_axis = idx_vertex + AXIS_Y;
-                const auto d1 = sdf(linearize(idx_vertex));
-                const auto d2 = sdf(linearize(idx_vertex_axis));
+                const auto d0 = sdf(linearize(idx_vertex));
+                const auto d1 = sdf(linearize(idx_vertex + AXIS_Y));
 
-                if (is_on_surface(d1, d2)) {
+                if (is_on_surface(d0, d1)) {
                     const auto face_indices = gather_face_indices(idx_vertex, AXIS_Z, AXIS_X, indices, linearize);
-                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
+                    const auto face = create_face(face_indices, is_negative_face(d0, d1));
                     faces.emplace_back(face);
                 }
             }
@@ -333,13 +331,12 @@ namespace surfacenets {
             if (idx_vertex.x() > 0
                 && idx_vertex.y() > 0
                 && idx_vertex.z() < resolution) {
-                const Vector3i idx_vertex_axis = idx_vertex + AXIS_Z;
-                const auto d1 = sdf(linearize(idx_vertex));
-                const auto d2 = sdf(linearize(idx_vertex_axis));
+                const auto d0 = sdf(linearize(idx_vertex));
+                const auto d1 = sdf(linearize(idx_vertex + AXIS_Z));
 
-                if (is_on_surface(d1, d2)) {
+                if (is_on_surface(d0, d1)) {
                     const auto face_indices = gather_face_indices(idx_vertex, AXIS_X, AXIS_Y, indices, linearize);
-                    const auto face = create_face(face_indices, is_negative_face(d1, d2));
+                    const auto face = create_face(face_indices, is_negative_face(d0, d1));
                     faces.emplace_back(face);
                 }
             }
