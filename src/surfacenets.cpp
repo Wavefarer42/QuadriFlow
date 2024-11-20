@@ -225,13 +225,17 @@ namespace surfacenets {
 
     std::vector<Vector3f> SurfaceNetsMeshStrategy::create_vertices(
             MatrixXi &indices,
+            const MatrixXf &domain,
             const MatrixXf &sdf,
             const int resolution,
+            const AlignedBox3f &bounds,
             const NdToFlatIndexer &linearize
     ) const {
         spdlog::debug("Creating surface vertices");
         spdlog::stopwatch watch;
 
+        const Vector3f domain_offset = domain.row(0);
+        const Vector3f domain_scale = (domain.row(domain.rows() - 1) - domain.row(0)).array() / resolution;
         std::vector<Vector3f> vertices;
 
         tbb::mutex mtx;
@@ -257,10 +261,14 @@ namespace surfacenets {
 
                         auto num_negatives = (distances_corners.array() < 0.0f).count();
                         if (num_negatives != 0 && num_negatives != 8) {
-                            const auto centroid = estimate_centroid(distances_corners);
+                            const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
+
+                            const Vector3f position =
+                                    domain_offset + (centroid.array() * domain_scale.array()).matrix();
+
                             tbb::mutex::scoped_lock lock(mtx);
 
-                            vertices.emplace_back(corner.cast<float>() + centroid);
+                            vertices.emplace_back(position);
                             indices(i, 3) = static_cast<int>(vertices.size()) - 1;
 
                             lock.release();
@@ -288,8 +296,6 @@ namespace surfacenets {
             const int resolution,
             const NdToFlatIndexer &linearize
     ) const {
-        // FIXME: Rotated box is missing faces
-
         spdlog::debug("Creating faces");
         spdlog::stopwatch watch;
 
@@ -404,7 +410,7 @@ namespace surfacenets {
 
         const auto domain = scale_to_domain(indices, bounds_, resolution);
         const auto sdf = sample_sdf(sdfn, domain);
-        const auto vertices = create_vertices(indices, sdf, resolution, linearize);
+        const auto vertices = create_vertices(indices, domain, sdf, resolution, bounds, linearize);
         const auto faces = create_faces(indices, sdf, resolution, linearize);
         const auto mesh = finalize_mesh(vertices, faces);
 

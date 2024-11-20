@@ -54,8 +54,10 @@ namespace surfacenets {
 
         std::vector<Vector3f> create_vertices(
                 MatrixXi &indices,
+                const MatrixXf &domain,
                 const MatrixXf &sdf,
                 int resolution,
+                const AlignedBox3f &bounds,
                 const NdToFlatIndexer &linearize
         ) const;
 

@@ -86,6 +86,7 @@ namespace sdfn {
         VectorXf norms = gradients.rowwise().norm();
         norms = (norms.array() == 0).select(1, norms);
 
-        return gradients.array().rowwise() / norms.transpose().array();
+
+        return gradients.array().colwise() / norms.array();
     }
 }

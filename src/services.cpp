@@ -48,12 +48,11 @@ Vector3f face_centroid(
 
     int total = 0;
     Vector3f centroid = Vector3f::Zero();
-    for (auto it_face_vertex = mesh.fv_iter(*face); it_face_vertex.is_valid(); ++it_face_vertex) {
-        if (*it_face_vertex != *face) {
-            const auto p = mesh.point(*it_face_vertex);
-            centroid += Vector3f(p[0], p[1], p[2]);
-            total++;
-        }
+    for (auto it_face_vertex = mesh.fv_iter(*face);
+         it_face_vertex.is_valid(); ++it_face_vertex) {
+        const auto p = mesh.point(*it_face_vertex);
+        centroid += Vector3f(p[0], p[1], p[2]);
+        total++;
     }
 
     centroid /= total;
@@ -65,13 +64,16 @@ MatrixXf face_centroids_ring(
         entities::Mesh &mesh,
         entities::Mesh::VertexHandle vertex
 ) {
-    std::vector<Vector3f> centroids_list(5);
+    std::cout << "Face: ";
+    std::vector<Vector3f> centroids_list;
     for (entities::Mesh::VertexFaceIter it_face = mesh.vf_iter(vertex);
          it_face.is_valid(); ++it_face) {
+        std::cout << *it_face << " ";
 
         const auto centroid = face_centroid(mesh, it_face);
         centroids_list.push_back(centroid);
     }
+    std::cout << std::endl;
 
     MatrixXf centroids(centroids_list.size(), 3);
     for (int i = 0; i < centroids_list.size(); ++i) {
@@ -456,16 +458,24 @@ namespace services {
 
         VectorXf divergences(mesh.n_vertices());
 
-        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
+//        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
+        for (int idx = 0; idx < mesh.n_vertices(); ++idx) {
             entities::Mesh::VertexHandle it_vertex(idx);
 
             const auto centroids = face_centroids_ring(mesh, it_vertex);
+            std::cout << "centroids:\n" << centroids << std::endl;
+
             const auto face_normals = sdfn::normal_of(sdfn, centroids);
+            std::cout << "face_normals:\n" << face_normals << std::endl;
+
             MatrixXf angles = face_normals * face_normals.transpose();
             angles = clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
+            std::cout << "angles:\n" << angles << std::endl;
 
             divergences[idx] = frobenius_norm_off_diagonal(angles);
-        });
+        }
+
+//        });
 
         return divergences;
     }
