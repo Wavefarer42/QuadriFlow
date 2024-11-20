@@ -83,6 +83,8 @@ MatrixXf face_centroids_ring(
 
 namespace services {
 
+    // IO
+
     entities::Mesh MeshService::load_mesh(
             const std::string &filename
     ) const {
@@ -145,6 +147,8 @@ namespace services {
 
         mesh_dao.save_mesh_to_file(filename, mesh);
     }
+
+    // Quadriflow
 
     void MeshService::set_boundary_constraints(
             Hierarchy &hierarchy
@@ -408,6 +412,8 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
+    // Conversions
+
     entities::Mesh MeshService::to_trimesh(
             entities::Mesh &mesh
     ) const {
@@ -440,6 +446,31 @@ namespace services {
 
         return mesh;
     }
+
+    // Fields
+
+    Vector3f MeshService::create_laplacian_angle_field(
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh
+    ) const {
+
+        VectorXf divergences(mesh.n_vertices());
+
+        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
+            entities::Mesh::VertexHandle it_vertex(idx);
+
+            const auto centroids = face_centroids_ring(mesh, it_vertex);
+            const auto face_normals = sdfn::normal_of(sdfn, centroids);
+            MatrixXf angles = face_normals * face_normals.transpose();
+            angles = clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
+
+            divergences[idx] = frobenius_norm_off_diagonal(angles);
+        });
+
+        return divergences;
+    }
+
+    // Smoothing
 
     entities::Mesh MeshService::smoothing_surface_snapping(
             const entities::SDFn &sdfn,
@@ -486,28 +517,6 @@ namespace services {
 #endif
 
         return mesh;
-    }
-
-
-    Vector3f MeshService::create_laplacian_angle_field(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh
-    ) const {
-
-        VectorXf divergences(mesh.n_vertices());
-
-        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
-            entities::Mesh::VertexHandle it_vertex(idx);
-
-            const auto centroids = face_centroids_ring(mesh, it_vertex);
-            const auto face_normals = sdfn::normal_of(sdfn, centroids);
-            MatrixXf angles = face_normals * face_normals.transpose();
-            angles = clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
-
-            divergences[idx] = frobenius_norm_off_diagonal(angles);
-        });
-
-        return divergences;
     }
 
     entities::Mesh MeshService::smoothing_edge_snapping(
@@ -568,6 +577,8 @@ namespace services {
 
         return mesh;
     }
+
+    // Top level
 
     entities::Mesh MeshService::mesh(
             const entities::SDFn &sdfn,

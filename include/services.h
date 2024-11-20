@@ -340,6 +340,5 @@ namespace services {
 
     private:
         persistence::MeshDao mesh_dao;
-
     };
 }
