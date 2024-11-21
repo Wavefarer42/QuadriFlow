@@ -20,6 +20,6 @@ TEST(MeshDaoTests, LoadUnboundSdfn) {
 
     const auto result = sut.load_unbound_model(path_model);
 
-    EXPECT_EQ(50, result.sdfns.size());
+    EXPECT_EQ(50, result.size());
 }
 

@@ -317,7 +317,7 @@ namespace services {
 
         // Fields
 
-        Vector3f create_laplacian_angle_field(
+        VectorXf create_laplacian_angle_field(
                 const entities::SDFn &sdfn,
                 entities::Mesh &mesh
         ) const;

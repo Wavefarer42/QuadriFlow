@@ -232,18 +232,23 @@ namespace entities {
     typedef std::function<VectorXf(MatrixXf)> SDFn;
 
     class UnboundModel {
+    private:
+        const UB::Collection _collection;
+        std::map<std::string, SDFn> _sdfns;
+        std::vector<std::string> _keys;
+
     public:
-        const UB::Collection collection;
-        std::map<std::string, SDFn> sdfns;
-
         explicit UnboundModel(UB::Collection collection)
-                : collection(collection) {
+                : _collection(collection) {
 
+            _keys.resize(collection.models.size());
+
+            int idx_keys = 0;
             for (auto const &[id_model, model]: collection.models) {
                 UB::InstructionList evalList;
                 UB::compileEditList(model.editList, evalList);
 
-                const auto sampler = [model, evalList](MatrixXf domain) {
+                const auto sampler = [&evalList](MatrixXf domain) {
                     VectorXf distances(domain.rows());
 
                     tbb::parallel_for(
@@ -258,17 +263,42 @@ namespace entities {
                     return distances;
                 };
 
-                this->sdfns[uuids::to_string(id_model)] = sampler;
+                _sdfns[uuids::to_string(id_model)] = sampler;
+                _keys[idx_keys++] = uuids::to_string(id_model);
             }
         }
 
+        size_t size() const {
+            return _sdfns.size();
+        }
 
-        [[nodiscard]] std::vector<SDFn> sdfn_as_list() const {
+        [[nodiscard]] std::vector<std::string> keys() const {
+            std::vector<std::string> keys_new;
+            for (auto const key: _keys) {
+                keys_new.push_back(key);
+            }
+            return keys_new;
+        }
+
+        SDFn &operator[](const std::string &key) {
+            return _sdfns[key];
+        }
+
+        SDFn &operator[](const uuids::uuid &key) {
+            return _sdfns[uuids::to_string(key)];
+        }
+
+        operator std::vector<SDFn>() const {
             std::vector<SDFn> sfdns;
-            for (auto const &[key, val]: sdfns) {
+            for (auto const &[key, val]: _sdfns) {
                 sfdns.push_back(val);
             }
             return sfdns;
+        }
+
+        SDFn &operator[](const int &key) {
+            assert(key < _keys.size());
+            return _sdfns[_keys[key]];
         }
     };
 }

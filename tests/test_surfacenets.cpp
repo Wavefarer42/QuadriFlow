@@ -114,15 +114,31 @@ TEST(SurfaceNetsSuite, MeshingUnboundBox) {
 
     const auto sdfn = bootstrap::Container()
             .mesh_dao()
-            .load_unbound_model("../tests/resources/box.ubs")
-            .sdfn_as_list()[0];
+            .load_unbound_model("../tests/resources/box.ubs")[0];
 
     const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-26, -26, -26), Vector3f(26, 26, 26));
+    const AlignedBox3f bounds(Vector3f(-51, -51, -51), Vector3f(51, 51, 51));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
     const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-unbound.ply");
+
+    EXPECT_EQ(result.n_vertices(), 1928);
+}
+
+TEST(SurfaceNetsSuite, MeshingUnboundBoxComplex) {
+    spdlog::set_level(spdlog::level::debug);
+
+    const auto sdfn = bootstrap::Container()
+            .mesh_dao()
+            .load_unbound_model("../tests/resources/box-complex.ubs")[0];
+
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-complex.ply");
 
     EXPECT_EQ(result.n_vertices(), 1928);
 }

@@ -130,6 +130,7 @@ add_executable(
         src/surfacenets.cpp
         src/sdfn.cpp
         src/transformations.cpp
+        src/mathext.cpp
 )
 
 target_link_libraries(
@@ -179,6 +180,7 @@ add_executable(
         src/surfacenets.cpp
         src/sdfn.cpp
         src/transformations.cpp
+        src/mathext.cpp
 )
 
 target_link_libraries(
