@@ -1,5 +1,4 @@
 #include <fstream>
-#include <algorithm>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "spdlog/spdlog.h"
@@ -10,7 +9,6 @@
 #include "optimizer.h"
 #include "adapters.h"
 #include "surfacenets.h"
-#include "transformations.h"
 #include "sdfn.h"
 #include "mathext.h"
 
@@ -32,7 +30,7 @@ namespace services {
         int n_triangles = 0;
         int n_non_triangles = 0;
         for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(*it_f) == 3) {
+            if (mesh.valence(it_f) == 3) {
                 n_triangles++;
             } else {
                 n_non_triangles++;
@@ -358,17 +356,17 @@ namespace services {
 
         mesh.request_face_status();
         for (entities::Mesh::FaceIter it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(*it_f) == 3) continue;
+            if (mesh.valence(it_f) == 3) continue;
 
-            if (mesh.valence(*it_f) == 4) {
+            if (mesh.valence(it_f) == 4) {
                 // quad
-                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(*it_f);
+                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(it_f);
                 auto v0 = *fv_it;
                 auto v1 = *(++fv_it);
                 auto v2 = *(++fv_it);
                 auto v3 = *(++fv_it);
 
-                mesh.delete_face(*it_f, false);
+                mesh.delete_face(it_f, false);
                 mesh.add_face(v0, v1, v2);
                 mesh.add_face(v0, v2, v3);
             } else {
@@ -448,10 +446,13 @@ namespace services {
         const float error_before = sdfn(vertices).cwiseAbs().sum();
 
         for (int i = 0; i < iterations; ++i) {
-            spdlog::debug("Smoothing iteration {}/{}", i, iterations);
+            spdlog::debug("Surface Smoothing iteration {}/{}", i, iterations);
 
-            const auto gradients = sdfn::gradient_of(sdfn, vertices);
-            vertices -= sdfn(vertices) * gradients * rate;
+            const MatrixXf direction = sdfn::gradient_of(sdfn, vertices);
+            const VectorXf scale = sdfn(vertices) * rate;
+            const MatrixXf update = direction.array().colwise() * scale.array();
+
+            vertices -= update;
         }
 
         const float error_after = sdfn(vertices).cwiseAbs().sum();
@@ -494,19 +495,18 @@ namespace services {
 
             int i = 0;
             for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
-                const auto point = mesh.point(*it_v);
+                const auto point = mesh.point(it_v);
                 const auto vertex = Vector3f(point[0], point[1], point[2]);
                 vertices_smoothed.row(i) = vertex;
 
                 if (field[i] > threshold_angle) {
-                    // Optimize: Neighborhood is computed twice
-                    const auto centroids = mathext::face_centroids_ring(mesh, *it_v);
+                    const auto centroids = mathext::face_centroids_ring(mesh, it_v);
                     const auto face_normals = sdfn::normal_of(sdfn, centroids);
-                    const auto vertex_new = transformations::intersect_planes(centroids, face_normals);
+                    const auto xerr = mathext::intersect_planes(centroids, face_normals);
 
-                    if (vertex_new[3] < max_error) {
+                    if (xerr[3] < max_error) {
                         // TODO: Check if new location is outside neighborhood
-                        vertices_smoothed.row(i) = vertex_new.head(3);
+                        vertices_smoothed.row(i) = xerr.head<3>();
                     }
                 }
 

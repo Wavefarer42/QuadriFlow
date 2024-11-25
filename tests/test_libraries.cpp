@@ -13,13 +13,13 @@ TEST(LibraryTests, QuadMeshLoading) {
 }
 
 TEST(LibraryTests, EigenBroadcasting) {
-    Eigen::MatrixXf lhs(4, 3);  // Example: 4 rows, 3 columns
+    Eigen::MatrixXf lhs(4, 3); // Example: 4 rows, 3 columns
     lhs << 1, 2, 3,
             4, 5, 6,
             7, 8, 9,
             10, 11, 12;
 
-    Eigen::VectorXf rhs(4);  // Example vector with 4 elements (one per row)
+    Eigen::VectorXf rhs(4); // Example vector with 4 elements (one per row)
     rhs << 1, 2, 3, 4;
 
     // Divide each row of the matrix by the corresponding entry in the vector
@@ -33,5 +33,27 @@ TEST(LibraryTests, EigenBroadcasting) {
     std::cout << "Result:\n" << result << std::endl;
 
     EXPECT_TRUE(result.isApprox(expected, 1e-2));
+}
 
+TEST(LibraryTests, EigenBroadcastingMultiplication) {
+    Eigen::MatrixXf lhs(4, 3); // Example: 4 rows, 3 columns
+    lhs << 1, 2, 3,
+            1, 2, 3,
+            1, 2, 3,
+            1, 2, 3;
+
+    Eigen::VectorXf rhs(4); // Example vector with 4 elements (one per row)
+    rhs << 1, 2, 3, 4;
+
+    // Divide each row of the matrix by the corresponding entry in the vector
+    Eigen::MatrixXf result = lhs.array().colwise() * rhs.array();
+    Eigen::MatrixXf expected = Eigen::MatrixXf(4, 3);
+    expected << 1, 2, 3,
+            2, 4, 6,
+            3, 6, 9,
+            4, 8, 12;
+
+    std::cout << "Result:\n" << result << std::endl;
+
+    EXPECT_TRUE(result.isApprox(expected, 1e-2));
 }

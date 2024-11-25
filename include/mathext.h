@@ -1,25 +1,24 @@
 #pragma once
 
 #include <Eigen/Core>
-#include <Eigen/Dense>
 
 #include "entities.h"
 
 using namespace Eigen;
 
 namespace mathext {
-    Eigen::MatrixXf clip(
-        const Eigen::MatrixXf &mat,
+    MatrixXf clip(
+        const MatrixXf &mat,
         float minVal,
         float maxVal
     );
 
     float frobenius_norm_off_diagonal(
-        const Eigen::MatrixXf &A
+        const MatrixXf &A
     );
 
     float percentile(
-        const Eigen::VectorXf &vec,
+        const VectorXf &vec,
         float percentile
     );
 
@@ -36,5 +35,10 @@ namespace mathext {
 
     MatrixXf count_unique(
         const MatrixXf &mat
+    );
+
+    Vector4f intersect_planes(
+        const MatrixXf &vertices,
+        const MatrixXf &normals
     );
 }

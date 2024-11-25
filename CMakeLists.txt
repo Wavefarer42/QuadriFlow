@@ -129,7 +129,6 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
-        src/transformations.cpp
         src/mathext.cpp
 )
 
@@ -167,7 +166,7 @@ add_executable(
         tests/test_e2e.cpp
         tests/test_services.cpp
         tests/test_sdfn.cpp
-        tests/test_transformations.cpp
+        tests/test_mathext.cpp
 
         src/dedge.cpp
         src/hierarchy.cpp
@@ -179,7 +178,6 @@ add_executable(
         src/adapters.cpp
         src/surfacenets.cpp
         src/sdfn.cpp
-        src/transformations.cpp
         src/mathext.cpp
 )
 
