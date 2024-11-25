@@ -54,17 +54,17 @@ namespace mathext {
     // Mesh math
     Vector3f face_centroid(
             entities::Mesh &mesh,
-            entities::Mesh::VertexFaceIter &face
+            const entities::Mesh::FaceHandle &face
     ) {
 
         int total = 0;
         Vector3f centroid = Vector3f::Zero();
-        for (auto it_face_vertex = mesh.fv_iter(*face);
+        for (auto it_face_vertex = mesh.fv_iter(face);
              it_face_vertex.is_valid(); ++it_face_vertex) {
-            const auto p = mesh.point(*it_face_vertex);
+            const auto p = mesh.point(it_face_vertex);
             centroid += Vector3f(p[0], p[1], p[2]);
             total++;
-        }
+             }
 
         centroid /= total;
 
@@ -76,9 +76,8 @@ namespace mathext {
             const entities::Mesh::VertexHandle vertex
     ) {
         std::vector<Vector3f> centroids_list;
-        for (entities::Mesh::VertexFaceIter it_face = mesh.vf_iter(vertex);
+        for (auto it_face = mesh.vf_iter(vertex);
              it_face.is_valid(); ++it_face) {
-
             const auto centroid = face_centroid(mesh, it_face);
             centroids_list.push_back(centroid);
         }
@@ -95,7 +94,7 @@ namespace mathext {
             const MatrixXf &mat
     ) {
         // Create an unordered map to store unique elements and their counts
-        std::unordered_map<float, int> elementCounts;
+        std::map<float, int> elementCounts;
 
         // Iterate over all elements of the matrix and populate the map with counts
         for (int i = 0; i < mat.rows(); ++i) {
@@ -110,9 +109,9 @@ namespace mathext {
 
         // Fill the matrix with unique elements and their counts
         int index = 0;
-        for (const auto &element: elementCounts) {
-            uniqueElementsWithCounts(index, 0) = element.first;   // Unique element
-            uniqueElementsWithCounts(index, 1) = element.second;  // Count of that element
+        for (const auto &[element, count]: elementCounts) {
+            uniqueElementsWithCounts(index, 0) = element;   // Unique element
+            uniqueElementsWithCounts(index, 1) = count;  // Count of that element
             index++;
         }
 

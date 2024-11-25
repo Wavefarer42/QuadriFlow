@@ -21,7 +21,6 @@ namespace sdfn {
     }
 
     VectorXf cylinder(const MatrixXf &domain) {
-
         const float radius = 0.8;
         const VectorXf distances = domain.block(0, 1, domain.rows(), 2).rowwise().norm().array() - radius;
 
@@ -29,9 +28,9 @@ namespace sdfn {
     }
 
     entities::SDFn rotate(
-            entities::SDFn sdfn,
-            const Vector3f axis,
-            const float angle
+        entities::SDFn sdfn,
+        const Vector3f axis,
+        const float angle
     ) {
         const auto _rotate = [sdfn, axis, angle](const MatrixXf &domain) -> VectorXf {
             const AngleAxisf rotation(angle, axis.normalized());
@@ -49,39 +48,35 @@ namespace sdfn {
     }
 
     MatrixXf gradient_of(
-            const entities::SDFn &sdfn,
-            const MatrixXf &domain,
-            const float epsilon
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain,
+        const float epsilon
     ) {
         auto gradient = MatrixXf(domain.rows(), 3);
 
-        for (int i = 0; i < domain.cols(); ++i) {
-            Vector3f eps = Vector3f::Zero();
-            eps(i) = epsilon;
+        const auto eps = MatrixXf::Identity(3, 3) * epsilon;
 
-            const MatrixXf domain_plus = domain.rowwise() + eps.transpose();
-            const MatrixXf domain_minus = domain.rowwise() - eps.transpose();
-
-            const VectorXf sdf_plus = sdfn(domain_plus);
-            const VectorXf sdf_minus = sdfn(domain_minus);
-
-            gradient.col(i) = (sdf_plus - sdf_minus).array() / (2 * epsilon);
-        }
+        gradient.col(0) = (sdfn(domain.rowwise() + eps.row(0)) - sdfn(domain.rowwise() - eps.row(0))).array()
+                          / (2 * epsilon);
+        gradient.col(1) = (sdfn(domain.rowwise() + eps.row(1)) - sdfn(domain.rowwise() - eps.row(1))).array()
+                          / (2 * epsilon);
+        gradient.col(2) = (sdfn(domain.rowwise() + eps.row(2)) - sdfn(domain.rowwise() - eps.row(2))).array()
+                          / (2 * epsilon);
 
         return gradient;
     }
 
     MatrixXf normal_of(
-            const entities::SDFn &sdfn,
-            const MatrixXf &domain,
-            const float epsilon
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain,
+        const float epsilon
     ) {
         const MatrixXf gradient = gradient_of(sdfn, domain, epsilon);
         return normal_of(gradient);
     }
 
     MatrixXf normal_of(
-            const MatrixXf &gradients
+        const MatrixXf &gradients
     ) {
         VectorXf norms = gradients.rowwise().norm();
         norms = (norms.array() == 0).select(1, norms);

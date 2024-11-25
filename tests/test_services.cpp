@@ -50,8 +50,6 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
 
-    const float threshold = field.mean();
-
     mesh.request_face_status();
     for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
         mesh.delete_face(*it, false);
@@ -59,7 +57,7 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
 
     mesh.request_vertex_status();
     for (auto it = mesh.vertices_begin(); it != mesh.vertices_end(); ++it) {
-        if (field[it->idx()] < threshold) {
+        if (field[it->idx()] < 30) {
             mesh.delete_vertex(*it, false);
         }
     }
@@ -83,20 +81,34 @@ TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
 
-    const float threshold = field.mean();
-
     mesh.request_face_status();
     for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-        mesh.delete_face(*it, false);
+        mesh.delete_face(it, false);
     }
 
     mesh.request_vertex_status();
     for (auto it = mesh.vertices_begin(); it != mesh.vertices_end(); ++it) {
-        if (field[it->idx()] < threshold) {
-            mesh.delete_vertex(*it, false);
+        if (field[it->idx()] < 30) {
+            mesh.delete_vertex(it, false);
         }
     }
 
     mesh.garbage_collection();
     OpenMesh::IO::write_mesh(mesh, "../tests/out/box-complex-laplacian_angle_field.ply");
+}
+
+TEST(MeshServiceSuite, SmoothingEdgeSnapping) {
+#ifdef DEV_DEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
+    const auto service = bootstrap::Container().mesh_service();
+    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+
+    auto mesh = service.mesh(sdfn, resolution, bounds);
+    const auto result = service.smoothing_edge_snapping(sdfn, mesh);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-complex-smoothing_edge_snapping.ply");
 }

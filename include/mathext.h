@@ -9,32 +9,32 @@ using namespace Eigen;
 
 namespace mathext {
     Eigen::MatrixXf clip(
-            const Eigen::MatrixXf &mat,
-            float minVal,
-            float maxVal
+        const Eigen::MatrixXf &mat,
+        float minVal,
+        float maxVal
     );
 
     float frobenius_norm_off_diagonal(
-            const Eigen::MatrixXf &A
+        const Eigen::MatrixXf &A
     );
 
     float percentile(
-            const Eigen::VectorXf &vec,
-            float percentile
+        const Eigen::VectorXf &vec,
+        float percentile
     );
 
     // Mesh math
     Vector3f face_centroid(
-            entities::Mesh &mesh,
-            entities::Mesh::VertexFaceIter &face
+        entities::Mesh &mesh,
+        const entities::Mesh::FaceHandle &face
     );
 
     MatrixXf face_centroids_ring(
-            entities::Mesh &mesh,
-            const entities::Mesh::VertexHandle vertex
+        entities::Mesh &mesh,
+        const entities::Mesh::VertexHandle vertex
     );
 
     MatrixXf count_unique(
-            const MatrixXf &mat
+        const MatrixXf &mat
     );
 }

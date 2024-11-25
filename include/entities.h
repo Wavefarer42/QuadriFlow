@@ -33,10 +33,12 @@ namespace entities {
 
     // Adjacency matrix
     struct Link {
-        Link() {}
+        Link() {
+        }
 
         Link(int _id, double _w = 1)
-                : id(_id), weight(_w) {}
+            : id(_id), weight(_w) {
+        }
 
         inline bool operator<(const Link &link) const { return id < link.id; }
 
@@ -44,12 +46,13 @@ namespace entities {
         double weight;
     };
 
-    typedef std::vector<std::vector<Link>> AdjacentMatrix;
+    typedef std::vector<std::vector<Link> > AdjacentMatrix;
 
     // Tree
     class DisjointTree {
     public:
-        DisjointTree() {}
+        DisjointTree() {
+        }
 
         DisjointTree(int n) {
             parent.resize(n);
@@ -116,7 +119,8 @@ namespace entities {
 
     class DisjointOrientTree {
     public:
-        DisjointOrientTree() {}
+        DisjointOrientTree() {
+        }
 
         DisjointOrientTree(int n) {
             parent.resize(n);
@@ -195,7 +199,7 @@ namespace entities {
         int CompactNum() { return compact_num; }
 
         int compact_num;
-        std::vector<std::pair<int, int>> parent;
+        std::vector<std::pair<int, int> > parent;
         std::vector<int> indices;
         std::vector<int> rank;
     };
@@ -203,7 +207,8 @@ namespace entities {
     // Dedge
     struct DEdge {
         DEdge()
-                : x(0), y(0) {}
+            : x(0), y(0) {
+        }
 
         DEdge(int _x, int _y) {
             if (_x > _y)
@@ -239,8 +244,7 @@ namespace entities {
 
     public:
         explicit UnboundModel(UB::Collection collection)
-                : _collection(collection) {
-
+            : _collection(collection) {
             _keys.resize(collection.models.size());
 
             int idx_keys = 0;
@@ -248,17 +252,17 @@ namespace entities {
                 UB::InstructionList evalList;
                 UB::compileEditList(model.editList, evalList);
 
-                const auto sampler = [&evalList](MatrixXf domain) {
+                const auto sampler = [evalList](MatrixXf domain) {
                     VectorXf distances(domain.rows());
 
                     tbb::parallel_for(
-                            tbb::blocked_range<int>(0, domain.rows()),
-                            [&](const tbb::blocked_range<int> &range) {
-                                for (int i = range.begin(); i < range.end(); ++i) {
-                                    const auto point = glm::vec3(domain(i, 0), domain(i, 1), domain(i, 2));
-                                    distances[i] = UB::evalDistance(point, evalList);
-                                }
+                        tbb::blocked_range<int>(0, domain.rows()),
+                        [&](const tbb::blocked_range<int> &range) {
+                            for (int i = range.begin(); i < range.end(); ++i) {
+                                const auto point = glm::vec3(domain(i, 0), domain(i, 1), domain(i, 2));
+                                distances[i] = UB::evalDistance(point, evalList);
                             }
+                        }
                     );
                     return distances;
                 };

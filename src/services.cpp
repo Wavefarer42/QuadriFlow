@@ -15,18 +15,17 @@
 #include "mathext.h"
 
 namespace services {
-
     // IO
 
     entities::Mesh MeshService::load_mesh(
-            const std::string &filename
+        const std::string &filename
     ) const {
         spdlog::info("Loading mesh from file {}", filename);
         return this->mesh_dao.load_mesh_from_file(filename);
     }
 
     bool MeshService::is_trimesh(
-            const entities::Mesh &mesh
+        const entities::Mesh &mesh
     ) const {
         spdlog::info("Checking if mesh is a triangle mesh");
 
@@ -47,7 +46,7 @@ namespace services {
     }
 
     entities::UnboundModel MeshService::load_unbound_model_from_file(
-            const std::string &filename
+        const std::string &filename
     ) const {
         spdlog::info("Loading SDFn from file {}", filename);
 
@@ -55,8 +54,8 @@ namespace services {
     }
 
     void MeshService::save_mesh(
-            const std::string &filename,
-            const Parametrizer &field
+        const std::string &filename,
+        const Parametrizer &field
     ) const {
         spdlog::info("Saving mesh to file {}", filename);
 
@@ -67,14 +66,14 @@ namespace services {
         }
         for (auto &i: field.m_faces_compact) {
             os << "f " << i[0] + 1 << " " << i[1] + 1 << " "
-               << i[2] + 1 << " " << i[3] + 1 << "\n";
+                    << i[2] + 1 << " " << i[3] + 1 << "\n";
         }
         os.close();
     }
 
     void MeshService::save_mesh(
-            const std::string &filename,
-            const entities::Mesh &mesh
+        const std::string &filename,
+        const entities::Mesh &mesh
     ) const {
         spdlog::info("Saving mesh to file {}", filename);
 
@@ -84,7 +83,7 @@ namespace services {
     // Quadriflow
 
     void MeshService::set_boundary_constraints(
-            Hierarchy &hierarchy
+        Hierarchy &hierarchy
     ) {
         spdlog::info("Setting boundary constraints");
 
@@ -99,8 +98,11 @@ namespace services {
                     hierarchy.m_position_constraints[0].col(i0) = p0;
                     hierarchy.m_position_constraints[0].col(i1) = p1;
                     hierarchy.m_orientation_constraint[0].col(i0) = hierarchy.m_orientation_constraint[0].col(
-                            i1) = edge;
-                    hierarchy.m_orientation_constraint_weight[0][i0] = hierarchy.m_orientation_constraint_weight[0][i1] = hierarchy.m_position_constraint_weights[0][i0] = hierarchy.m_position_constraint_weights[0][i1] =
+                                                                        i1) = edge;
+                    hierarchy.m_orientation_constraint_weight[0][i0] =
+                            hierarchy.m_orientation_constraint_weight[0][i1] =
+                            hierarchy.m_position_constraint_weights[0][i0] =
+                            hierarchy.m_position_constraint_weights[0][i1] =
                             1.0;
                 }
             }
@@ -110,7 +112,7 @@ namespace services {
     }
 
     std::map<int, int> MeshService::find_orientation_singularities(
-            Hierarchy &hierarchy
+        Hierarchy &hierarchy
     ) {
         spdlog::info("Finding orientation singularities");
 
@@ -125,10 +127,10 @@ namespace services {
             for (int k = 0; k < 3; ++k) {
                 int i = faces(k, f), j = faces(k == 2 ? 0 : (k + 1), f);
                 auto value = compat_orientation_extrinsic_index_4(
-                        Q.col(i),
-                        normals.col(i),
-                        Q.col(j),
-                        normals.col(j)
+                    Q.col(i),
+                    normals.col(i),
+                    Q.col(j),
+                    normals.col(j)
                 );
                 index += value.second - value.first;
                 abs_index += std::abs(value.second - value.first);
@@ -147,8 +149,8 @@ namespace services {
     }
 
     std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> MeshService::find_position_singularities(
-            Hierarchy &m_hierarchy,
-            bool with_scale
+        Hierarchy &m_hierarchy,
+        bool with_scale
     ) {
         const MatrixXd &V = m_hierarchy.m_vertices[0];
         const MatrixXd &N = m_hierarchy.m_normals[0];
@@ -207,8 +209,8 @@ namespace services {
                 double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y,
                         inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
                 std::pair<Vector2i, Vector2i> value = compat_position_extrinsic_index_4(
-                        v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
-                        inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
+                    v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
+                    inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
                 auto diff = value.first - value.second;
                 index += diff;
                 singularity_index(k * 2, f) = diff[0];
@@ -224,9 +226,9 @@ namespace services {
     }
 
     std::tuple<MatrixXd, MatrixXd> MeshService::estimate_slope(
-            Hierarchy &hierarchy,
-            std::vector<MatrixXd> &triangle_space,
-            MatrixXd &normals_faces
+        Hierarchy &hierarchy,
+        std::vector<MatrixXd> &triangle_space,
+        MatrixXd &normals_faces
     ) {
         spdlog::info("Estimating adaptive slope");
 
@@ -241,9 +243,9 @@ namespace services {
         for (int i = 0; i < faces.cols(); ++i) {
             const Vector3d &n = normals_faces.col(i);
             const Vector3d &q_1 = orientation.col(faces(0, i)), &q_2 = orientation.col(
-                    faces(1, i)), &q_3 = orientation.col(faces(2, i));
+                faces(1, i)), &q_3 = orientation.col(faces(2, i));
             const Vector3d &n_1 = normals.col(faces(0, i)), &n_2 = normals.col(faces(1, i)), &n_3 = normals.col(
-                    faces(2, i));
+                faces(2, i));
             Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
             Vector3d q_2n = rotate_vector_into_plane(q_2, n_2, n);
             Vector3d q_3n = rotate_vector_into_plane(q_3, n_3, n);
@@ -348,7 +350,7 @@ namespace services {
     // Conversions
 
     entities::Mesh MeshService::to_trimesh(
-            entities::Mesh &mesh
+        entities::Mesh &mesh
     ) const {
         spdlog::info("Converting mesh to triangle mesh vertices={} faces={}", mesh.n_vertices(), mesh.n_faces());
 
@@ -358,7 +360,8 @@ namespace services {
         for (entities::Mesh::FaceIter it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
             if (mesh.valence(*it_f) == 3) continue;
 
-            if (mesh.valence(*it_f) == 4) { // quad
+            if (mesh.valence(*it_f) == 4) {
+                // quad
                 entities::Mesh::CFVIter fv_it = mesh.cfv_iter(*it_f);
                 auto v0 = *fv_it;
                 auto v1 = *(++fv_it);
@@ -383,23 +386,44 @@ namespace services {
     // Fields
 
     VectorXf MeshService::create_laplacian_angle_field(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh
+        const entities::SDFn &sdfn,
+        entities::Mesh &mesh
     ) const {
-
         VectorXf divergences(mesh.n_vertices());
 
         tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
             entities::Mesh::VertexHandle it_vertex(idx);
 
             const auto centroids = mathext::face_centroids_ring(mesh, it_vertex);
-            const auto face_normals = sdfn::gradient_of(sdfn, centroids);
+            const auto face_normals = sdfn::normal_of(sdfn, centroids);
 
             MatrixXf angles = face_normals * face_normals.transpose();
             angles = mathext::clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
 
-            divergences[idx] = mathext::frobenius_norm_off_diagonal(angles);
+            divergences[idx] = angles.maxCoeff();
         });
+
+#ifdef DEV_DEBUG
+        entities::Mesh mesh_face_normals;
+
+        mesh_face_normals.request_vertex_normals();
+        for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
+            const auto centroid = mathext::face_centroid(mesh, it);
+
+            const OpenMesh::VertexHandle vh = mesh_face_normals.add_vertex(
+                entities::Mesh::Point(centroid[0], centroid[1], centroid[2])
+            );
+            Vector3f normal = sdfn::normal_of(sdfn, centroid.matrix().transpose()).row(0);
+            mesh_face_normals.set_normal(vh, entities::Mesh::Normal(normal[0], normal[1], normal[2]));
+        }
+
+        assert(mesh_face_normals.has_vertex_normals());
+
+        OpenMesh::IO::Options options;
+        options += OpenMesh::IO::Options::VertexNormal;
+        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/laplacian-angle-field--face-normals.ply", options);
+
+#endif
 
         return divergences;
     }
@@ -407,10 +431,10 @@ namespace services {
     // Smoothing
 
     entities::Mesh MeshService::smoothing_surface_snapping(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh,
-            const int iterations,
-            const float rate
+        const entities::SDFn &sdfn,
+        entities::Mesh &mesh,
+        const int iterations,
+        const float rate
     ) const {
         spdlog::info("Smoothing mesh with SDFn gradient. iterations={}, rate={}", iterations, rate);
         spdlog::stopwatch watch;
@@ -434,12 +458,12 @@ namespace services {
 
         for (int i = 0; i < mesh.n_vertices(); ++i) {
             mesh.set_point(
-                    entities::Mesh::VertexHandle(i),
-                    entities::Mesh::Point(
-                            vertices(i, 0),
-                            vertices(i, 1),
-                            vertices(i, 2)
-                    )
+                entities::Mesh::VertexHandle(i),
+                entities::Mesh::Point(
+                    vertices(i, 0),
+                    vertices(i, 1),
+                    vertices(i, 2)
+                )
             );
         }
 
@@ -454,11 +478,11 @@ namespace services {
     }
 
     entities::Mesh MeshService::smoothing_edge_snapping(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh,
-            const int iterations,
-            const float threshold_angle,
-            const float max_error
+        const entities::SDFn &sdfn,
+        entities::Mesh &mesh,
+        const int iterations,
+        const float threshold_angle,
+        const float max_error
     ) const {
         spdlog::info("Smoothing mesh by snapping vertices to edges.");
         spdlog::stopwatch watch;
@@ -473,7 +497,6 @@ namespace services {
                 const auto point = mesh.point(*it_v);
                 const auto vertex = Vector3f(point[0], point[1], point[2]);
                 vertices_smoothed.row(i) = vertex;
-
 
                 if (field[i] > threshold_angle) {
                     // Optimize: Neighborhood is computed twice
@@ -493,12 +516,12 @@ namespace services {
             // FIXME: Remove once eigen is used as storage
             for (int i = 0; i < mesh.n_vertices(); ++i) {
                 mesh.set_point(
-                        entities::Mesh::VertexHandle(i),
-                        entities::Mesh::Point(
-                                vertices_smoothed(i, 0),
-                                vertices_smoothed(i, 1),
-                                vertices_smoothed(i, 2)
-                        )
+                    entities::Mesh::VertexHandle(i),
+                    entities::Mesh::Point(
+                        vertices_smoothed(i, 0),
+                        vertices_smoothed(i, 1),
+                        vertices_smoothed(i, 2)
+                    )
                 );
             }
         }
@@ -515,9 +538,9 @@ namespace services {
     // Top level
 
     entities::Mesh MeshService::mesh(
-            const entities::SDFn &sdfn,
-            const int resolution,
-            const AlignedBox3f &bounds
+        const entities::SDFn &sdfn,
+        const int resolution,
+        const AlignedBox3f &bounds
     ) const {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
@@ -526,11 +549,11 @@ namespace services {
     }
 
     Parametrizer MeshService::remesh(
-            const entities::Mesh &mesh,
-            const int face_count,
-            const bool preserve_edges,
-            const bool preserve_boundaries,
-            const bool use_adaptive_meshing
+        const entities::Mesh &mesh,
+        const int face_count,
+        const bool preserve_edges,
+        const bool preserve_boundaries,
+        const bool use_adaptive_meshing
     ) const {
         assert(is_trimesh(mesh));
 
@@ -544,10 +567,10 @@ namespace services {
 
         adapters::initialize_parameterizer(field, mesh);
         field.initialize_parameterizer(
-                preserve_boundaries,
-                preserve_edges,
-                face_count,
-                use_adaptive_meshing
+            preserve_boundaries,
+            preserve_edges,
+            face_count,
+            use_adaptive_meshing
         );
 
         spdlog::debug("Finished initializing parameters ({:.3}s)", watch);
@@ -570,9 +593,9 @@ namespace services {
             spdlog::info("Analyzing mesh for adaptive scaling");
 
             const auto [faces_slope, faces_orientation] = estimate_slope(
-                    field.m_hierarchy,
-                    field.m_triangle_space,
-                    field.m_faces_normals
+                field.m_hierarchy,
+                field.m_triangle_space,
+                field.m_faces_normals
             );
             field.m_faces_slope = faces_slope;
             field.m_faces_orientation = faces_orientation;
@@ -594,8 +617,8 @@ namespace services {
 
         Optimizer::optimize_positions(field.m_hierarchy);
         const auto [singularity_position, singularity_rank, singularity_index] = find_position_singularities(
-                field.m_hierarchy,
-                true
+            field.m_hierarchy,
+            true
         );
         field.m_singularity_position = singularity_position;
         field.m_singularity_rank = singularity_rank;
