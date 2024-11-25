@@ -535,6 +535,63 @@ namespace services {
         return mesh;
     }
 
+    entities::Mesh MeshService::smoothing_laplacian_sdf_projection(
+        const entities::SDFn &sdfn,
+        entities::Mesh &mesh,
+        const int iterations
+    ) const {
+        spdlog::info("Smoothing mesh by laplacian smoothing with SDFn projection.");
+        spdlog::stopwatch watch;
+
+        auto vertices = MatrixXf(mesh.n_vertices(), 3);
+        for (int i = 0; i < mesh.n_vertices(); ++i) {
+            auto point = mesh.point(entities::Mesh::VertexHandle(i));
+            vertices.row(i) = Vector3f(point[0], point[1], point[2]);
+        }
+
+        for (auto iteration = 0; iteration < iterations; ++iteration) {
+            spdlog::trace("Laplacian SDFn projection iteration {}/{}", iteration, iterations);
+
+            for (auto idx_v = 0; idx_v < vertices.rows(); ++idx_v) {
+                int support = 0;
+                auto laplacian = MatrixXf(1, 3);
+                laplacian.setZero();
+
+                for (auto it_vv = mesh.vv_iter(OpenMesh::VertexHandle(idx_v)); it_vv.is_valid(); ++it_vv) {
+                    const auto p = mesh.point(it_vv);
+                    laplacian.row(0) += Vector3f(p[0], p[1], p[2]);
+                    support++;
+                }
+
+                laplacian.row(0).array() /= static_cast<float>(support);
+
+                // Projection
+                const VectorXf distance = sdfn(laplacian);
+                const MatrixXf normal = sdfn::normal_of(sdfn, laplacian);
+                vertices.row(idx_v) = laplacian - distance * normal;
+            }
+        }
+
+        // Update mesh
+        for (int i = 0; i < mesh.n_vertices(); ++i) {
+            mesh.set_point(
+                entities::Mesh::VertexHandle(i),
+                entities::Mesh::Point(
+                    vertices(i, 0),
+                    vertices(i, 1),
+                    vertices(i, 2)
+                )
+            );
+        }
+
+        spdlog::debug("Finished smoothing mesh by laplacian SDFn projection ({:.3}s)", watch);
+#ifdef DEV_DEBUG
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing-laplacian-SDFn-projection.ply");
+#endif
+
+        return mesh;
+    }
+
     // Top level
 
     entities::Mesh MeshService::mesh(

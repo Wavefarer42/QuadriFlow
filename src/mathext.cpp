@@ -2,8 +2,8 @@
 
 namespace mathext {
 
-    Eigen::MatrixXf clip(
-            const Eigen::MatrixXf &mat,
+    MatrixXf clip(
+            const MatrixXf &mat,
             float minVal,
             float maxVal
     ) {
@@ -157,4 +157,6 @@ namespace mathext {
 
         return {x[0], x[1], x[2], error};
     }
+
+
 }

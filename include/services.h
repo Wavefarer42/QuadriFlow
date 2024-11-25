@@ -17,7 +17,6 @@ namespace services {
 
     class Parametrizer {
     public:
-
         /**
          * Maps the face to it's singularity valence, i.e., 1 for valence=3 or 3 for valence=5
          */
@@ -59,7 +58,7 @@ namespace services {
         VectorXi m_V2E;
         VectorXi m_E2E;
         VectorXi m_boundary;
-        VectorXi m_non_manifold;  // m_non_manifold vertices, in boolean
+        VectorXi m_non_manifold; // m_non_manifold vertices, in boolean
         entities::AdjacentMatrix m_adjacency_matrix;
         Hierarchy m_hierarchy;
 
@@ -73,12 +72,12 @@ namespace services {
         entities::DisjointTree m_disjoint_tree;
 
         int compact_num_v;
-        std::vector<std::vector<int>> m_vertices_set;
+        std::vector<std::vector<int> > m_vertices_set;
         std::vector<Vector3d> m_positions_compact;
         std::vector<Vector3d> m_orientations_compact;
         std::vector<Vector3d> m_normals_compact;
         std::vector<Vector4i> m_faces_compact;
-        std::set<std::pair<int, int>> m_quad_edges;
+        std::set<std::pair<int, int> > m_quad_edges;
         std::vector<int> m_V2E_compact;
         std::vector<int> m_E2E_compact;
         VectorXi m_boundary_compact;
@@ -101,7 +100,7 @@ namespace services {
          * m_edge_difference[edgeIds[i](j)]:  t_ij+t_ji under m_edge_values[edgeIds[i](j)].x's Q value
          */
         std::vector<Vector2i> m_edge_difference;
-        std::vector<entities::DEdge> m_edge_values;   // see above
+        std::vector<entities::DEdge> m_edge_values; // see above
 
         /**
          *  m_face_edge_ids[i](j): "undirected edge ID" of the i'th face and the j'th edge
@@ -119,10 +118,11 @@ namespace services {
          * variable[i].first: indices of the two equations corresponding to variable i
          * variable[i].second: number of positive minus negative of variables' occurrences
          */
-        std::vector<std::pair<Vector2i, int>> m_variables;
+        std::vector<std::pair<Vector2i, int> > m_variables;
 
         struct QuadInfo {
-            QuadInfo() : patchId(-1), coordinate(0x10000000, 0x10000000), singular(0), edge(0) {}
+            QuadInfo() : patchId(-1), coordinate(0x10000000, 0x10000000), singular(0), edge(0) {
+            }
 
             int patchId;
             Vector2i coordinate;
@@ -173,10 +173,10 @@ namespace services {
          * TODO: Service level method to initialize datastructures
          */
         void initialize_parameterizer(
-                bool should_preserve_boundaries,
-                bool should_preserve_edges,
-                int target_face_count,
-                bool with_scale
+            bool should_preserve_boundaries,
+            bool should_preserve_edges,
+            int target_face_count,
+            bool with_scale
         );
 
         // Integer Grid Map
@@ -215,9 +215,9 @@ namespace services {
          * TODO: Change return type
          */
         double compute_quad_energy(
-                std::vector<int> &loop_vertices,
-                std::vector<Vector4i> &res_quads,
-                int level
+            std::vector<int> &loop_vertices,
+            std::vector<Vector4i> &res_quads,
+            int level
         );
 
         // Mesh Extraction
@@ -230,55 +230,55 @@ namespace services {
          * Builds the triangle
          */
         void build_triangle_manifold(
-                entities::DisjointTree &disajoint_tree,
-                std::vector<int> &edge,
-                std::vector<int> &face,
-                std::vector<entities::DEdge> &edge_values,
-                std::vector<Vector3i> &F2E,
-                std::vector<Vector2i> &E2F,
-                std::vector<Vector2i> &EdgeDiff,
-                std::vector<Vector3i> &FQ
+            entities::DisjointTree &disajoint_tree,
+            std::vector<int> &edge,
+            std::vector<int> &face,
+            std::vector<entities::DEdge> &edge_values,
+            std::vector<Vector3i> &F2E,
+            std::vector<Vector2i> &E2F,
+            std::vector<Vector2i> &EdgeDiff,
+            std::vector<Vector3i> &FQ
         );
 
         // scale
         void estimate_slope();
-
     };
 
     class MeshService {
     public:
-        explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {}
+        explicit MeshService(persistence::MeshDao mesh_dao) : mesh_dao(mesh_dao) {
+        }
 
         // IO
 
         [[nodiscard]] entities::Mesh load_mesh(
-                const std::string &filename
+            const std::string &filename
         ) const;
 
         void save_mesh(
-                const std::string &filename,
-                const Parametrizer &field
+            const std::string &filename,
+            const Parametrizer &field
         ) const;
 
         void save_mesh(
-                const std::string &filename,
-                const entities::Mesh &mesh
+            const std::string &filename,
+            const entities::Mesh &mesh
         ) const;
 
         [[nodiscard]] entities::UnboundModel load_unbound_model_from_file(
-                const std::string &filename
+            const std::string &filename
         ) const;
 
         // Analysis
 
         bool is_trimesh(
-                const entities::Mesh &mesh
+            const entities::Mesh &mesh
         ) const;
 
         // Conversion
 
         entities::Mesh to_trimesh(
-                entities::Mesh &mesh
+            entities::Mesh &mesh
         ) const;
 
         // Quadriflow
@@ -288,54 +288,60 @@ namespace services {
         static std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
 
         static std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
-                Hierarchy &m_hierarchy,
-                bool with_scale
+            Hierarchy &m_hierarchy,
+            bool with_scale
         );
 
         static std::tuple<MatrixXd, MatrixXd> estimate_slope(
-                Hierarchy &hierarchy,
-                std::vector<MatrixXd> &triangle_space,
-                MatrixXd &normals_faces
+            Hierarchy &hierarchy,
+            std::vector<MatrixXd> &triangle_space,
+            MatrixXd &normals_faces
         );
 
         // Smoothing and Snapping
 
         entities::Mesh smoothing_surface_snapping(
-                const entities::SDFn &sdfn,
-                entities::Mesh &mesh,
-                const int iterations = 3,
-                const float rate = 0.1
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh,
+            const int iterations = 3,
+            const float rate = 0.1
         ) const;
 
         entities::Mesh smoothing_edge_snapping(
-                const entities::SDFn &sdfn,
-                entities::Mesh &mesh,
-                const int iterations = 3,
-                const float threshold_angle = 30,
-                const float max_error = 1e-1
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh,
+            const int iterations = 3,
+            const float threshold_angle = 30,
+            const float max_error = 1e-1
+        ) const;
+
+        entities::Mesh smoothing_laplacian_sdf_projection(
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh,
+            const int iterations
         ) const;
 
         // Fields
 
         VectorXf create_laplacian_angle_field(
-                const entities::SDFn &sdfn,
-                entities::Mesh &mesh
+            const entities::SDFn &sdfn,
+            entities::Mesh &mesh
         ) const;
 
         // Top level
 
         entities::Mesh mesh(
-                const entities::SDFn &sdfn,
-                const int resolution = 100,
-                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
+            const entities::SDFn &sdfn,
+            const int resolution = 100,
+            const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
         ) const;
 
         Parametrizer remesh(
-                const entities::Mesh &mesh,
-                const int face_count = 10000,
-                const bool preserve_edges = false,
-                const bool preserve_boundaries = false,
-                const bool use_adaptive_meshing = false
+            const entities::Mesh &mesh,
+            const int face_count = 10000,
+            const bool preserve_edges = false,
+            const bool preserve_boundaries = false,
+            const bool use_adaptive_meshing = false
         ) const;
 
     private:

@@ -130,3 +130,19 @@ TEST(MeshServiceSuite, SmoothingEdgeSnappingUnboundBoxComplex) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-complex-smoothing_edge_snapping.ply");
 }
+
+TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxComplex) {
+#ifdef DEV_DEBUG
+    spdlog::set_level(spdlog::level::debug);
+#endif
+
+    const auto service = bootstrap::Container().mesh_service();
+    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
+    const int resolution = 100;
+    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+
+    auto mesh = service.mesh(sdfn, resolution, bounds);
+    const auto result = service.smoothing_laplacian_sdf_projection(sdfn, mesh, 3);
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/smoothing-laplacian-sdfn-projection-box-complex.ply");
+}

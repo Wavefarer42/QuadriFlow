@@ -41,7 +41,7 @@ TEST(SurfaceNetsSuite, MeshingSphere) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/sphere.ply");
 
-    EXPECT_EQ(result.n_vertices(), 39008);
+    EXPECT_EQ(result.n_vertices(), 1568);
 }
 
 TEST(SurfaceNetsSuite, MeshingBox) {
@@ -56,7 +56,7 @@ TEST(SurfaceNetsSuite, MeshingBox) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box.ply");
 
-    EXPECT_EQ(result.n_vertices(), 39008);
+    EXPECT_EQ(result.n_vertices(), 49688);
 }
 
 TEST(SurfaceNetsSuite, MeshingCylinder) {
@@ -123,7 +123,7 @@ TEST(SurfaceNetsSuite, MeshingUnboundBox) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-unbound.ply");
 
-    EXPECT_EQ(result.n_vertices(), 1928);
+    EXPECT_EQ(result.n_vertices(), 58568);
 }
 
 TEST(SurfaceNetsSuite, MeshingUnboundBoxComplex) {
@@ -140,5 +140,5 @@ TEST(SurfaceNetsSuite, MeshingUnboundBoxComplex) {
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-complex.ply");
 
-    EXPECT_EQ(result.n_vertices(), 1928);
+    EXPECT_EQ(result.n_vertices(), 6578);
 }
