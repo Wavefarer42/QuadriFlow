@@ -81,35 +81,6 @@ namespace services {
 
     // Quadriflow
 
-    void MeshService::set_boundary_constraints(
-        Hierarchy &hierarchy
-    ) {
-        spdlog::info("Setting boundary constraints");
-
-        for (auto i = 0; i < 3 * hierarchy.m_faces.cols(); ++i) {
-            if (hierarchy.m_E2E[i] == -1) {
-                const auto i0 = hierarchy.m_faces(i % 3, i / 3);
-                const auto i1 = hierarchy.m_faces((i + 1) % 3, i / 3);
-                const Vector3d p0 = hierarchy.m_vertices[0].col(i0);
-                const Vector3d p1 = hierarchy.m_vertices[0].col(i1);
-                Vector3d edge = p1 - p0;
-                if (edge.squaredNorm() > 0) {
-                    edge.normalize();
-                    hierarchy.m_position_constraints[0].col(i0) = p0;
-                    hierarchy.m_position_constraints[0].col(i1) = p1;
-                    hierarchy.m_orientation_constraint[0].col(i0) = edge;
-                    hierarchy.m_orientation_constraint[0].col(i1) = edge;
-                    hierarchy.m_orientation_constraint_weight[0][i0] = 1.0;
-                    hierarchy.m_orientation_constraint_weight[0][i1] = 1.0;
-                    hierarchy.m_position_constraint_weights[0][i0] = 1.0;
-                    hierarchy.m_position_constraint_weights[0][i1] = 1.0;
-                }
-            }
-        }
-
-        hierarchy.propagateConstraints();
-    }
-
     std::map<int, int> MeshService::find_orientation_singularities(
         Hierarchy &hierarchy
     ) {
@@ -418,10 +389,6 @@ namespace services {
         );
 
         spdlog::debug("Finished initializing parameters ({:.3}s)", watch);
-
-        // if (preserve_boundaries) {
-        //     set_boundary_constraints(field.m_hierarchy);
-        // }
 
         watch.reset();
         spdlog::info("Solving orientation field");

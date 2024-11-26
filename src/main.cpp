@@ -25,10 +25,6 @@ entities::CLIArgs read_args(int argc, char **argv) {
             .help("Detect and preserve sharp edges")
             .default_value(false)
             .implicit_value(true);
-    program.add_argument("--boundary")
-            .help("Preserve shape boundaries")
-            .default_value(false)
-            .implicit_value(true);
     program.add_argument("--adaptive")
             .help("Adaptive scaling")
             .default_value(false)
@@ -56,7 +52,6 @@ entities::CLIArgs read_args(int argc, char **argv) {
         args.path_out = program.get<std::string>("--output");
         args.face_count = program.get<int>("--faces");
         args.use_adaptive_meshing = program.get<bool>("--adaptive");
-        args.preserve_boundaries = program.get<bool>("--boundary");
         args.preserve_edges = program.get<bool>("--edges");
         args.seed = program.get<int>("--seed");
         args.resolution = program.get<int>("--resolution");
@@ -141,7 +136,6 @@ int main(int argc, char **argv) {
         model_opt
     );
 
-    // service.save_mesh(args.path_out, field);
     service.save_mesh(args.path_out, adapters::from_parametrizer_to_quad_mesh(field));
 
     spdlog::info("Finished generating mesh ({:.3}s)", watch_total);

@@ -287,8 +287,6 @@ namespace services {
 
         // Quadriflow
 
-        static void set_boundary_constraints(Hierarchy &hierarchy);
-
         static std::map<int, int> find_orientation_singularities(Hierarchy &hierarchy);
 
         static std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> find_position_singularities(
