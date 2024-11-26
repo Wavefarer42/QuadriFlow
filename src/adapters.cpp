@@ -26,29 +26,26 @@ namespace adapters {
         }
     }
 
-    entities::Mesh from_parametrizer_to_quad_mesh(services::Parametrizer &field) {
-        spdlog::info("Converting parametrizer to quad mesh");
+    entities::Mesh from_parametrizer_to_quad_mesh(const services::Parametrizer &field) {
+        spdlog::info("Converting parametrizer to mesh");
 
-        entities::Mesh mesh_out;
+        entities::Mesh mesh;
 
-        std::vector<entities::Mesh::VertexHandle> handles(field.m_positions_compact.size());
         for (int i = 0; i < field.m_positions_compact.size(); ++i) {
-            auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
-            handles.emplace_back(
-                    mesh_out.add_vertex(entities::Mesh::Point(t[0], t[1], t[2]))
-            );
+            const Vector3f t = (field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset).cast<
+                float>();
+            mesh.add_vertex(entities::Mesh::Point(t[0], t[1], t[2]));
         }
 
-        const auto faces_compact = field.m_faces_compact;
-        for (const auto &i: faces_compact) {
-            mesh_out.add_face({
-                                      handles[i[0]],
-                                      handles[i[1]],
-                                      handles[i[2]],
-                                      handles[i[3]]
-                              });
+        for (const auto &i: field.m_faces_compact) {
+            mesh.add_face({
+                entities::Mesh::VertexHandle(i[0]),
+                entities::Mesh::VertexHandle(i[1]),
+                entities::Mesh::VertexHandle(i[2]),
+                entities::Mesh::VertexHandle(i[3])
+            });
         }
 
-        return mesh_out;
+        return mesh;
     }
 }

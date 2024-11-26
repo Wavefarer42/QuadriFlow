@@ -12,8 +12,114 @@
 #include "flow.h"
 
 namespace services {
+    using LinearSolver = Eigen::SimplicialLLT<Eigen::SparseMatrix<double> >;
 
-    using LinearSolver = Eigen::SimplicialLLT<Eigen::SparseMatrix<double>>;
+    void Optimizer::optimize_positions(
+        Hierarchy &hierarchy,
+        const int iterations,
+        bool with_scale
+    ) {
+        spdlog::info("Optimizing position field");
+
+        const int n_adjacencies = static_cast<int>(hierarchy.m_normals.size());
+
+        for (int level = n_adjacencies - 1; level >= 0; --level) {
+            for (int iter = 0; iter < iterations; ++iter) {
+                entities::AdjacentMatrix &adj = hierarchy.m_adjacency[level];
+                const MatrixXd &N = hierarchy.m_normals[level];
+                const MatrixXd &Q = hierarchy.m_orientation[level];
+                const MatrixXd &V = hierarchy.m_vertices[level];
+                const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
+                const MatrixXd &CO = hierarchy.m_position_constraints[level];
+                const VectorXd &COw = hierarchy.m_position_constraint_weights[level];
+                MatrixXd &O = hierarchy.m_positions[level];
+                MatrixXd &S = hierarchy.m_scales[level];
+                auto &phases = hierarchy.m_phases[level];
+                for (int phase = 0; phase < phases.size(); ++phase) {
+                    auto &p = phases[phase];
+                    for (int pi = 0; pi < p.size(); ++pi) {
+                        int i = p[pi];
+                        double scale_x = hierarchy.m_scale;
+                        double scale_y = hierarchy.m_scale;
+                        if (with_scale) {
+                            scale_x *= S(0, i);
+                            scale_y *= S(1, i);
+                        }
+                        double inv_scale_x = 1.0f / scale_x;
+                        double inv_scale_y = 1.0f / scale_y;
+                        const Vector3d n_i = N.col(i), v_i = V.col(i);
+                        Vector3d q_i = Q.col(i);
+
+                        Vector3d sum = O.col(i);
+                        double weight_sum = 0.0f;
+
+                        q_i.normalize();
+                        for (auto &link: adj[i]) {
+                            const int j = link.id;
+                            const double weight = link.weight;
+                            if (weight == 0) continue;
+                            double scale_x_1 = hierarchy.m_scale;
+                            double scale_y_1 = hierarchy.m_scale;
+                            if (with_scale) {
+                                scale_x_1 *= S(0, j);
+                                scale_y_1 *= S(1, j);
+                            }
+                            double inv_scale_x_1 = 1.0f / scale_x_1;
+                            double inv_scale_y_1 = 1.0f / scale_y_1;
+
+                            const Vector3d n_j = N.col(j), v_j = V.col(j);
+                            Vector3d q_j = Q.col(j), o_j = O.col(j);
+
+                            q_j.normalize();
+
+                            std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
+                                v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j, scale_x, scale_y, inv_scale_x,
+                                inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
+
+                            sum = value.first * weight_sum + value.second * weight;
+                            weight_sum += weight;
+                            if (weight_sum > RCPOVERFLOW) sum /= weight_sum;
+                            sum -= n_i.dot(sum - v_i) * n_i;
+                        }
+
+                        // Apply constraints
+                        if (COw.size() > 0) {
+                            float cw = COw[i];
+                            if (cw != 0) {
+                                Vector3d co = CO.col(i);
+                                Vector3d cq = CQ.col(i);
+                                Vector3d d = co - sum;
+                                d -= cq.dot(d) * cq;
+                                sum += cw * d;
+                                sum -= n_i.dot(sum - v_i) * n_i;
+                            }
+                        }
+
+                        if (weight_sum > 0) {
+                            O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale_x, scale_y,
+                                                        inv_scale_x, inv_scale_y);
+                        }
+                    }
+                }
+            }
+            if (level > 0) {
+                const MatrixXd &srcField = hierarchy.m_positions[level];
+                const MatrixXi &toUpper = hierarchy.mToUpper[level - 1];
+                MatrixXd &destField = hierarchy.m_positions[level - 1];
+                const MatrixXd &N = hierarchy.m_normals[level - 1];
+                const MatrixXd &V = hierarchy.m_vertices[level - 1];
+                for (int i = 0; i < srcField.cols(); ++i) {
+                    for (int k = 0; k < 2; ++k) {
+                        int dest = toUpper(k, i);
+                        if (dest == -1) continue;
+                        Vector3d o = srcField.col(i), n = N.col(dest), v = V.col(dest);
+                        o -= n * n.dot(o - v);
+                        destField.col(dest) = o;
+                    }
+                }
+            }
+        }
+    }
 
     void Optimizer::optimize_orientations(Hierarchy &hierarchy) {
         spdlog::info("Optimize orientations");
@@ -121,7 +227,7 @@ namespace services {
         MatrixXi &F = mRes.m_faces;
 
         if (adaptive) {
-            std::vector<Eigen::Triplet<double>> lhsTriplets;
+            std::vector<Eigen::Triplet<double> > lhsTriplets;
 
             lhsTriplets.reserve(F.cols() * 6);
             for (int i = 0; i < V.cols(); ++i) {
@@ -132,7 +238,7 @@ namespace services {
                 }
             }
 
-            std::vector<std::map<int, double>> entries(V.cols() * 2);
+            std::vector<std::map<int, double> > entries(V.cols() * 2);
             double lambda = 1;
             for (int i = 0; i < entries.size(); ++i) {
                 entries[i][i] = lambda;
@@ -233,123 +339,23 @@ namespace services {
         }
     }
 
-    void Optimizer::optimize_positions(Hierarchy &hierarchy, bool with_scale) {
-        spdlog::info("Optimizing position field");
-
-        int levelIterations = 6;
-        int n_adjacencies = static_cast<int>(hierarchy.m_normals.size());
-
-        for (int level = n_adjacencies - 1; level >= 0; --level) {
-            for (int iter = 0; iter < levelIterations; ++iter) {
-                entities::AdjacentMatrix &adj = hierarchy.m_adjacency[level];
-                const MatrixXd &N = hierarchy.m_normals[level], &Q = hierarchy.m_orientation[level], &V = hierarchy.m_vertices[level];
-                const MatrixXd &CQ = hierarchy.m_orientation_constraint[level];
-                const MatrixXd &CO = hierarchy.m_position_constraints[level];
-                const VectorXd &COw = hierarchy.m_position_constraint_weights[level];
-                MatrixXd &O = hierarchy.m_positions[level];
-                MatrixXd &S = hierarchy.m_scales[level];
-                auto &phases = hierarchy.m_phases[level];
-                for (int phase = 0; phase < phases.size(); ++phase) {
-                    auto &p = phases[phase];
-                    for (int pi = 0; pi < p.size(); ++pi) {
-                        int i = p[pi];
-                        double scale_x = hierarchy.m_scale;
-                        double scale_y = hierarchy.m_scale;
-                        if (with_scale) {
-                            scale_x *= S(0, i);
-                            scale_y *= S(1, i);
-                        }
-                        double inv_scale_x = 1.0f / scale_x;
-                        double inv_scale_y = 1.0f / scale_y;
-                        const Vector3d n_i = N.col(i), v_i = V.col(i);
-                        Vector3d q_i = Q.col(i);
-
-                        Vector3d sum = O.col(i);
-                        double weight_sum = 0.0f;
-
-                        q_i.normalize();
-                        for (auto &link: adj[i]) {
-                            const int j = link.id;
-                            const double weight = link.weight;
-                            if (weight == 0) continue;
-                            double scale_x_1 = hierarchy.m_scale;
-                            double scale_y_1 = hierarchy.m_scale;
-                            if (with_scale) {
-                                scale_x_1 *= S(0, j);
-                                scale_y_1 *= S(1, j);
-                            }
-                            double inv_scale_x_1 = 1.0f / scale_x_1;
-                            double inv_scale_y_1 = 1.0f / scale_y_1;
-
-                            const Vector3d n_j = N.col(j), v_j = V.col(j);
-                            Vector3d q_j = Q.col(j), o_j = O.col(j);
-
-                            q_j.normalize();
-
-                            std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
-                                    v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j, scale_x, scale_y, inv_scale_x,
-                                    inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
-
-                            sum = value.first * weight_sum + value.second * weight;
-                            weight_sum += weight;
-                            if (weight_sum > RCPOVERFLOW) sum /= weight_sum;
-                            sum -= n_i.dot(sum - v_i) * n_i;
-                        }
-
-                        if (COw.size() > 0) {
-                            float cw = COw[i];
-                            if (cw != 0) {
-                                Vector3d co = CO.col(i), cq = CQ.col(i);
-                                Vector3d d = co - sum;
-                                d -= cq.dot(d) * cq;
-                                sum += cw * d;
-                                sum -= n_i.dot(sum - v_i) * n_i;
-                            }
-                        }
-
-                        if (weight_sum > 0) {
-                            O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale_x, scale_y,
-                                                        inv_scale_x, inv_scale_y);
-                        }
-                    }
-                }
-            }
-            if (level > 0) {
-                const MatrixXd &srcField = hierarchy.m_positions[level];
-                const MatrixXi &toUpper = hierarchy.mToUpper[level - 1];
-                MatrixXd &destField = hierarchy.m_positions[level - 1];
-                const MatrixXd &N = hierarchy.m_normals[level - 1];
-                const MatrixXd &V = hierarchy.m_vertices[level - 1];
-                for (int i = 0; i < srcField.cols(); ++i) {
-                    for (int k = 0; k < 2; ++k) {
-                        int dest = toUpper(k, i);
-                        if (dest == -1) continue;
-                        Vector3d o = srcField.col(i), n = N.col(dest), v = V.col(dest);
-                        o -= n * n.dot(o - v);
-                        destField.col(dest) = o;
-                    }
-                }
-            }
-        }
-    }
-
     void Optimizer::optimize_positions_dynamic(
-            MatrixXi &F,
-            MatrixXd &V,
-            MatrixXd &N,
-            MatrixXd &Q,
-            std::vector<std::vector<int>> &Vset,
-            std::vector<Vector3d> &O_compact,
-            std::vector<Vector4i> &F_compact,
-            std::vector<int> &V2E_compact,
-            std::vector<int> &E2E_compact,
-            double mScale,
-            std::vector<Vector3d> &diffs,
-            std::vector<int> &diff_count,
-            std::map<std::pair<int, int>, int> &o2e,
-            std::vector<int> &sharp_o,
-            std::map<int, std::pair<Vector3d, Vector3d>> &compact_sharp_constraints,
-            bool with_scale
+        MatrixXi &F,
+        MatrixXd &V,
+        MatrixXd &N,
+        MatrixXd &Q,
+        std::vector<std::vector<int> > &Vset,
+        std::vector<Vector3d> &O_compact,
+        std::vector<Vector4i> &F_compact,
+        std::vector<int> &V2E_compact,
+        std::vector<int> &E2E_compact,
+        double mScale,
+        std::vector<Vector3d> &diffs,
+        std::vector<int> &diff_count,
+        std::map<std::pair<int, int>, int> &o2e,
+        std::vector<int> &sharp_o,
+        std::map<int, std::pair<Vector3d, Vector3d> > &compact_sharp_constraints,
+        bool with_scale
     ) {
         std::set<int> uncertain;
         for (auto &info: o2e) {
@@ -359,9 +365,9 @@ namespace services {
             }
         }
         std::vector<int> Vind(O_compact.size(), -1);
-        std::vector<std::list<int>> links(O_compact.size());
-        std::vector<std::list<int>> dedges(O_compact.size());
-        std::vector<std::vector<int>> adj(V.cols());
+        std::vector<std::list<int> > links(O_compact.size());
+        std::vector<std::list<int> > dedges(O_compact.size());
+        std::vector<std::vector<int> > adj(V.cols());
         for (int i = 0; i < F.cols(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int v1 = F(j, i);
@@ -535,7 +541,7 @@ namespace services {
             FindNearest();
             ComputeDistance();
 
-            std::vector<std::unordered_map<int, double>> entries(O_compact.size() * 2);
+            std::vector<std::unordered_map<int, double> > entries(O_compact.size() * 2);
             std::vector<int> fixed_dim(O_compact.size() * 2, 0);
             for (auto &info: compact_sharp_constraints) {
                 fixed_dim[info.first * 2 + 1] = 1;
@@ -624,7 +630,7 @@ namespace services {
                     std::swap(entries[i], newmap);
                 }
             }
-            std::vector<Eigen::Triplet<double>> lhsTriplets;
+            std::vector<Eigen::Triplet<double> > lhsTriplets;
             lhsTriplets.reserve(F_compact.size() * 8);
             Eigen::SparseMatrix<double> A(O_compact.size() * 2, O_compact.size() * 2);
             VectorXd rhs(O_compact.size() * 2);
@@ -651,10 +657,10 @@ namespace services {
             //        solver.setMaxIterations(40);
 
             //        solver.compute(m_vertex_area);
-            VectorXd x_new = solver.solve(rhs);  // solver.solveWithGuess(rhs, x0);
+            VectorXd x_new = solver.solve(rhs); // solver.solveWithGuess(rhs, x0);
 
-//            int t2 = GetCurrentTime64();
-//            printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
+            //            int t2 = GetCurrentTime64();
+            //            printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
             for (int i = 0; i < O_compact.size(); ++i) {
                 // Vector3d q = Q.col(Vind[i]);
                 Vector3d q = Q_compact[i];
@@ -691,13 +697,13 @@ namespace services {
     }
 
     void Optimizer::optimize_positions_sharp(
-            Hierarchy &mRes,
-            std::vector<entities::DEdge> &edge_values,
-            std::vector<Vector2i> &edge_diff,
-            std::vector<int> &sharp_edges,
-            std::set<int> &sharp_vertices,
-            std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-            bool with_scale
+        Hierarchy &mRes,
+        std::vector<entities::DEdge> &edge_values,
+        std::vector<Vector2i> &edge_diff,
+        std::vector<int> &sharp_edges,
+        std::set<int> &sharp_vertices,
+        std::map<int, std::pair<Vector3d, Vector3d> > &sharp_constraints,
+        bool with_scale
     ) {
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
@@ -714,7 +720,7 @@ namespace services {
         }
         tree.BuildCompactParent();
         std::map<int, int> compact_sharp_indices;
-        std::set < entities::DEdge > compact_sharp_edges;
+        std::set<entities::DEdge> compact_sharp_edges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 1) {
                 int v1 = tree.Index(F(i % 3, i / 3));
@@ -729,18 +735,18 @@ namespace services {
                 compact_sharp_indices[p] = s;
             }
         }
-        std::map<int, std::set<int>> sharp_vertices_links;
-        std::set < entities::DEdge > sharp_dedges;
+        std::map<int, std::set<int> > sharp_vertices_links;
+        std::set<entities::DEdge> sharp_dedges;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i]) {
                 int v1 = F(i % 3, i / 3);
                 int v2 = F((i + 1) % 3, i / 3);
-                if (sharp_vertices_links.count(v1) == 0) sharp_vertices_links[v1] = std::set < int > ();
+                if (sharp_vertices_links.count(v1) == 0) sharp_vertices_links[v1] = std::set<int>();
                 sharp_vertices_links[v1].insert(v2);
                 sharp_dedges.insert(entities::DEdge(v1, v2));
             }
         }
-        std::vector<std::vector<int>> sharp_to_original_indices(compact_sharp_indices.size());
+        std::vector<std::vector<int> > sharp_to_original_indices(compact_sharp_indices.size());
         for (auto &v: sharp_vertices_links) {
             if (v.second.size() == 2) continue;
             int p = tree.Index(v.first);
@@ -760,7 +766,7 @@ namespace services {
         }
 
         int num = sharp_to_original_indices.size();
-        std::vector<std::set<int>> links(sharp_to_original_indices.size());
+        std::vector<std::set<int> > links(sharp_to_original_indices.size());
         for (int e = 0; e < edge_diff.size(); ++e) {
             int v1 = edge_values[e].x;
             int v2 = edge_values[e].y;
@@ -775,7 +781,7 @@ namespace services {
         }
 
         std::vector<int> hash(links.size(), 0);
-        std::vector<std::vector<Vector3d>> loops;
+        std::vector<std::vector<Vector3d> > loops;
         for (int i = 0; i < num; ++i) {
             if (hash[i] == 1) continue;
             if (links[i].size() == 2) {
@@ -846,8 +852,8 @@ namespace services {
                     Vector3d dis = (i == 0) ? (Vector3d(O.col(fst)) - o[i]) : o[i] - o[i - 1];
                     if (with_scale)
                         sc[i] = (abs(qx.dot(dis)) > abs(qy.dot(dis)))
-                                ? S(0, sharp_to_original_indices[q[i]][0])
-                                : S(1, sharp_to_original_indices[q[i]][0]);
+                                    ? S(0, sharp_to_original_indices[q[i]][0])
+                                    : S(1, sharp_to_original_indices[q[i]][0]);
                     else
                         sc[i] = 1;
                     new_o[i] = o[i];
@@ -914,12 +920,12 @@ namespace services {
     }
 
     void Optimizer::optimize_positions_fixed(
-            Hierarchy &mRes,
-            std::vector<entities::DEdge> &edge_values,
-            std::vector<Vector2i> &edge_diff,
-            std::set<int> &sharp_vertices,
-            std::map<int, std::pair<Vector3d, Vector3d>> &sharp_constraints,
-            bool with_scale
+        Hierarchy &mRes,
+        std::vector<entities::DEdge> &edge_values,
+        std::vector<Vector2i> &edge_diff,
+        std::set<int> &sharp_vertices,
+        std::map<int, std::pair<Vector3d, Vector3d> > &sharp_constraints,
+        bool with_scale
     ) {
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
@@ -966,7 +972,7 @@ namespace services {
             V.col(v) = O.col(v);
             compact_sharp_vertices.insert(tree.Index(v));
         }
-        std::vector<std::map<int, std::pair<int, Vector3d>>> ideal_distances(tree.CompactNum());
+        std::vector<std::map<int, std::pair<int, Vector3d> > > ideal_distances(tree.CompactNum());
         for (int e = 0; e < edge_diff.size(); ++e) {
             int v1 = edge_values[e].x;
             int v2 = edge_values[e].y;
@@ -1008,7 +1014,7 @@ namespace services {
             }
         }
 
-        std::vector<std::unordered_map<int, double>> entries(num * 2);
+        std::vector<std::unordered_map<int, double> > entries(num * 2);
         std::vector<double> b(num * 2);
 
         for (int m = 0; m < num; ++m) {
@@ -1093,7 +1099,7 @@ namespace services {
             }
         }
 
-        std::vector<Eigen::Triplet<double>> lhsTriplets;
+        std::vector<Eigen::Triplet<double> > lhsTriplets;
         lhsTriplets.reserve(F.cols() * 6);
         Eigen::SparseMatrix<double> A(num * 2, num * 2);
         VectorXd rhs(num * 2);
@@ -1151,7 +1157,7 @@ namespace services {
     void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int> &singularities) {
         int edge_capacity = 2;
         bool fullFlow = false;
-        std::vector<std::vector<int>> &AllowChange = mRes.mAllowChanges;
+        std::vector<std::vector<int> > &AllowChange = mRes.mAllowChanges;
         for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
             auto &EdgeDiff = mRes.mEdgeDiff[level];
             auto &FQ = mRes.mFQ[level];
@@ -1182,7 +1188,7 @@ namespace services {
                         }
                     }
                 }
-                std::vector<std::pair<Vector2i, int>> arcs;
+                std::vector<std::pair<Vector2i, int> > arcs;
                 std::vector<int> arc_ids;
                 for (int i = 0; i < edge_to_constraints.size(); ++i) {
                     if (AllowChange[level][i] == 0) continue;
@@ -1247,7 +1253,7 @@ namespace services {
 
                 solver->applyTo(EdgeDiff);
 
-//                lprintf("flow_count = %d, supply = %d\n", flow_count, supply);
+                //                lprintf("flow_count = %d, supply = %d\n", flow_count, supply);
                 if (flow_count == supply) fullFlow = true;
                 if (level != 0 || fullFlow) break;
                 edge_capacity += 1;
@@ -1256,7 +1262,7 @@ namespace services {
                     /* Probably won't converge. */
                     break;
                 }
-//                lprintf("Not full flow, edge_capacity += 1\n");
+                //                lprintf("Not full flow, edge_capacity += 1\n");
             }
 
             if (level != 0) {
@@ -1272,5 +1278,4 @@ namespace services {
             }
         }
     }
-
 }

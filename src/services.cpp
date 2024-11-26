@@ -66,6 +66,8 @@ namespace services {
                     << i[2] + 1 << " " << i[3] + 1 << "\n";
         }
         os.close();
+
+
     }
 
     void MeshService::save_mesh(
@@ -84,23 +86,23 @@ namespace services {
     ) {
         spdlog::info("Setting boundary constraints");
 
-        for (uint32_t i = 0; i < 3 * hierarchy.m_faces.cols(); ++i) {
+        for (auto i = 0; i < 3 * hierarchy.m_faces.cols(); ++i) {
             if (hierarchy.m_E2E[i] == -1) {
-                uint32_t i0 = hierarchy.m_faces(i % 3, i / 3);
-                uint32_t i1 = hierarchy.m_faces((i + 1) % 3, i / 3);
-                Vector3d p0 = hierarchy.m_vertices[0].col(i0), p1 = hierarchy.m_vertices[0].col(i1);
+                const auto i0 = hierarchy.m_faces(i % 3, i / 3);
+                const auto i1 = hierarchy.m_faces((i + 1) % 3, i / 3);
+                const Vector3d p0 = hierarchy.m_vertices[0].col(i0);
+                const Vector3d p1 = hierarchy.m_vertices[0].col(i1);
                 Vector3d edge = p1 - p0;
                 if (edge.squaredNorm() > 0) {
                     edge.normalize();
                     hierarchy.m_position_constraints[0].col(i0) = p0;
                     hierarchy.m_position_constraints[0].col(i1) = p1;
-                    hierarchy.m_orientation_constraint[0].col(i0) = hierarchy.m_orientation_constraint[0].col(
-                                                                        i1) = edge;
-                    hierarchy.m_orientation_constraint_weight[0][i0] =
-                            hierarchy.m_orientation_constraint_weight[0][i1] =
-                            hierarchy.m_position_constraint_weights[0][i0] =
-                            hierarchy.m_position_constraint_weights[0][i1] =
-                            1.0;
+                    hierarchy.m_orientation_constraint[0].col(i0) = edge;
+                    hierarchy.m_orientation_constraint[0].col(i1) = edge;
+                    hierarchy.m_orientation_constraint_weight[0][i0] = 1.0;
+                    hierarchy.m_orientation_constraint_weight[0][i1] = 1.0;
+                    hierarchy.m_position_constraint_weights[0][i0] = 1.0;
+                    hierarchy.m_position_constraint_weights[0][i1] = 1.0;
                 }
             }
         }
@@ -344,7 +346,17 @@ namespace services {
         return std::make_tuple(faces_slope, faces_orientation);
     }
 
-    // Conversions
+
+    entities::Mesh MeshService::mesh_to_irregular_quadmesh(
+        const entities::SDFn &sdfn,
+        const AlignedBox3f &bounds,
+        const int resolution
+    ) const {
+        spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
+
+        surfacenets::SurfaceNetsMeshStrategy strategy;
+        return strategy.mesh(sdfn, bounds, resolution);
+    }
 
     entities::Mesh MeshService::remesh_to_trimesh(
         entities::Mesh &mesh
@@ -380,25 +392,13 @@ namespace services {
         return mesh;
     }
 
-    // Top level
-
-    entities::Mesh MeshService::mesh_to_irregular_quadmesh(
-        const entities::SDFn &sdfn,
-        const AlignedBox3f &bounds,
-        const int resolution
-    ) const {
-        spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
-
-        surfacenets::SurfaceNetsMeshStrategy strategy;
-        return strategy.mesh(sdfn, bounds, resolution);
-    }
 
     Parametrizer MeshService::remesh_to_regular_quadmesh(
         const entities::Mesh &mesh,
         const int face_count,
         const bool preserve_edges,
-        const bool preserve_boundaries,
-        const bool use_adaptive_meshing
+        const bool use_adaptive_meshing,
+        std::optional<std::reference_wrapper<entities::SDFn> > sdfn
     ) const {
         assert(is_trimesh(mesh));
         spdlog::stopwatch watch;
@@ -410,18 +410,18 @@ namespace services {
         spdlog::debug("Re-meshing of vertices={}, faces={}", mesh.n_vertices(), mesh.n_faces());
 
         adapters::initialize_parameterizer(field, mesh);
-        field.initialize_parameterizer(
-            preserve_boundaries,
+        field.initialize(
             preserve_edges,
             face_count,
-            use_adaptive_meshing
+            use_adaptive_meshing,
+            sdfn
         );
 
         spdlog::debug("Finished initializing parameters ({:.3}s)", watch);
 
-        if (preserve_boundaries) {
-            set_boundary_constraints(field.m_hierarchy);
-        }
+        // if (preserve_boundaries) {
+        //     set_boundary_constraints(field.m_hierarchy);
+        // }
 
         watch.reset();
         spdlog::info("Solving orientation field");

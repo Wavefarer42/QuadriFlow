@@ -112,7 +112,7 @@ namespace services {
             } while (edge != start);
             V2E[i] = v2e;
         }
-//        printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
+
         return true;
     }
 

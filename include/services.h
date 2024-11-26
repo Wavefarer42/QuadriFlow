@@ -17,6 +17,7 @@ namespace services {
 
     class Parametrizer {
     public:
+        entities::Mesh m_mesh;
         /**
          * Maps the face to it's singularity valence, i.e., 1 for valence=3 or 3 for valence=5
          */
@@ -87,9 +88,11 @@ namespace services {
         std::vector<double> m_counter;
 
         /**
-         * m_sharp_edges[deid]: Whether the edge is a edge or feature that should be preserved
+         * m_edges_preserve[deid]: Whether the edge is a edge or feature that should be preserved.
+         * Edge indices in a linear flatten array. Assumes that faces are triangles.
+         * Size is 3 * m_faces.cols()
          */
-        std::vector<int> m_sharp_edges;
+        std::vector<int> m_edges_preserve;
 
         /**
          * m_allow_changes[variable_id]: Whether variable can be changed based on sharp edges
@@ -163,20 +166,27 @@ namespace services {
         void compute_normals();
 
         /**
-         * Finds the edges, features and boundaries of the mesh.
-         * TODO : Use the half edge iteration for boundaries. Use variance of normals for edges.
+         * Finds edges in the mesh and sets them for preservation if active.
          */
-        void find_edges_and_features_and_boundaries(bool should_preserve_boundaries, bool should_preserve_edges);
+        void find_and_set_edges();
+
+        /**
+         * Finds the edges in the mesh based on the underlying model and sets them for preservation if active.
+         */
+        void find_and_set_edges(
+            entities::SDFn sdfn,
+            const float max_angle
+        );
 
         /**
          * Initializes the mesh data structures.
          * TODO: Service level method to initialize datastructures
          */
-        void initialize_parameterizer(
-            bool should_preserve_boundaries,
+        void initialize(
             bool should_preserve_edges,
             int target_face_count,
-            bool with_scale
+            bool with_scale,
+            std::optional<std::reference_wrapper<entities::SDFn> > sdfn
         );
 
         // Integer Grid Map
@@ -305,8 +315,8 @@ namespace services {
             const entities::Mesh &mesh,
             const int face_count = 10000,
             const bool preserve_edges = false,
-            const bool preserve_boundaries = false,
-            const bool use_adaptive_meshing = false
+            const bool use_adaptive_meshing = false,
+            const std::optional<std::reference_wrapper<entities::SDFn> > sdfn = std::nullopt
         ) const;
 
         entities::Mesh remesh_to_trimesh(

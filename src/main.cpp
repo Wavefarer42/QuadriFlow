@@ -1,6 +1,8 @@
 #include <filesystem>
 
 #include <argparse/argparse.hpp>
+
+#include "adapters.h"
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
@@ -115,10 +117,12 @@ int main(int argc, char **argv) {
     const MeshService service = container.mesh_service();
 
     entities::Mesh mesh;
+    std::optional<std::reference_wrapper<entities::SDFn> > model_opt = std::nullopt;
     if (args.path_in.ends_with(".ubs")) {
         auto model = service.load_unbound_model_from_file(args.path_in);
         if (model.size() > 0) {
             mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0), args.resolution);
+            model_opt = model[0];
         } else {
             spdlog::warn("The given Unbound collection does not contain any models.");
             return 2;
@@ -129,15 +133,16 @@ int main(int argc, char **argv) {
 
     service.remesh_to_trimesh(mesh);
 
-    auto field = service.remesh_to_regular_quadmesh(
+    services::Parametrizer field = service.remesh_to_regular_quadmesh(
         mesh,
         args.face_count,
         args.preserve_edges,
-        args.preserve_boundaries,
-        args.use_adaptive_meshing
+        args.use_adaptive_meshing,
+        model_opt
     );
 
-    service.save_mesh(args.path_out, field);
+    // service.save_mesh(args.path_out, field);
+    service.save_mesh(args.path_out, adapters::from_parametrizer_to_quad_mesh(field));
 
     spdlog::info("Finished generating mesh ({:.3}s)", watch_total);
     return 0;

@@ -15,7 +15,7 @@ namespace services {
 
         static void optimize_scale(Hierarchy &mRes, VectorXd &rho, int adaptive);
 
-        static void optimize_positions(Hierarchy &mRes, bool with_scale = true);
+        static void optimize_positions(Hierarchy &mRes, int iterations = 6, bool with_scale = true);
 
         static void optimize_integer_constraints(Hierarchy &mRes, std::map<int, int> &singularities);
 

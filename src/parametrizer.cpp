@@ -10,181 +10,38 @@
 #include "field-math.h"
 #include "optimizer.h"
 #include "dedge.h"
+#include "smoothing.h"
+#include "spdlog/spdlog.h"
 
 
 namespace services {
-
-    void Parametrizer::normalize_mesh() {
-        double maxV[3] = {-1e30, -1e30, -1e30};
-        double minV[3] = {1e30, 1e30, 1e30};
-
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                maxV[j] = std::max(maxV[j], m_vertices(j, i));
-                minV[j] = std::min(minV[j], m_vertices(j, i));
-            }
-        }
-        double scale = std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                m_vertices(j, i) = (m_vertices(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
-            }
-        }
-        this->m_normalize_scale = scale;
-        this->m_normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]),
-                                          0.5 * (maxV[1] + minV[1]),
-                                          0.5 * (maxV[2] + minV[2]));
-    }
-
-    void Parametrizer::analyze_mesh() {
-        m_surface_area = 0;
-        m_average_edge_length = 0;
-        m_max_edge_length = 0;
-        for (int f = 0; f < m_faces.cols(); ++f) {
-            Vector3d v[3] = {m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)),
-                             m_vertices.col(m_faces(2, f))};
-            double area = 0.5f * (v[1] - v[0]).cross(v[2] - v[0]).norm();
-            m_surface_area += area;
-            for (int i = 0; i < 3; ++i) {
-                double len = (v[(i + 1) % 3] - v[i]).norm();
-                m_average_edge_length += len;
-                if (len > m_max_edge_length) m_max_edge_length = len;
-            }
-        }
-        m_average_edge_length /= (m_faces.cols() * 3);
-    }
-
-    void Parametrizer::compute_vertex_area() {
-        m_vertex_area.resize(m_vertices.cols());
-        m_vertex_area.setZero();
-
-        for (int i = 0; i < m_V2E.size(); ++i) {
-            int edge = m_V2E[i], stop = edge;
-            if (m_non_manifold[i] || edge == -1) continue;
-            double vertex_area = 0;
-            do {
-                int ep = dedge_prev_3(edge), en = dedge_next_3(edge);
-
-                Vector3d v = m_vertices.col(m_faces(edge % 3, edge / 3));
-                Vector3d vn = m_vertices.col(m_faces(en % 3, en / 3));
-                Vector3d vp = m_vertices.col(m_faces(ep % 3, ep / 3));
-
-                Vector3d face_center = (v + vp + vn) * (1.0f / 3.0f);
-                Vector3d prev = (v + vp) * 0.5f;
-                Vector3d next = (v + vn) * 0.5f;
-
-                vertex_area += 0.5f * ((v - prev).cross(v - face_center).norm() +
-                                       (v - next).cross(v - face_center).norm());
-
-                int opp = m_E2E[edge];
-                if (opp == -1) break;
-                edge = dedge_next_3(opp);
-            } while (edge != stop);
-
-            m_vertex_area[i] = vertex_area;
-        }
-    }
-
-    void Parametrizer::compute_normals() {
-        /* Compute face normals */
-        m_faces_normals.resize(3, m_faces.cols());
-        for (int f = 0; f < m_faces.cols(); ++f) {
-            Vector3d v0 = m_vertices.col(m_faces(0, f)), v1 = m_vertices.col(m_faces(1, f)), v2 = m_vertices.col(
-                    m_faces(2, f)),
-                    n = (v1 - v0).cross(v2 - v0);
-            double norm = n.norm();
-            if (norm < RCPOVERFLOW) {
-                n = Vector3d::UnitX();
-            } else {
-                n /= norm;
-            }
-            m_faces_normals.col(f) = n;
+    entities::Mesh to_mesh(const Parametrizer &field) {
+        entities::Mesh mesh;
+        for (int i = 0; i < field.m_vertices.cols(); ++i) {
+            mesh.add_vertex(entities::Mesh::Point(
+                field.m_vertices(0, i),
+                field.m_vertices(1, i),
+                field.m_vertices(2, i)
+            ));
         }
 
-        m_normals_vertices.resize(3, m_vertices.cols());
-        for (int i = 0; i < m_V2E.rows(); ++i) {
-            int edge = m_V2E[i];
-            if (m_non_manifold[i] || edge == -1) {
-                m_normals_vertices.col(i) = Vector3d::UnitX();
-                continue;
-            }
-
-            int stop = edge;
-            do {
-                if (m_sharp_edges[edge]) break;
-                edge = m_E2E[edge];
-                if (edge != -1) edge = dedge_next_3(edge);
-            } while (edge != stop && edge != -1);
-            if (edge == -1)
-                edge = stop;
-            else
-                stop = edge;
-            Vector3d normal = Vector3d::Zero();
-            do {
-                int idx = edge % 3;
-
-                Vector3d d0 = m_vertices.col(m_faces((idx + 1) % 3, edge / 3)) - m_vertices.col(i);
-                Vector3d d1 = m_vertices.col(m_faces((idx + 2) % 3, edge / 3)) - m_vertices.col(i);
-                double angle = fast_acos(d0.dot(d1) / std::sqrt(d0.squaredNorm() * d1.squaredNorm()));
-
-                /* "Computing Vertex Normals from Polygonal Facets"
-                 by Grit Thuermer and Charles A. Wuethrich, JGT 1998, Vol 3 */
-                if (std::isfinite(angle)) normal += m_faces_normals.col(edge / 3) * angle;
-
-                int opp = m_E2E[edge];
-                if (opp == -1) break;
-
-                edge = dedge_next_3(opp);
-                if (m_sharp_edges[edge]) break;
-            } while (edge != stop);
-            double norm = normal.norm();
-            m_normals_vertices.col(i) = norm > RCPOVERFLOW ? Vector3d(normal / norm) : Vector3d::UnitX();
-        }
-    }
-
-    void Parametrizer::find_edges_and_features_and_boundaries(
-            bool should_preserve_boundaries,
-            bool should_preserve_edges
-    ) {
-        m_sharp_edges.resize(m_faces.cols() * 3, 0);
-
-        if (should_preserve_boundaries) {
-            for (int i = 0; i < m_sharp_edges.size(); ++i) {
-                int re = m_E2E[i];
-                if (re == -1) {
-                    m_sharp_edges[i] = 1;
-                }
-            }
+        for (int i = 0; i < field.m_faces.cols(); ++i) {
+            mesh.add_face({
+                entities::Mesh::VertexHandle(field.m_faces(0, i)),
+                entities::Mesh::VertexHandle(field.m_faces(1, i)),
+                entities::Mesh::VertexHandle(field.m_faces(2, i))
+            });
         }
 
-        if (should_preserve_edges) return;
-
-        std::vector<Vector3d> face_normals(m_faces.cols());
-        for (int i = 0; i < m_faces.cols(); ++i) {
-            Vector3d p1 = m_vertices.col(m_faces(0, i));
-            Vector3d p2 = m_vertices.col(m_faces(1, i));
-            Vector3d p3 = m_vertices.col(m_faces(2, i));
-            face_normals[i] = (p2 - p1).cross(p3 - p1).normalized();
-        }
-
-        double cos_thres = cos(60.0 / 180.0 * 3.141592654);
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            int e = i;
-            int re = m_E2E[e];
-            Vector3d &n1 = face_normals[e / 3];
-            Vector3d &n2 = face_normals[re / 3];
-            if (n1.dot(n2) < cos_thres) {
-                m_sharp_edges[i] = 1;
-            }
-        }
+        return mesh;
     }
 
     void generate_adjacency_matrix_uniform(
-            const MatrixXi &F,
-            const VectorXi &V2E,
-            const VectorXi &E2E,
-            const VectorXi &nonManifold,
-            entities::AdjacentMatrix &adj
+        const MatrixXi &F,
+        const VectorXi &V2E,
+        const VectorXi &E2E,
+        const VectorXi &nonManifold,
+        entities::AdjacentMatrix &adj
     ) {
         adj.resize(V2E.size());
         for (int i = 0; i < adj.size(); ++i) {
@@ -208,14 +65,14 @@ namespace services {
     }
 
     void subdivide_edges_to_length(
-            MatrixXi &F,
-            MatrixXd &V,
-            VectorXd &rho,
-            VectorXi &V2E,
-            VectorXi &E2E,
-            VectorXi &boundary,
-            VectorXi &nonmanifold,
-            double maxLength
+        MatrixXi &F,
+        MatrixXd &V,
+        VectorXd &rho,
+        VectorXi &V2E,
+        VectorXi &E2E,
+        VectorXi &boundary,
+        VectorXi &nonmanifold,
+        double maxLength
     ) {
         typedef std::pair<double, int> Edge;
 
@@ -350,521 +207,25 @@ namespace services {
         E2E.conservativeResize(nF * 3);
     }
 
-    void Parametrizer::initialize_parameterizer(
-            bool should_preserve_boundaries,
-            bool should_preserve_edges,
-            int target_face_count,
-            bool with_scale
-    ) {
-        m_hierarchy.clearConstraints();
-        normalize_mesh();
-        analyze_mesh();
-
-        // initialize m_rho
-        m_rho.resize(m_vertices.cols(), 1);
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            m_rho[i] = 1;
-        }
-
-        // initialize the scale of the mesh
-        if (target_face_count <= 0) {
-            m_scale = sqrt(m_surface_area / m_vertices.cols());
-        } else {
-            m_scale = std::sqrt(m_surface_area / target_face_count);
-        }
-
-        // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
-        double target_len = std::min(m_scale / 2, m_average_edge_length * 2);
-        if (target_len < m_max_edge_length) {
-            while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
-            subdivide_edges_to_length(m_faces, m_vertices, m_rho, m_V2E, m_E2E, m_boundary, m_non_manifold, target_len);
-        }
-        while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
-
-        // Compute the adjacency matrix
-        generate_adjacency_matrix_uniform(m_faces, m_V2E, m_E2E, m_non_manifold, m_adjacency_matrix);
-
-        // Computes the shortest edge per vertex. FIXME
-        for (int iter = 0; iter < 5; ++iter) {
-            VectorXd r(m_rho.size());
-            for (int i = 0; i < m_rho.size(); ++i) {
-                r[i] = m_rho[i];
-                for (auto &id: m_adjacency_matrix[i]) {
-                    r[i] = std::min(r[i], m_rho[id.id]);
-                }
-            }
-            m_rho = r;
-        }
-
-        find_edges_and_features_and_boundaries(should_preserve_edges, should_preserve_boundaries);
-
-        compute_normals();
-        compute_vertex_area();
-
-        if (with_scale) {
-            m_triangle_space.resize(m_faces.cols());
-            for (int i = 0; i < m_faces.cols(); ++i) {
-                Matrix3d p, q;
-                p.col(0) = m_vertices.col(m_faces(1, i)) - m_vertices.col(m_faces(0, i));
-                p.col(1) = m_vertices.col(m_faces(2, i)) - m_vertices.col(m_faces(0, i));
-                p.col(2) = m_faces_normals.col(i);
-                q = p.inverse();
-                m_triangle_space[i].resize(2, 3);
-                for (int j = 0; j < 2; ++j) {
-                    for (int k = 0; k < 3; ++k) {
-                        m_triangle_space[i](j, k) = q(j, k);
-                    }
-                }
-            }
-        }
-
-        m_hierarchy.m_vertex_area[0] = std::move(m_vertex_area);
-        m_hierarchy.m_adjacency[0] = std::move(m_adjacency_matrix);
-        m_hierarchy.m_normals[0] = std::move(m_normals_vertices);
-        m_hierarchy.m_vertices[0] = std::move(m_vertices);
-        m_hierarchy.m_E2E = std::move(m_E2E);
-        m_hierarchy.m_faces = std::move(m_faces);
-        m_hierarchy.Initialize(m_scale, with_scale);
-    }
-
-    void Parametrizer::build_edge_info() {
-        auto &F = m_hierarchy.m_faces;
-        auto &E2E = m_hierarchy.m_E2E;
-
-        m_edge_difference.clear();
-        m_edge_values.clear();
-        m_face_edge_ids.resize(F.cols(), Vector3i(-1, -1, -1));
-        for (int i = 0; i < F.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                int k1 = j, k2 = (j + 1) % 3;
-                int v1 = F(k1, i);
-                int v2 = F(k2, i);
-                entities::DEdge e2(v1, v2);
-                Vector2i diff2;
-                int rank2;
-                if (v1 > v2) {
-                    rank2 = m_singularity_rank(k2, i);
-                    diff2 = rshift90(
-                            Vector2i(
-                                    -m_singularity_index(k1 * 2, i),
-                                    -m_singularity_index(k1 * 2 + 1, i)
-                            ),
-                            rank2
-                    );
-                } else {
-                    rank2 = m_singularity_rank(k1, i);
-                    diff2 = rshift90(
-                            Vector2i(
-                                    m_singularity_index(k1 * 2, i),
-                                    m_singularity_index(k1 * 2 + 1, i)
-                            ),
-                            rank2
-                    );
-                }
-                int current_eid = i * 3 + k1;
-                int eid = E2E[current_eid];
-                int eID1 = m_face_edge_ids[current_eid / 3][current_eid % 3];
-                int eID2 = -1;
-                if (eID1 == -1) {
-                    eID2 = m_edge_values.size();
-                    m_edge_values.push_back(e2);
-                    m_edge_difference.push_back(diff2);
-                    m_face_edge_ids[i][k1] = eID2;
-                    if (eid != -1) m_face_edge_ids[eid / 3][eid % 3] = eID2;
-                } else if (!m_singularities.count(i)) {
-                    eID2 = m_face_edge_ids[eid / 3][eid % 3];
-                    m_edge_difference[eID2] = diff2;
-                }
-            }
-        }
-    }
-
-    void Parametrizer::build_integer_constraints() {
-        auto &F = m_hierarchy.m_faces;
-        auto &Q = m_hierarchy.m_orientation[0];
-        auto &N = m_hierarchy.m_normals[0];
-        m_face_edge_orientation.resize(F.cols());
-
-        //Random number generator (for shuffling)
-        std::random_device rd;
-        std::mt19937 g(rd());
-        g.seed(m_hierarchy.rng_seed);
-
-        // undirected edge to direct edge
-        std::vector<std::pair<int, int>> E2D(m_edge_difference.size(), std::make_pair(-1, -1));
-        for (int i = 0; i < F.cols(); ++i) {
-            int v0 = F(0, i);
-            int v1 = F(1, i);
-            int v2 = F(2, i);
-            entities::DEdge e0(v0, v1), e1(v1, v2), e2(v2, v0);
-            const Vector3i &eid = m_face_edge_ids[i];
-            Vector2i variable_id[3];
-            for (int i = 0; i < 3; ++i) {
-                variable_id[i] = Vector2i(eid[i] * 2 + 1, eid[i] * 2 + 2);
-            }
-            auto index1 =
-                    compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
-            auto index2 =
-                    compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
-
-            int rank1 = (index1.first - index1.second + 4) % 4;  // v1 -> v0
-            int rank2 = (index2.first - index2.second + 4) % 4;  // v2 -> v0
-            int orients[3] = {0};                                // == {0, 0, 0}
-            if (v1 < v0) {
-                variable_id[0] = -rshift90(variable_id[0], rank1);
-                orients[0] = (rank1 + 2) % 4;
-            } else {
-                orients[0] = 0;
-            }
-            if (v2 < v1) {
-                variable_id[1] = -rshift90(variable_id[1], rank2);
-                orients[1] = (rank2 + 2) % 4;
-            } else {
-                variable_id[1] = rshift90(variable_id[1], rank1);
-                orients[1] = rank1;
-            }
-            if (v2 < v0) {
-                variable_id[2] = rshift90(variable_id[2], rank2);
-                orients[2] = rank2;
-            } else {
-                variable_id[2] = -variable_id[2];
-                orients[2] = 2;
-            }
-            m_face_edge_orientation[i] = Vector3i(orients[0], orients[1], orients[2]);
-            for (int j = 0; j < 3; ++j) {
-                int eid = m_face_edge_ids[i][j];
-                if (E2D[eid].first == -1)
-                    E2D[eid].first = i * 3 + j;
-                else
-                    E2D[eid].second = i * 3 + j;
-            }
-        }
-
-        // a face disajoint tree
-        entities::DisjointOrientTree disajoint_orient_tree = entities::DisjointOrientTree(F.cols());
-        // merge the whole face graph except for the singularity in which there exists a spanning tree
-        // which contains consistent orientation
-        std::vector<int> sharpUE(E2D.size());
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            if (m_sharp_edges[i]) {
-                sharpUE[m_face_edge_ids[i / 3][i % 3]] = 1;
-            }
-        }
-
-        for (int i = 0; i < E2D.size(); ++i) {
-            auto &edge_c = E2D[i];
-            int f0 = edge_c.first / 3;
-            int f1 = edge_c.second / 3;
-            if (edge_c.first == -1 || edge_c.second == -1) continue;
-            if (m_singularities.count(f0) || m_singularities.count(f1) || sharpUE[i]) continue;
-            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
-            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
-            disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
-        }
-
-        // merge singularity later
-        for (auto &f: m_singularities) {
-            for (int i = 0; i < 3; ++i) {
-                if (sharpUE[m_face_edge_ids[f.first][i]]) continue;
-                auto &edge_c = E2D[m_face_edge_ids[f.first][i]];
-                if (edge_c.first == -1 || edge_c.second == -1) continue;
-                int v0 = edge_c.first / 3;
-                int v1 = edge_c.second / 3;
-                int orient1 = m_face_edge_orientation[v0][edge_c.first % 3];
-                int orient0 = (m_face_edge_orientation[v1][edge_c.second % 3] + 2) % 4;
-                disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
-            }
-        }
-
-        for (int i = 0; i < sharpUE.size(); ++i) {
-            if (sharpUE[i] == 0) continue;
-            auto &edge_c = E2D[i];
-            if (edge_c.first == -1 || edge_c.second == -1) continue;
-            int f0 = edge_c.first / 3;
-            int f1 = edge_c.second / 3;
-            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
-            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
-            disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
-        }
-
-        // all the face has the same parent.  we rotate every face to the space of that parent.
-        for (int i = 0; i < m_face_edge_orientation.size(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                m_face_edge_orientation[i][j] =
-                        (m_face_edge_orientation[i][j] + disajoint_orient_tree.Orient(i)) % 4;
-            }
-        }
-
-        std::vector<int> sharp_colors(m_face_edge_ids.size(), -1);
-        int num_sharp_component = 0;
-        // label the connected component connected by non-fixed edges
-        // we need this because we need sink flow (demand) == source flow (supply) for each component
-        // rather than global
-        for (int i = 0; i < sharp_colors.size(); ++i) {
-            if (sharp_colors[i] != -1) continue;
-            sharp_colors[i] = num_sharp_component;
-            std::queue<int> q;
-            q.push(i);
-            int counter = 0;
-            while (!q.empty()) {
-                int v = q.front();
-                q.pop();
-                for (int i = 0; i < 3; ++i) {
-                    int e = m_face_edge_ids[v][i];
-                    int deid1 = E2D[e].first;
-                    int deid2 = E2D[e].second;
-                    if (deid1 == -1 || deid2 == -1) continue;
-                    if (abs(m_face_edge_orientation[deid1 / 3][deid1 % 3] -
-                            m_face_edge_orientation[deid2 / 3][deid2 % 3] + 4) %
-                        4 !=
-                        2 ||
-                        sharpUE[e]) {
-                        continue;
-                    }
-                    for (int k = 0; k < 2; ++k) {
-                        int f = (k == 0) ? E2D[e].first / 3 : E2D[e].second / 3;
-                        if (sharp_colors[f] == -1) {
-                            sharp_colors[f] = num_sharp_component;
-                            q.push(f);
-                        }
-                    }
-                }
-                counter += 1;
-            }
-            num_sharp_component += 1;
-        }
-        {
-            std::vector<int> total_flows(num_sharp_component);
-            // check if each component is full-flow
-            for (int i = 0; i < m_face_edge_ids.size(); ++i) {
-                Vector2i diff(0, 0);
-                for (int j = 0; j < 3; ++j) {
-                    int orient = m_face_edge_orientation[i][j];
-                    diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
-                }
-                total_flows[sharp_colors[i]] += diff[0] + diff[1];
-            }
-
-            // build "variable"
-            m_variables.resize(m_edge_difference.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
-            for (int i = 0; i < m_face_edge_ids.size(); ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
-                    int eid = m_face_edge_ids[i][j];
-                    Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
-                    for (int k = 0; k < 2; ++k) {
-                        auto &p = m_variables[abs(index[k])];
-                        if (p.first[0] == -1)
-                            p.first[0] = i * 2 + k;
-                        else
-                            p.first[1] = i * 2 + k;
-                        p.second += sign[k];
-                    }
-                }
-            }
-
-            // fixed variable that might be manually modified.
-            // modified_variables[component_od][].first = fixed_variable_id
-            // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative
-            // signs
-            std::vector<std::vector<std::pair<int, int>>> modified_variables[2];
-            for (int i = 0; i < 2; ++i) modified_variables[i].resize(total_flows.size());
-            for (int i = 0; i < m_variables.size(); ++i) {
-                if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) &&
-                    m_allow_changes[i] == 1) {
-                    int find = sharp_colors[m_variables[i].first[0] / 2];
-                    int step = std::abs(m_variables[i].second) % 2;
-                    if (total_flows[find] > 0) {
-                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
-                            modified_variables[step][find].push_back(std::make_pair(i, -1));
-                        }
-                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
-                            modified_variables[step][find].push_back(std::make_pair(i, 1));
-                        }
-                    } else if (total_flows[find] < 0) {
-                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
-                            modified_variables[step][find].push_back(std::make_pair(i, -1));
-                        }
-                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
-                            modified_variables[step][find].push_back(std::make_pair(i, 1));
-                        }
-                    }
-                }
-            }
-
-            // uniformly random manually modify variables so that the network has full flow.
-            for (int i = 0; i < 2; ++i) {
-                for (auto &modified_var: modified_variables[i]) {
-                    std::shuffle(modified_var.begin(), modified_var.end(), g);
-                }
-            }
-
-            for (int j = 0; j < total_flows.size(); ++j) {
-                for (int ii = 0; ii < 2; ++ii) {
-                    if (total_flows[j] == 0) continue;
-                    int max_num;
-                    if (ii == 0)
-                        max_num =
-                                std::min(abs(total_flows[j]) / 2, (int) modified_variables[ii][j].size());
-                    else
-                        max_num = std::min(abs(total_flows[j]), (int) modified_variables[ii][j].size());
-                    int dir = (total_flows[j] > 0) ? -1 : 1;
-                    for (int i = 0; i < max_num; ++i) {
-                        auto &info = modified_variables[ii][j][i];
-                        m_edge_difference[info.first / 2][info.first % 2] += info.second;
-                        if (ii == 0)
-                            total_flows[j] += 2 * dir;
-                        else
-                            total_flows[j] += dir;
-                    }
-                }
-            }
-        }
-
-        std::vector<Vector4i> edge_to_constraints(E2D.size() * 2, Vector4i(-1, 0, -1, 0));
-        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                int e = m_face_edge_ids[i][j];
-                Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2), m_face_edge_orientation[i][j]);
-                for (int k = 0; k < 2; ++k) {
-                    int l = abs(index[k]);
-                    int s = index[k] / l;
-                    int ind = l - 1;
-                    int equationID = i * 2 + k;
-                    if (edge_to_constraints[ind][0] == -1) {
-                        edge_to_constraints[ind][0] = equationID;
-                        edge_to_constraints[ind][1] = s;
-                    } else {
-                        edge_to_constraints[ind][2] = equationID;
-                        edge_to_constraints[ind][3] = s;
-                    }
-                }
-            }
-        }
-        std::vector<std::pair<Vector2i, int>> arcs;
-        std::vector<int> arc_ids;
-        entities::DisjointTree tree(m_face_edge_ids.size() * 2);
-        for (int i = 0; i < edge_to_constraints.size(); ++i) {
-            if (m_allow_changes[i] == 0) continue;
-            if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1) continue;
-            if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
-                int v1 = edge_to_constraints[i][0];
-                int v2 = edge_to_constraints[i][2];
-                tree.Merge(v1, v2);
-                if (edge_to_constraints[i][1] < 0) std::swap(v1, v2);
-                int current_v = m_edge_difference[i / 2][i % 2];
-                arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
-            }
-        }
-        tree.BuildCompactParent();
-        std::vector<int> total_flows(tree.CompactNum());
-        // check if each component is full-flow
-        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
-            Vector2i diff(0, 0);
-            for (int j = 0; j < 3; ++j) {
-                int orient = m_face_edge_orientation[i][j];
-                diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
-            }
-            for (int j = 0; j < 2; ++j) {
-                total_flows[tree.Index(i * 2 + j)] += diff[j];
-            }
-        }
-
-        // build "variable"
-        m_variables.resize(m_edge_difference.size() * 2);
-        for (int i = 0; i < m_variables.size(); ++i) {
-            m_variables[i].first = Vector2i(-1, -1);
-            m_variables[i].second = 0;
-        }
-        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
-                int eid = m_face_edge_ids[i][j];
-                Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
-                for (int k = 0; k < 2; ++k) {
-                    auto &p = m_variables[abs(index[k])];
-                    if (p.first[0] == -1)
-                        p.first[0] = i * 2 + k;
-                    else
-                        p.first[1] = i * 2 + k;
-                    p.second += sign[k];
-                }
-            }
-        }
-
-        // fixed variable that might be manually modified.
-        // modified_variables[component_od][].first = fixed_variable_id
-        // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
-        std::vector<std::vector<std::pair<int, int>>> modified_variables[2];
-        for (int i = 0; i < 2; ++i) {
-            modified_variables[i].resize(total_flows.size());
-        }
-        for (int i = 0; i < m_variables.size(); ++i) {
-            if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) && m_allow_changes[i] == 1) {
-                int find = tree.Index(m_variables[i].first[0]);
-                int step = abs(m_variables[i].second) % 2;
-                if (total_flows[find] > 0) {
-                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
-                        modified_variables[step][find].push_back(std::make_pair(i, -1));
-                    }
-                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
-                        modified_variables[step][find].push_back(std::make_pair(i, 1));
-                    }
-                } else if (total_flows[find] < 0) {
-                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
-                        modified_variables[step][find].push_back(std::make_pair(i, -1));
-                    }
-                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
-                        modified_variables[step][find].push_back(std::make_pair(i, 1));
-                    }
-                }
-            }
-        }
-
-        // uniformly random manually modify variables so that the network has full flow.
-        for (int j = 0; j < 2; ++j) {
-            for (auto &modified_var: modified_variables[j])
-                std::shuffle(modified_var.begin(), modified_var.end(), g);
-        }
-        for (int j = 0; j < total_flows.size(); ++j) {
-            for (int ii = 0; ii < 2; ++ii) {
-                if (total_flows[j] == 0) continue;
-                int max_num;
-                if (ii == 0)
-                    max_num = std::min(abs(total_flows[j]) / 2, (int) modified_variables[ii][j].size());
-                else
-                    max_num = std::min(abs(total_flows[j]), (int) modified_variables[ii][j].size());
-                int dir = (total_flows[j] > 0) ? -1 : 1;
-                for (int i = 0; i < max_num; ++i) {
-                    auto &info = modified_variables[ii][j][i];
-                    m_edge_difference[info.first / 2][info.first % 2] += info.second;
-                    if (ii == 0)
-                        total_flows[j] += 2 * dir;
-                    else
-                        total_flows[j] += dir;
-                }
-            }
-        }
-    }
 
     void subdivide_edge_to_length_considering_edge_differences(
-            MatrixXi &F,
-            MatrixXd &V,
-            MatrixXd &N,
-            MatrixXd &Q,
-            MatrixXd &O,
-            MatrixXd *S,
-            VectorXi &V2E,
-            VectorXi &E2E,
-            VectorXi &boundary,
-            VectorXi &nonmanifold,
-            std::vector<Vector2i> &edge_diff,
-            std::vector<entities::DEdge> &edge_values,
-            std::vector<Vector3i> &face_edgeOrients,
-            std::vector<Vector3i> &face_edgeIds,
-            std::vector<int> &sharp_edges,
-            std::map<int, int> &singularities,
-            int max_len
+        MatrixXi &F,
+        MatrixXd &V,
+        MatrixXd &N,
+        MatrixXd &Q,
+        MatrixXd &O,
+        MatrixXd *S,
+        VectorXi &V2E,
+        VectorXi &E2E,
+        VectorXi &boundary,
+        VectorXi &nonmanifold,
+        std::vector<Vector2i> &edge_diff,
+        std::vector<entities::DEdge> &edge_values,
+        std::vector<Vector3i> &face_edgeOrients,
+        std::vector<Vector3i> &face_edgeIds,
+        std::vector<int> &sharp_edges,
+        std::map<int, int> &singularities,
+        int max_len
     ) {
         struct EdgeLink {
             int id;
@@ -901,7 +262,7 @@ namespace services {
                 int final_orient = face_edgeOrients[i][j];
                 int eid = face_edgeIds[i][j];
                 auto value = compat_orientation_extrinsic_index_4(
-                        Q.col(edge_values[eid].x), N.col(edge_values[eid].x), orient.q, orient.n);
+                    Q.col(edge_values[eid].x), N.col(edge_values[eid].x), orient.q, orient.n);
                 int target_orient = (value.second - value.first + 4) % 4;
                 if (F(j, i) == edge_values[eid].y) target_orient = (target_orient + 2) % 4;
                 orient_diff[j] = (final_orient - target_orient + 4) % 4;
@@ -938,7 +299,7 @@ namespace services {
                 int orient = face_spaces[f0].orient + d[j];
                 int v = std::min(F(j, f0), F((j + 1) % 3, f0));
                 auto value = compat_orientation_extrinsic_index_4(
-                        Q.col(v), N.col(v), face_spaces[f0].q, face_spaces[f0].n);
+                    Q.col(v), N.col(v), face_spaces[f0].q, face_spaces[f0].n);
                 if (F(j, f0) != v) orient += 2;
                 face_edgeOrients[f0][j] = (orient + value.second - value.first + 4) % 4;
             }
@@ -1220,6 +581,686 @@ namespace services {
         }
     }
 
+    void Parametrizer::initialize(
+        bool should_preserve_edges,
+        int target_face_count,
+        bool with_scale,
+        std::optional<std::reference_wrapper<entities::SDFn> > sdfn
+    ) {
+        m_hierarchy.clearConstraints();
+        normalize_mesh();
+        analyze_mesh();
+
+        // initialize m_rho
+        m_rho.resize(m_vertices.cols(), 1);
+        for (int i = 0; i < m_vertices.cols(); ++i) {
+            m_rho[i] = 1;
+        }
+
+        // initialize the scale of the mesh
+        if (target_face_count <= 0) {
+            m_scale = sqrt(m_surface_area / m_vertices.cols());
+        } else {
+            m_scale = std::sqrt(m_surface_area / target_face_count);
+        }
+
+        // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
+        double target_len = std::min(m_scale / 2, m_average_edge_length * 2);
+        if (target_len < m_max_edge_length) {
+            while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
+            subdivide_edges_to_length(m_faces, m_vertices, m_rho, m_V2E, m_E2E, m_boundary, m_non_manifold, target_len);
+        }
+        while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
+
+        // Compute the adjacency matrix
+        generate_adjacency_matrix_uniform(m_faces, m_V2E, m_E2E, m_non_manifold, m_adjacency_matrix);
+
+        // Computes the shortest edge per vertex. FIXME
+        for (int iter = 0; iter < 5; ++iter) {
+            VectorXd r(m_rho.size());
+            for (int i = 0; i < m_rho.size(); ++i) {
+                r[i] = m_rho[i];
+                for (auto &id: m_adjacency_matrix[i]) {
+                    r[i] = std::min(r[i], m_rho[id.id]);
+                }
+            }
+            m_rho = r;
+        }
+
+        m_edges_preserve.resize(m_faces.cols() * 3);
+        if (should_preserve_edges && sdfn.has_value()) {
+            find_and_set_edges(sdfn.value(), 30);
+        } else if (should_preserve_edges) {
+            find_and_set_edges();
+        }
+        compute_normals();
+        compute_vertex_area();
+
+        if (with_scale) {
+            m_triangle_space.resize(m_faces.cols());
+            for (int i = 0; i < m_faces.cols(); ++i) {
+                Matrix3d p, q;
+                p.col(0) = m_vertices.col(m_faces(1, i)) - m_vertices.col(m_faces(0, i));
+                p.col(1) = m_vertices.col(m_faces(2, i)) - m_vertices.col(m_faces(0, i));
+                p.col(2) = m_faces_normals.col(i);
+                q = p.inverse();
+                m_triangle_space[i].resize(2, 3);
+                for (int j = 0; j < 2; ++j) {
+                    for (int k = 0; k < 3; ++k) {
+                        m_triangle_space[i](j, k) = q(j, k);
+                    }
+                }
+            }
+        }
+
+        m_hierarchy.m_vertex_area[0] = std::move(m_vertex_area);
+        m_hierarchy.m_adjacency[0] = std::move(m_adjacency_matrix);
+        m_hierarchy.m_normals[0] = std::move(m_normals_vertices);
+        m_hierarchy.m_vertices[0] = std::move(m_vertices);
+        m_hierarchy.m_E2E = std::move(m_E2E);
+        m_hierarchy.m_faces = std::move(m_faces);
+        m_hierarchy.Initialize(m_scale, with_scale);
+    }
+
+    void Parametrizer::normalize_mesh() {
+        double maxV[3] = {-1e30, -1e30, -1e30};
+        double minV[3] = {1e30, 1e30, 1e30};
+
+        for (int i = 0; i < m_vertices.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                maxV[j] = std::max(maxV[j], m_vertices(j, i));
+                minV[j] = std::min(minV[j], m_vertices(j, i));
+            }
+        }
+        double scale = std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
+        for (int i = 0; i < m_vertices.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                m_vertices(j, i) = (m_vertices(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
+            }
+        }
+        this->m_normalize_scale = scale;
+        this->m_normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]),
+                                            0.5 * (maxV[1] + minV[1]),
+                                            0.5 * (maxV[2] + minV[2]));
+    }
+
+    void Parametrizer::analyze_mesh() {
+        m_surface_area = 0;
+        m_average_edge_length = 0;
+        m_max_edge_length = 0;
+        for (int f = 0; f < m_faces.cols(); ++f) {
+            Vector3d v[3] = {
+                m_vertices.col(m_faces(0, f)), m_vertices.col(m_faces(1, f)),
+                m_vertices.col(m_faces(2, f))
+            };
+            double area = 0.5f * (v[1] - v[0]).cross(v[2] - v[0]).norm();
+            m_surface_area += area;
+            for (int i = 0; i < 3; ++i) {
+                double len = (v[(i + 1) % 3] - v[i]).norm();
+                m_average_edge_length += len;
+                if (len > m_max_edge_length) m_max_edge_length = len;
+            }
+        }
+        m_average_edge_length /= (m_faces.cols() * 3);
+    }
+
+    void Parametrizer::compute_vertex_area() {
+        m_vertex_area.resize(m_vertices.cols());
+        m_vertex_area.setZero();
+
+        for (int i = 0; i < m_V2E.size(); ++i) {
+            int edge = m_V2E[i], stop = edge;
+            if (m_non_manifold[i] || edge == -1) continue;
+            double vertex_area = 0;
+            do {
+                int ep = dedge_prev_3(edge), en = dedge_next_3(edge);
+
+                Vector3d v = m_vertices.col(m_faces(edge % 3, edge / 3));
+                Vector3d vn = m_vertices.col(m_faces(en % 3, en / 3));
+                Vector3d vp = m_vertices.col(m_faces(ep % 3, ep / 3));
+
+                Vector3d face_center = (v + vp + vn) * (1.0f / 3.0f);
+                Vector3d prev = (v + vp) * 0.5f;
+                Vector3d next = (v + vn) * 0.5f;
+
+                vertex_area += 0.5f * ((v - prev).cross(v - face_center).norm() +
+                                       (v - next).cross(v - face_center).norm());
+
+                int opp = m_E2E[edge];
+                if (opp == -1) break;
+                edge = dedge_next_3(opp);
+            } while (edge != stop);
+
+            m_vertex_area[i] = vertex_area;
+        }
+    }
+
+    void Parametrizer::compute_normals() {
+        /* Compute face normals */
+        m_faces_normals.resize(3, m_faces.cols());
+        for (int f = 0; f < m_faces.cols(); ++f) {
+            Vector3d v0 = m_vertices.col(m_faces(0, f)), v1 = m_vertices.col(m_faces(1, f)), v2 = m_vertices.col(
+                        m_faces(2, f)),
+                    n = (v1 - v0).cross(v2 - v0);
+            double norm = n.norm();
+            if (norm < RCPOVERFLOW) {
+                n = Vector3d::UnitX();
+            } else {
+                n /= norm;
+            }
+            m_faces_normals.col(f) = n;
+        }
+
+        m_normals_vertices.resize(3, m_vertices.cols());
+        for (int i = 0; i < m_V2E.rows(); ++i) {
+            int edge = m_V2E[i];
+            if (m_non_manifold[i] || edge == -1) {
+                m_normals_vertices.col(i) = Vector3d::UnitX();
+                continue;
+            }
+
+            int stop = edge;
+            do {
+                if (m_edges_preserve[edge]) break;
+                edge = m_E2E[edge];
+                if (edge != -1) edge = dedge_next_3(edge);
+            } while (edge != stop && edge != -1);
+            if (edge == -1)
+                edge = stop;
+            else
+                stop = edge;
+            Vector3d normal = Vector3d::Zero();
+            do {
+                int idx = edge % 3;
+
+                Vector3d d0 = m_vertices.col(m_faces((idx + 1) % 3, edge / 3)) - m_vertices.col(i);
+                Vector3d d1 = m_vertices.col(m_faces((idx + 2) % 3, edge / 3)) - m_vertices.col(i);
+                double angle = fast_acos(d0.dot(d1) / std::sqrt(d0.squaredNorm() * d1.squaredNorm()));
+
+                /* "Computing Vertex Normals from Polygonal Facets"
+                 by Grit Thuermer and Charles A. Wuethrich, JGT 1998, Vol 3 */
+                if (std::isfinite(angle)) normal += m_faces_normals.col(edge / 3) * angle;
+
+                int opp = m_E2E[edge];
+                if (opp == -1) break;
+
+                edge = dedge_next_3(opp);
+                if (m_edges_preserve[edge]) break;
+            } while (edge != stop);
+            double norm = normal.norm();
+            m_normals_vertices.col(i) = norm > RCPOVERFLOW ? Vector3d(normal / norm) : Vector3d::UnitX();
+        }
+    }
+
+    void Parametrizer::find_and_set_edges(
+        entities::SDFn sdfn,
+        const float max_angle
+    ) {
+        spdlog::debug("Finding edges via SDFn to preserve them in the optimization");
+
+        entities::Mesh mesh = to_mesh(*this);
+        const auto field_angular = smoothing::laplacian_angular_field(sdfn, mesh);
+
+        int count = 0;
+        for (int i = 0; i < field_angular.size(); ++i) {
+            if (field_angular[i] >= max_angle) {
+                m_edges_preserve[m_V2E[i]] = 1;
+                count++;
+            }
+        }
+
+#ifdef DEV_DEBUG
+        spdlog::debug("Found {} edges to preserve", count);
+#endif
+    }
+
+    void Parametrizer::find_and_set_edges() {
+        spdlog::debug("Finding boundaries to preserve them in the optimization");
+
+        std::vector<Vector3d> face_normals(m_faces.cols());
+        for (int i = 0; i < m_faces.cols(); ++i) {
+            Vector3d p1 = m_vertices.col(m_faces(0, i));
+            Vector3d p2 = m_vertices.col(m_faces(1, i));
+            Vector3d p3 = m_vertices.col(m_faces(2, i));
+            face_normals[i] = (p2 - p1).cross(p3 - p1).normalized();
+        }
+
+        const double threshold = cos(60.0 / 180.0 * 3.141592654);
+
+        int count = 0;
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            Vector3d &n1 = face_normals[i / 3];
+            Vector3d &n2 = face_normals[m_E2E[i] / 3];
+            if (n1.dot(n2) < threshold) {
+                m_edges_preserve[i] = 1;
+                count++;
+            }
+        }
+
+#ifdef DEV_DEBUG
+        spdlog::debug("Found {} edges to preserve", count);
+#endif
+    }
+
+    void Parametrizer::build_edge_info() {
+        auto &F = m_hierarchy.m_faces;
+        auto &E2E = m_hierarchy.m_E2E;
+
+        m_edge_difference.clear();
+        m_edge_values.clear();
+        m_face_edge_ids.resize(F.cols(), Vector3i(-1, -1, -1));
+        for (int i = 0; i < F.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                int k1 = j, k2 = (j + 1) % 3;
+                int v1 = F(k1, i);
+                int v2 = F(k2, i);
+                entities::DEdge e2(v1, v2);
+                Vector2i diff2;
+                int rank2;
+                if (v1 > v2) {
+                    rank2 = m_singularity_rank(k2, i);
+                    diff2 = rshift90(
+                        Vector2i(
+                            -m_singularity_index(k1 * 2, i),
+                            -m_singularity_index(k1 * 2 + 1, i)
+                        ),
+                        rank2
+                    );
+                } else {
+                    rank2 = m_singularity_rank(k1, i);
+                    diff2 = rshift90(
+                        Vector2i(
+                            m_singularity_index(k1 * 2, i),
+                            m_singularity_index(k1 * 2 + 1, i)
+                        ),
+                        rank2
+                    );
+                }
+                int current_eid = i * 3 + k1;
+                int eid = E2E[current_eid];
+                int eID1 = m_face_edge_ids[current_eid / 3][current_eid % 3];
+                int eID2 = -1;
+                if (eID1 == -1) {
+                    eID2 = m_edge_values.size();
+                    m_edge_values.push_back(e2);
+                    m_edge_difference.push_back(diff2);
+                    m_face_edge_ids[i][k1] = eID2;
+                    if (eid != -1) m_face_edge_ids[eid / 3][eid % 3] = eID2;
+                } else if (!m_singularities.count(i)) {
+                    eID2 = m_face_edge_ids[eid / 3][eid % 3];
+                    m_edge_difference[eID2] = diff2;
+                }
+            }
+        }
+    }
+
+    void Parametrizer::build_integer_constraints() {
+        auto &F = m_hierarchy.m_faces;
+        auto &Q = m_hierarchy.m_orientation[0];
+        auto &N = m_hierarchy.m_normals[0];
+        m_face_edge_orientation.resize(F.cols());
+
+        //Random number generator (for shuffling)
+        std::random_device rd;
+        std::mt19937 g(rd());
+        g.seed(m_hierarchy.rng_seed);
+
+        // undirected edge to direct edge
+        std::vector<std::pair<int, int> > E2D(m_edge_difference.size(), std::make_pair(-1, -1));
+        for (int i = 0; i < F.cols(); ++i) {
+            int v0 = F(0, i);
+            int v1 = F(1, i);
+            int v2 = F(2, i);
+            entities::DEdge e0(v0, v1), e1(v1, v2), e2(v2, v0);
+            const Vector3i &eid = m_face_edge_ids[i];
+            Vector2i variable_id[3];
+            for (int i = 0; i < 3; ++i) {
+                variable_id[i] = Vector2i(eid[i] * 2 + 1, eid[i] * 2 + 2);
+            }
+            auto index1 =
+                    compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+            auto index2 =
+                    compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
+
+            int rank1 = (index1.first - index1.second + 4) % 4; // v1 -> v0
+            int rank2 = (index2.first - index2.second + 4) % 4; // v2 -> v0
+            int orients[3] = {0}; // == {0, 0, 0}
+            if (v1 < v0) {
+                variable_id[0] = -rshift90(variable_id[0], rank1);
+                orients[0] = (rank1 + 2) % 4;
+            } else {
+                orients[0] = 0;
+            }
+            if (v2 < v1) {
+                variable_id[1] = -rshift90(variable_id[1], rank2);
+                orients[1] = (rank2 + 2) % 4;
+            } else {
+                variable_id[1] = rshift90(variable_id[1], rank1);
+                orients[1] = rank1;
+            }
+            if (v2 < v0) {
+                variable_id[2] = rshift90(variable_id[2], rank2);
+                orients[2] = rank2;
+            } else {
+                variable_id[2] = -variable_id[2];
+                orients[2] = 2;
+            }
+            m_face_edge_orientation[i] = Vector3i(orients[0], orients[1], orients[2]);
+            for (int j = 0; j < 3; ++j) {
+                int eid = m_face_edge_ids[i][j];
+                if (E2D[eid].first == -1)
+                    E2D[eid].first = i * 3 + j;
+                else
+                    E2D[eid].second = i * 3 + j;
+            }
+        }
+
+        // a face disajoint tree
+        entities::DisjointOrientTree disajoint_orient_tree = entities::DisjointOrientTree(F.cols());
+        // merge the whole face graph except for the singularity in which there exists a spanning tree
+        // which contains consistent orientation
+        std::vector<int> sharpUE(E2D.size());
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            if (m_edges_preserve[i]) {
+                sharpUE[m_face_edge_ids[i / 3][i % 3]] = 1;
+            }
+        }
+
+        for (int i = 0; i < E2D.size(); ++i) {
+            auto &edge_c = E2D[i];
+            int f0 = edge_c.first / 3;
+            int f1 = edge_c.second / 3;
+            if (edge_c.first == -1 || edge_c.second == -1) continue;
+            if (m_singularities.count(f0) || m_singularities.count(f1) || sharpUE[i]) continue;
+            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
+            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
+            disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
+        }
+
+        // merge singularity later
+        for (auto &f: m_singularities) {
+            for (int i = 0; i < 3; ++i) {
+                if (sharpUE[m_face_edge_ids[f.first][i]]) continue;
+                auto &edge_c = E2D[m_face_edge_ids[f.first][i]];
+                if (edge_c.first == -1 || edge_c.second == -1) continue;
+                int v0 = edge_c.first / 3;
+                int v1 = edge_c.second / 3;
+                int orient1 = m_face_edge_orientation[v0][edge_c.first % 3];
+                int orient0 = (m_face_edge_orientation[v1][edge_c.second % 3] + 2) % 4;
+                disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
+            }
+        }
+
+        for (int i = 0; i < sharpUE.size(); ++i) {
+            if (sharpUE[i] == 0) continue;
+            auto &edge_c = E2D[i];
+            if (edge_c.first == -1 || edge_c.second == -1) continue;
+            int f0 = edge_c.first / 3;
+            int f1 = edge_c.second / 3;
+            int orient1 = m_face_edge_orientation[f0][edge_c.first % 3];
+            int orient0 = (m_face_edge_orientation[f1][edge_c.second % 3] + 2) % 4;
+            disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
+        }
+
+        // all the face has the same parent.  we rotate every face to the space of that parent.
+        for (int i = 0; i < m_face_edge_orientation.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                m_face_edge_orientation[i][j] =
+                        (m_face_edge_orientation[i][j] + disajoint_orient_tree.Orient(i)) % 4;
+            }
+        }
+
+        std::vector<int> sharp_colors(m_face_edge_ids.size(), -1);
+        int num_sharp_component = 0;
+        // label the connected component connected by non-fixed edges
+        // we need this because we need sink flow (demand) == source flow (supply) for each component
+        // rather than global
+        for (int i = 0; i < sharp_colors.size(); ++i) {
+            if (sharp_colors[i] != -1) continue;
+            sharp_colors[i] = num_sharp_component;
+            std::queue<int> q;
+            q.push(i);
+            int counter = 0;
+            while (!q.empty()) {
+                int v = q.front();
+                q.pop();
+                for (int i = 0; i < 3; ++i) {
+                    int e = m_face_edge_ids[v][i];
+                    int deid1 = E2D[e].first;
+                    int deid2 = E2D[e].second;
+                    if (deid1 == -1 || deid2 == -1) continue;
+                    if (abs(m_face_edge_orientation[deid1 / 3][deid1 % 3] -
+                            m_face_edge_orientation[deid2 / 3][deid2 % 3] + 4) %
+                        4 !=
+                        2 ||
+                        sharpUE[e]) {
+                        continue;
+                    }
+                    for (int k = 0; k < 2; ++k) {
+                        int f = (k == 0) ? E2D[e].first / 3 : E2D[e].second / 3;
+                        if (sharp_colors[f] == -1) {
+                            sharp_colors[f] = num_sharp_component;
+                            q.push(f);
+                        }
+                    }
+                }
+                counter += 1;
+            }
+            num_sharp_component += 1;
+        } {
+            std::vector<int> total_flows(num_sharp_component);
+            // check if each component is full-flow
+            for (int i = 0; i < m_face_edge_ids.size(); ++i) {
+                Vector2i diff(0, 0);
+                for (int j = 0; j < 3; ++j) {
+                    int orient = m_face_edge_orientation[i][j];
+                    diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
+                }
+                total_flows[sharp_colors[i]] += diff[0] + diff[1];
+            }
+
+            // build "variable"
+            m_variables.resize(m_edge_difference.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
+            for (int i = 0; i < m_face_edge_ids.size(); ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
+                    int eid = m_face_edge_ids[i][j];
+                    Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
+                    for (int k = 0; k < 2; ++k) {
+                        auto &p = m_variables[abs(index[k])];
+                        if (p.first[0] == -1)
+                            p.first[0] = i * 2 + k;
+                        else
+                            p.first[1] = i * 2 + k;
+                        p.second += sign[k];
+                    }
+                }
+            }
+
+            // fixed variable that might be manually modified.
+            // modified_variables[component_od][].first = fixed_variable_id
+            // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative
+            // signs
+            std::vector<std::vector<std::pair<int, int> > > modified_variables[2];
+            for (int i = 0; i < 2; ++i) modified_variables[i].resize(total_flows.size());
+            for (int i = 0; i < m_variables.size(); ++i) {
+                if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) &&
+                    m_allow_changes[i] == 1) {
+                    int find = sharp_colors[m_variables[i].first[0] / 2];
+                    int step = std::abs(m_variables[i].second) % 2;
+                    if (total_flows[find] > 0) {
+                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                            modified_variables[step][find].push_back(std::make_pair(i, -1));
+                        }
+                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                            modified_variables[step][find].push_back(std::make_pair(i, 1));
+                        }
+                    } else if (total_flows[find] < 0) {
+                        if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                            modified_variables[step][find].push_back(std::make_pair(i, -1));
+                        }
+                        if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                            modified_variables[step][find].push_back(std::make_pair(i, 1));
+                        }
+                    }
+                }
+            }
+
+            // uniformly random manually modify variables so that the network has full flow.
+            for (int i = 0; i < 2; ++i) {
+                for (auto &modified_var: modified_variables[i]) {
+                    std::shuffle(modified_var.begin(), modified_var.end(), g);
+                }
+            }
+
+            for (int j = 0; j < total_flows.size(); ++j) {
+                for (int ii = 0; ii < 2; ++ii) {
+                    if (total_flows[j] == 0) continue;
+                    int max_num;
+                    if (ii == 0)
+                        max_num =
+                                std::min(abs(total_flows[j]) / 2, (int) modified_variables[ii][j].size());
+                    else
+                        max_num = std::min(abs(total_flows[j]), (int) modified_variables[ii][j].size());
+                    int dir = (total_flows[j] > 0) ? -1 : 1;
+                    for (int i = 0; i < max_num; ++i) {
+                        auto &info = modified_variables[ii][j][i];
+                        m_edge_difference[info.first / 2][info.first % 2] += info.second;
+                        if (ii == 0)
+                            total_flows[j] += 2 * dir;
+                        else
+                            total_flows[j] += dir;
+                    }
+                }
+            }
+        }
+
+        std::vector<Vector4i> edge_to_constraints(E2D.size() * 2, Vector4i(-1, 0, -1, 0));
+        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                int e = m_face_edge_ids[i][j];
+                Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2), m_face_edge_orientation[i][j]);
+                for (int k = 0; k < 2; ++k) {
+                    int l = abs(index[k]);
+                    int s = index[k] / l;
+                    int ind = l - 1;
+                    int equationID = i * 2 + k;
+                    if (edge_to_constraints[ind][0] == -1) {
+                        edge_to_constraints[ind][0] = equationID;
+                        edge_to_constraints[ind][1] = s;
+                    } else {
+                        edge_to_constraints[ind][2] = equationID;
+                        edge_to_constraints[ind][3] = s;
+                    }
+                }
+            }
+        }
+        std::vector<std::pair<Vector2i, int> > arcs;
+        std::vector<int> arc_ids;
+        entities::DisjointTree tree(m_face_edge_ids.size() * 2);
+        for (int i = 0; i < edge_to_constraints.size(); ++i) {
+            if (m_allow_changes[i] == 0) continue;
+            if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1) continue;
+            if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
+                int v1 = edge_to_constraints[i][0];
+                int v2 = edge_to_constraints[i][2];
+                tree.Merge(v1, v2);
+                if (edge_to_constraints[i][1] < 0) std::swap(v1, v2);
+                int current_v = m_edge_difference[i / 2][i % 2];
+                arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
+            }
+        }
+        tree.BuildCompactParent();
+        std::vector<int> total_flows(tree.CompactNum());
+        // check if each component is full-flow
+        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
+            Vector2i diff(0, 0);
+            for (int j = 0; j < 3; ++j) {
+                int orient = m_face_edge_orientation[i][j];
+                diff += rshift90(m_edge_difference[m_face_edge_ids[i][j]], orient);
+            }
+            for (int j = 0; j < 2; ++j) {
+                total_flows[tree.Index(i * 2 + j)] += diff[j];
+            }
+        }
+
+        // build "variable"
+        m_variables.resize(m_edge_difference.size() * 2);
+        for (int i = 0; i < m_variables.size(); ++i) {
+            m_variables[i].first = Vector2i(-1, -1);
+            m_variables[i].second = 0;
+        }
+        for (int i = 0; i < m_face_edge_ids.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                Vector2i sign = rshift90(Vector2i(1, 1), m_face_edge_orientation[i][j]);
+                int eid = m_face_edge_ids[i][j];
+                Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), m_face_edge_orientation[i][j]);
+                for (int k = 0; k < 2; ++k) {
+                    auto &p = m_variables[abs(index[k])];
+                    if (p.first[0] == -1)
+                        p.first[0] = i * 2 + k;
+                    else
+                        p.first[1] = i * 2 + k;
+                    p.second += sign[k];
+                }
+            }
+        }
+
+        // fixed variable that might be manually modified.
+        // modified_variables[component_od][].first = fixed_variable_id
+        // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
+        std::vector<std::vector<std::pair<int, int> > > modified_variables[2];
+        for (int i = 0; i < 2; ++i) {
+            modified_variables[i].resize(total_flows.size());
+        }
+        for (int i = 0; i < m_variables.size(); ++i) {
+            if ((m_variables[i].first[1] == -1 || m_variables[i].second != 0) && m_allow_changes[i] == 1) {
+                int find = tree.Index(m_variables[i].first[0]);
+                int step = abs(m_variables[i].second) % 2;
+                if (total_flows[find] > 0) {
+                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                        modified_variables[step][find].push_back(std::make_pair(i, -1));
+                    }
+                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                        modified_variables[step][find].push_back(std::make_pair(i, 1));
+                    }
+                } else if (total_flows[find] < 0) {
+                    if (m_variables[i].second < 0 && m_edge_difference[i / 2][i % 2] > -1) {
+                        modified_variables[step][find].push_back(std::make_pair(i, -1));
+                    }
+                    if (m_variables[i].second > 0 && m_edge_difference[i / 2][i % 2] < 1) {
+                        modified_variables[step][find].push_back(std::make_pair(i, 1));
+                    }
+                }
+            }
+        }
+
+        // uniformly random manually modify variables so that the network has full flow.
+        for (int j = 0; j < 2; ++j) {
+            for (auto &modified_var: modified_variables[j])
+                std::shuffle(modified_var.begin(), modified_var.end(), g);
+        }
+        for (int j = 0; j < total_flows.size(); ++j) {
+            for (int ii = 0; ii < 2; ++ii) {
+                if (total_flows[j] == 0) continue;
+                int max_num;
+                if (ii == 0)
+                    max_num = std::min(abs(total_flows[j]) / 2, (int) modified_variables[ii][j].size());
+                else
+                    max_num = std::min(abs(total_flows[j]), (int) modified_variables[ii][j].size());
+                int dir = (total_flows[j] > 0) ? -1 : 1;
+                for (int i = 0; i < max_num; ++i) {
+                    auto &info = modified_variables[ii][j][i];
+                    m_edge_difference[info.first / 2][info.first % 2] += info.second;
+                    if (ii == 0)
+                        total_flows[j] += 2 * dir;
+                    else
+                        total_flows[j] += dir;
+                }
+            }
+        }
+    }
+
     void Parametrizer::compute_index_map(Hierarchy &hierarchy, int with_scale) {
         auto &V = hierarchy.m_vertices[0];
         auto &F = hierarchy.m_faces;
@@ -1232,8 +1273,8 @@ namespace services {
 
         // Constraints for the integer optimization
 
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            if (m_sharp_edges[i]) {
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            if (m_edges_preserve[i]) {
                 int e = m_face_edge_ids[i / 3][i % 3];
                 if (m_edge_difference[e][0] * m_edge_difference[e][1] != 0) {
                     Vector3d d = O.col(m_edge_values[e].y) - O.col(m_edge_values[e].x);
@@ -1248,20 +1289,20 @@ namespace services {
                 }
             }
         }
-        std::map<int, std::pair<Vector3d, Vector3d>> sharp_constraints;
+        std::map<int, std::pair<Vector3d, Vector3d> > sharp_constraints;
         std::set<int> sharpvert;
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            if (m_sharp_edges[i]) {
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            if (m_edges_preserve[i]) {
                 sharpvert.insert(F(i % 3, i / 3));
                 sharpvert.insert(F((i + 1) % 3, i / 3));
             }
         }
 
         m_allow_changes.resize(m_edge_difference.size() * 2, 1);
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
             int e = m_face_edge_ids[i / 3][i % 3];
             if (sharpvert.count(m_edge_values[e].x) && sharpvert.count(m_edge_values[e].y)) {
-                if (m_sharp_edges[i] != 0) {
+                if (m_edges_preserve[i] != 0) {
                     for (int k = 0; k < 2; ++k) {
                         if (m_edge_difference[e][k] == 0) {
                             m_allow_changes[e * 2 + k] = 0;
@@ -1280,17 +1321,17 @@ namespace services {
 
         // potential bug
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
-                m_boundary, m_non_manifold,
-                m_edge_difference, m_edge_values, m_face_edge_orientation,
-                m_face_edge_ids, m_sharp_edges,
-                m_singularities, 1
+            F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
+            m_boundary, m_non_manifold,
+            m_edge_difference, m_edge_values, m_face_edge_orientation,
+            m_face_edge_ids, m_edges_preserve,
+            m_singularities, 1
         );
 
         m_allow_changes.clear();
         m_allow_changes.resize(m_edge_difference.size() * 2, 1);
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            if (m_sharp_edges[i] == 0) continue;
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            if (m_edges_preserve[i] == 0) continue;
             int e = m_face_edge_ids[i / 3][i % 3];
             for (int k = 0; k < 2; ++k) {
                 if (m_edge_difference[e][k] == 0) m_allow_changes[e * 2 + k] = 0;
@@ -1299,45 +1340,45 @@ namespace services {
 
         fix_flip_hierarchy();
         subdivide_edge_to_length_considering_edge_differences(
-                F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
-                m_boundary, m_non_manifold,
-                m_edge_difference, m_edge_values, m_face_edge_orientation,
-                m_face_edge_ids, m_sharp_edges,
-                m_singularities, 1
+            F, V, N, Q, O, &hierarchy.m_scales[0], m_V2E, hierarchy.m_E2E,
+            m_boundary, m_non_manifold,
+            m_edge_difference, m_edge_values, m_face_edge_orientation,
+            m_face_edge_ids, m_edges_preserve,
+            m_singularities, 1
         );
 
         std::set<int> sharp_vertices;
-        for (int i = 0; i < m_sharp_edges.size(); ++i) {
-            if (m_sharp_edges[i] == 1) {
+        for (int i = 0; i < m_edges_preserve.size(); ++i) {
+            if (m_edges_preserve[i] == 1) {
                 sharp_vertices.insert(F(i % 3, i / 3));
                 sharp_vertices.insert(F((i + 1) % 3, i / 3));
             }
         }
 
         Optimizer::optimize_positions_sharp(
-                hierarchy,
-                m_edge_values,
-                m_edge_difference,
-                m_sharp_edges,
-                sharp_vertices,
-                sharp_constraints,
-                with_scale
+            hierarchy,
+            m_edge_values,
+            m_edge_difference,
+            m_edges_preserve,
+            sharp_vertices,
+            sharp_constraints,
+            with_scale
         );
 
         Optimizer::optimize_positions_fixed(
-                hierarchy,
-                m_edge_values,
-                m_edge_difference,
-                sharp_vertices,
-                sharp_constraints,
-                with_scale
+            hierarchy,
+            m_edge_values,
+            m_edge_difference,
+            sharp_vertices,
+            sharp_constraints,
+            with_scale
         );
 
         extract_quad();
         fix_valence();
 
         std::vector<int> sharp_o(m_positions_compact.size(), 0);
-        std::map<int, std::pair<Vector3d, Vector3d>> compact_sharp_constraints;
+        std::map<int, std::pair<Vector3d, Vector3d> > compact_sharp_constraints;
         for (int i = 0; i < m_vertices_set.size(); ++i) {
             int sharpv = -1;
             for (auto &p: m_vertices_set[i]) {
@@ -1363,7 +1404,7 @@ namespace services {
             }
         }
 
-        std::vector<std::vector<int>> v2o(V.cols());
+        std::vector<std::vector<int> > v2o(V.cols());
         for (int i = 0; i < m_vertices_set.size(); ++i) {
             for (auto v: m_vertices_set[i]) {
                 v2o[v].push_back(i);
@@ -1445,16 +1486,16 @@ namespace services {
         }
 
         Optimizer::optimize_positions_dynamic(
-                F, V, N, Q,
-                m_vertices_set, m_positions_compact, m_faces_compact, m_V2E_compact,
-                m_E2E_compact,
-                sqrt(m_surface_area / m_faces_compact.size()),
-                diffs,
-                diff_count,
-                o2e,
-                sharp_o,
-                compact_sharp_constraints,
-                with_scale
+            F, V, N, Q,
+            m_vertices_set, m_positions_compact, m_faces_compact, m_V2E_compact,
+            m_E2E_compact,
+            sqrt(m_surface_area / m_faces_compact.size()),
+            diffs,
+            diff_count,
+            o2e,
+            sharp_o,
+            compact_sharp_constraints,
+            with_scale
         );
     }
 
@@ -1508,7 +1549,7 @@ namespace services {
                 break;
             }
         }
-        std::vector<std::vector<int>> v_dedges(m_V2E_compact.size());
+        std::vector<std::vector<int> > v_dedges(m_V2E_compact.size());
         for (int i = 0; i < m_faces_compact.size(); ++i) {
             for (int j = 0; j < 4; ++j) {
                 v_dedges[m_faces_compact[i][j]].push_back(i * 4 + j);
@@ -1576,7 +1617,7 @@ namespace services {
                 if (deid == -1) count += 1;
                 valences[i] = count;
             }
-            std::priority_queue<std::pair<int, int>> prior_queue;
+            std::priority_queue<std::pair<int, int> > prior_queue;
             for (int i = 0; i < valences.size(); ++i) {
                 if (valences[i] > 5) prior_queue.push(std::make_pair(valences[i], i));
             }
@@ -1621,11 +1662,11 @@ namespace services {
                         m_faces_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = m_positions_compact.size();
                     }
                     m_faces_compact.push_back(Vector4i(
-                            m_positions_compact.size(),
-                            loop_vertices[(split_idx + loop_vertices.size() - 1) % loop_vertices.size()],
-                            info.second,
-                            loop_vertices[(split_idx + step - 1 + loop_vertices.size()) %
-                                          loop_vertices.size()]));
+                        m_positions_compact.size(),
+                        loop_vertices[(split_idx + loop_vertices.size() - 1) % loop_vertices.size()],
+                        info.second,
+                        loop_vertices[(split_idx + step - 1 + loop_vertices.size()) %
+                                      loop_vertices.size()]));
                 } else {
                     for (int id = loop_vertices.size() / 2; id < loop_vertices.size(); ++id) {
                         m_faces_compact[loop_dedges[id] / 4][loop_dedges[id] % 4] = m_positions_compact.size();
@@ -1678,8 +1719,7 @@ namespace services {
         m_vertices_set.resize(top);
         compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
                                   m_boundary_compact,
-                                  m_non_manifold_compact);
-        {
+                                  m_non_manifold_compact); {
             compute_direct_graph_quad(m_positions_compact, m_faces_compact, m_V2E_compact, m_E2E_compact,
                                       m_boundary_compact,
                                       m_non_manifold_compact);
@@ -1697,7 +1737,7 @@ namespace services {
                     deid = deid / 4 * 4 + (deid + 1) % 4;
                 } while (deid != deid0 && deid != -1);
             }
-            std::vector<std::vector<int>> v_dedges(m_V2E_compact.size());
+            std::vector<std::vector<int> > v_dedges(m_V2E_compact.size());
             for (int i = 0; i < m_faces_compact.size(); ++i) {
                 for (int j = 0; j < 4; ++j) {
                     v_dedges[m_faces_compact[i][j]].push_back(i * 4 + j);
@@ -1730,8 +1770,40 @@ namespace services {
         fh.UpdateGraphValue(m_face_edge_orientation, m_face_edge_ids, m_edge_difference);
     }
 
+    void Parametrizer::find_fix_holes() {
+        for (int i = 0; i < m_faces_compact.size(); ++i) {
+            for (int j = 0; j < 4; ++j) {
+                int v1 = m_faces_compact[i][j];
+                int v2 = m_faces_compact[i][(j + 1) % 4];
+                auto key = std::make_pair(v1, v2);
+                m_quad_edges.insert(key);
+            }
+        }
+        std::vector<int> detected_boundary(m_E2E_compact.size(), 0);
+        for (int i = 0; i < m_E2E_compact.size(); ++i) {
+            if (detected_boundary[i] != 0 || m_E2E_compact[i] != -1) continue;
+            std::vector<int> loop_edges;
+            int current_e = i;
+
+            while (detected_boundary[current_e] == 0) {
+                detected_boundary[current_e] = 1;
+                loop_edges.push_back(current_e);
+                current_e = current_e / 4 * 4 + (current_e + 1) % 4;
+                while (m_E2E_compact[current_e] != -1) {
+                    current_e = m_E2E_compact[current_e];
+                    current_e = current_e / 4 * 4 + (current_e + 1) % 4;
+                }
+            }
+            std::vector<int> loop_vertices(loop_edges.size());
+            for (int j = 0; j < loop_edges.size(); ++j) {
+                loop_vertices[j] = m_faces_compact[loop_edges[j] / 4][loop_edges[j] % 4];
+            }
+            if (loop_vertices.size() < 25) close_hole(loop_vertices);
+        }
+    }
+
     void Parametrizer::close_hole(std::vector<int> &loop_vertices) {
-        std::vector<std::vector<int>> loop_vertices_array;
+        std::vector<std::vector<int> > loop_vertices_array;
         std::unordered_map<int, int> map_loops;
         for (int i = 0; i < loop_vertices.size(); ++i) {
             if (map_loops.count(loop_vertices[i])) {
@@ -1788,42 +1860,10 @@ namespace services {
         }
     }
 
-    void Parametrizer::find_fix_holes() {
-        for (int i = 0; i < m_faces_compact.size(); ++i) {
-            for (int j = 0; j < 4; ++j) {
-                int v1 = m_faces_compact[i][j];
-                int v2 = m_faces_compact[i][(j + 1) % 4];
-                auto key = std::make_pair(v1, v2);
-                m_quad_edges.insert(key);
-            }
-        }
-        std::vector<int> detected_boundary(m_E2E_compact.size(), 0);
-        for (int i = 0; i < m_E2E_compact.size(); ++i) {
-            if (detected_boundary[i] != 0 || m_E2E_compact[i] != -1) continue;
-            std::vector<int> loop_edges;
-            int current_e = i;
-
-            while (detected_boundary[current_e] == 0) {
-                detected_boundary[current_e] = 1;
-                loop_edges.push_back(current_e);
-                current_e = current_e / 4 * 4 + (current_e + 1) % 4;
-                while (m_E2E_compact[current_e] != -1) {
-                    current_e = m_E2E_compact[current_e];
-                    current_e = current_e / 4 * 4 + (current_e + 1) % 4;
-                }
-            }
-            std::vector<int> loop_vertices(loop_edges.size());
-            for (int j = 0; j < loop_edges.size(); ++j) {
-                loop_vertices[j] = m_faces_compact[loop_edges[j] / 4][loop_edges[j] % 4];
-            }
-            if (loop_vertices.size() < 25) close_hole(loop_vertices);
-        }
-    }
-
     double Parametrizer::compute_quad_energy(
-            std::vector<int> &loop_vertices,
-            std::vector<Vector4i> &res_quads,
-            int level
+        std::vector<int> &loop_vertices,
+        std::vector<Vector4i> &res_quads,
+        int level
     ) {
         if (loop_vertices.size() < 4) return 0;
 
@@ -1844,15 +1884,17 @@ namespace services {
                 energy += angle * angle;
             }
             res_quads.push_back(
-                    Vector4i(loop_vertices[0], loop_vertices[3], loop_vertices[2], loop_vertices[1]));
+                Vector4i(loop_vertices[0], loop_vertices[3], loop_vertices[2], loop_vertices[1]));
             return energy;
         }
         double max_energy = 1e30;
         for (int seg1 = 2; seg1 < loop_vertices.size(); seg1 += 2) {
             for (int seg2 = seg1 + 1; seg2 < loop_vertices.size(); seg2 += 2) {
                 std::vector<Vector4i> quads[4];
-                std::vector<int> vertices = {loop_vertices[0], loop_vertices[1], loop_vertices[seg1],
-                                             loop_vertices[seg2]};
+                std::vector<int> vertices = {
+                    loop_vertices[0], loop_vertices[1], loop_vertices[seg1],
+                    loop_vertices[seg2]
+                };
                 double energy = 0;
                 energy += compute_quad_energy(vertices, quads[0], level + 1);
                 if (seg1 > 2) {
@@ -1884,7 +1926,6 @@ namespace services {
         }
         return max_energy;
     }
-
 
     void Parametrizer::extract_quad() {
         Hierarchy fh;
@@ -1957,14 +1998,14 @@ namespace services {
     }
 
     void Parametrizer::build_triangle_manifold(
-            entities::DisjointTree &disajoint_tree,
-            std::vector<int> &edge,
-            std::vector<int> &face,
-            std::vector<entities::DEdge> &edge_values,
-            std::vector<Vector3i> &F2E,
-            std::vector<Vector2i> &E2F,
-            std::vector<Vector2i> &EdgeDiff,
-            std::vector<Vector3i> &FQ
+        entities::DisjointTree &disajoint_tree,
+        std::vector<int> &edge,
+        std::vector<int> &face,
+        std::vector<entities::DEdge> &edge_values,
+        std::vector<Vector3i> &F2E,
+        std::vector<Vector2i> &E2F,
+        std::vector<Vector2i> &EdgeDiff,
+        std::vector<Vector3i> &FQ
     ) {
         auto &F = m_hierarchy.m_faces;
         std::vector<int> E2E(F2E.size() * 3, -1);
@@ -1988,7 +2029,7 @@ namespace services {
         std::vector<Vector3i> triangle_vertices(F2E.size(), Vector3i(-1, -1, -1));
         int num_v = 0;
         std::vector<Vector3d> N, Q, O;
-        std::vector<std::vector<int>> Vs;
+        std::vector<std::vector<int> > Vs;
         for (int i = 0; i < F2E.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 if (triangle_vertices[i][j] != -1) continue;
@@ -2021,7 +2062,7 @@ namespace services {
         int num_v0 = num_v;
         do {
             num_v0 = num_v;
-            std::vector<std::vector<int>> vert_to_dedge(num_v);
+            std::vector<std::vector<int> > vert_to_dedge(num_v);
             for (int i = 0; i < triangle_vertices.size(); ++i) {
                 Vector3i pt = triangle_vertices[i];
                 if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0]) {
@@ -2132,7 +2173,7 @@ namespace services {
         VectorXi NV2E, NE2E, NB, NN;
         compute_direct_graph(NV, NF, NV2E, NE2E, NB, NN);
 
-        std::map<entities::DEdge, std::pair<Vector3i, Vector3i>> quads;
+        std::map<entities::DEdge, std::pair<Vector3i, Vector3i> > quads;
         for (int i = 0; i < triangle_vertices.size(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int e = triangle_edges[i][j];
@@ -2161,12 +2202,12 @@ namespace services {
         std::swap(m_orientations_compact, Q);
 
         compute_direct_graph_quad(
-                m_positions_compact,
-                m_faces_compact,
-                m_V2E_compact,
-                m_E2E_compact,
-                m_boundary_compact,
-                m_non_manifold_compact
+            m_positions_compact,
+            m_faces_compact,
+            m_V2E_compact,
+            m_E2E_compact,
+            m_boundary_compact,
+            m_non_manifold_compact
         );
 
         while (true) {
@@ -2215,23 +2256,22 @@ namespace services {
             if (offset == m_faces_compact.size()) break;
             m_faces_compact.resize(offset);
             compute_direct_graph_quad(
-                    m_positions_compact,
-                    m_faces_compact,
-                    m_V2E_compact,
-                    m_E2E_compact,
-                    m_boundary_compact,
-                    m_non_manifold_compact
-            );
-        }
-        find_fix_holes();
-        compute_direct_graph_quad(
                 m_positions_compact,
                 m_faces_compact,
                 m_V2E_compact,
                 m_E2E_compact,
                 m_boundary_compact,
                 m_non_manifold_compact
+            );
+        }
+        find_fix_holes();
+        compute_direct_graph_quad(
+            m_positions_compact,
+            m_faces_compact,
+            m_V2E_compact,
+            m_E2E_compact,
+            m_boundary_compact,
+            m_non_manifold_compact
         );
     }
-
 }

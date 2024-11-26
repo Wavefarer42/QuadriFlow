@@ -167,6 +167,8 @@ add_executable(
         tests/test_e2e.cpp
         tests/test_sdfn.cpp
         tests/test_mathext.cpp
+        tests/test_smoothing.cpp
+        tests/test_services.cpp
 
         src/dedge.cpp
         src/hierarchy.cpp
@@ -180,7 +182,6 @@ add_executable(
         src/sdfn.cpp
         src/mathext.cpp
         src/smoothing.cpp
-        tests/test_smoothing.cpp
 )
 
 target_link_libraries(
