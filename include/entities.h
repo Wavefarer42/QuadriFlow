@@ -308,7 +308,7 @@ namespace entities {
             return _sdfns[_keys[key]];
         }
 
-        AlignedBox3f bounding_box(const int &idx) {
+        AlignedBox3f bounding_box(const int &idx, const float margin = 1) {
             if (idx >= _models.size()) {
                 throw std::runtime_error("Index out of bounds");
             }
@@ -316,8 +316,8 @@ namespace entities {
             const auto bb = UB::getTightAABB(_models[idx]);
 
             return AlignedBox3f(
-                Vector3f(bb.x.lb, bb.y.lb, bb.z.lb).array().ceil(),
-                Vector3f(bb.x.ub, bb.y.ub, bb.z.ub).array().ceil()
+                Vector3f(bb.x.lb, bb.y.lb, bb.z.lb).array().ceil() - margin,
+                Vector3f(bb.x.ub, bb.y.ub, bb.z.ub).array().ceil() + margin
             );
         }
     };

@@ -129,16 +129,60 @@ TEST(SurfaceNetsSuite, MeshingUnboundBox) {
 TEST(SurfaceNetsSuite, MeshingUnboundBoxComplex) {
     spdlog::set_level(spdlog::level::debug);
 
-    const auto sdfn = bootstrap::Container()
+    auto model = bootstrap::Container()
             .mesh_dao()
-            .load_unbound_model("../tests/resources/box-complex.ubs")[0];
+            .load_unbound_model("../tests/resources/box-complex.ubs");
 
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
     const auto sut = surfacenets::SurfaceNetsMeshStrategy();
-    const entities::Mesh result = sut.mesh(sdfn, resolution, bounds);
+    const entities::Mesh result = sut.mesh(model[0], 100, model.bounding_box(0));
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-complex.ply");
 
     EXPECT_EQ(result.n_vertices(), 6578);
+}
+
+TEST(SurfaceNetsSuite, MeshingUnboundBoxSharpAligned) {
+    spdlog::set_level(spdlog::level::debug);
+
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_unbound_model("../tests/resources/box-sharp-aligned.ubs");
+
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(model[0], 100, model.bounding_box(0));
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-sharp-aligned.ply");
+
+    EXPECT_EQ(result.n_vertices(), 34766);
+}
+
+TEST(SurfaceNetsSuite, MeshingUnboundBoxSharpRoundAligned) {
+    spdlog::set_level(spdlog::level::debug);
+
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_unbound_model("../tests/resources/box-sharp-round-aligned.ubs");
+
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(model[0], 100, model.bounding_box(0));
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-sharp-round-aligned.ply");
+
+    EXPECT_EQ(result.n_vertices(), 56770);
+}
+
+
+TEST(SurfaceNetsSuite, MeshingUnboundBoxSharpRoundRotated) {
+    spdlog::set_level(spdlog::level::debug);
+
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_unbound_model("../tests/resources/box-sharp-round-rotated.ubs");
+
+    const auto sut = surfacenets::SurfaceNetsMeshStrategy();
+    const entities::Mesh result = sut.mesh(model[0], 100, model.bounding_box(0));
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-sharp-round-rotated.ply");
+
+    EXPECT_EQ(result.n_vertices(), 5677);
 }

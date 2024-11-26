@@ -1,8 +1,6 @@
-#include <Eigen/Dense>
 #include <OpenMesh/Tools/Utils/MeshCheckerT.hh>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <tbb/mutex.h>
-#include <tbb/parallel_for.h>
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
@@ -11,24 +9,23 @@
 using namespace Eigen;
 
 namespace surfacenets {
-
     bool is_on_surface(
-            const float distance1,
-            const float distance2
+        const float distance1,
+        const float distance2
     ) {
         return (distance1 < 0 && 0 < distance2) || (distance2 < 0 && 0 < distance1);
     }
 
     bool is_negative_face(
-            const float distance1,
-            const float distance2
+        const float distance1,
+        const float distance2
     ) {
         return distance1 < 0 && 0 < distance2;
     }
 
     AlignedBox3f SurfaceNetsMeshStrategy::estimate_bounding_box(
-            const entities::SDFn &sdfn,
-            int resolution
+        const entities::SDFn &sdfn,
+        int resolution
     ) const {
         spdlog::debug("Estimating bounding box");
         spdlog::stopwatch watch;
@@ -69,8 +66,8 @@ namespace surfacenets {
     }
 
     VectorXi create_face(
-            const VectorXi &face_indices,
-            bool is_negative_face
+        const VectorXi &face_indices,
+        bool is_negative_face
     ) {
         VectorXi face(4);
 
@@ -90,9 +87,8 @@ namespace surfacenets {
     }
 
     Vector3f SurfaceNetsMeshStrategy::estimate_centroid(
-            const VectorXf &distances_corners
+        const VectorXf &distances_corners
     ) const {
-
         int n = 0;
         Vector3f sum = Vector3f::Zero();
         for (int i = 0; i < CUBE_EDGES.rows(); ++i) {
@@ -120,7 +116,6 @@ namespace surfacenets {
     }
 
     MatrixXi create_indices(int resolution) {
-
         spdlog::debug("Creating domain indices");
         spdlog::stopwatch watch;
 
@@ -151,11 +146,10 @@ namespace surfacenets {
     }
 
     MatrixXf scale_to_domain(
-            const MatrixXi &indices,
-            const AlignedBox3f &bounds,
-            const int resolution
+        const MatrixXi &indices,
+        const AlignedBox3f &bounds,
+        const int resolution
     ) {
-
         spdlog::debug("Scaling domain to bounding box and resolution");
         spdlog::stopwatch watch;
 
@@ -178,11 +172,11 @@ namespace surfacenets {
     }
 
     Vector4i gather_face_indices(
-            const Vector3i &vidx,
-            const Vector3i &axis_b,
-            const Vector3i &axis_c,
-            const MatrixXi &indices,
-            const NdToFlatIndexer &linearize
+        const Vector3i &vidx,
+        const Vector3i &axis_b,
+        const Vector3i &axis_c,
+        const MatrixXi &indices,
+        const NdToFlatIndexer &linearize
     ) {
         Vector4i face_indices(4);
         face_indices[0] = indices(linearize(vidx), 3);
@@ -196,10 +190,9 @@ namespace surfacenets {
     }
 
     MatrixXf sample_sdf(
-            const entities::SDFn &sdfn,
-            const MatrixXf &domain
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain
     ) {
-
         spdlog::debug("Sampling signed distance field");
         spdlog::stopwatch watch;
 
@@ -224,12 +217,12 @@ namespace surfacenets {
     }
 
     std::vector<Vector3f> SurfaceNetsMeshStrategy::create_vertices(
-            MatrixXi &indices,
-            const MatrixXf &domain,
-            const MatrixXf &sdf,
-            const int resolution,
-            const AlignedBox3f &bounds,
-            const NdToFlatIndexer &linearize
+        MatrixXi &indices,
+        const MatrixXf &domain,
+        const MatrixXf &sdf,
+        const int resolution,
+        const AlignedBox3f &bounds,
+        const NdToFlatIndexer &linearize
     ) const {
         spdlog::debug("Creating surface vertices");
         spdlog::stopwatch watch;
@@ -240,41 +233,41 @@ namespace surfacenets {
 
         tbb::mutex mtx;
         tbb::parallel_for(
-                tbb::blocked_range<int>(0, static_cast<int>(indices.rows())),
-                [&](const tbb::blocked_range<int> &range) {
-                    for (int i = range.begin(); i < range.end(); ++i) {
-                        if (indices(i, 0) >= resolution
-                            || indices(i, 1) >= resolution
-                            || indices(i, 2) >= resolution) {
-                            continue;
-                        }
+            tbb::blocked_range<int>(0, static_cast<int>(indices.rows())),
+            [&](const tbb::blocked_range<int> &range) {
+                for (int i = range.begin(); i < range.end(); ++i) {
+                    if (indices(i, 0) >= resolution
+                        || indices(i, 1) >= resolution
+                        || indices(i, 2) >= resolution) {
+                        continue;
+                    }
 
-                        const Vector3i corner = indices.row(i).head<3>();
+                    const Vector3i corner = indices.row(i).head<3>();
 
-                        // Get the field at the sample grid corner points
-                        VectorXf distances_corners(CUBE_CORNERS.rows());
-                        for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-                            const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-                            const int idx_flat = linearize(idx_nd);
-                            distances_corners(j) = sdf(idx_flat);
-                        }
+                    // Get the field at the sample grid corner points
+                    VectorXf distances_corners(CUBE_CORNERS.rows());
+                    for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
+                        const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
+                        const int idx_flat = linearize(idx_nd);
+                        distances_corners(j) = sdf(idx_flat);
+                    }
 
-                        auto num_negatives = (distances_corners.array() < 0.0f).count();
-                        if (num_negatives != 0 && num_negatives != 8) {
-                            const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
+                    auto num_negatives = (distances_corners.array() < 0.0f).count();
+                    if (num_negatives != 0 && num_negatives != 8) {
+                        const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
 
-                            const Vector3f position =
-                                    domain_offset + (centroid.array() * domain_scale.array()).matrix();
+                        const Vector3f position =
+                                domain_offset + (centroid.array() * domain_scale.array()).matrix();
 
-                            tbb::mutex::scoped_lock lock(mtx);
+                        tbb::mutex::scoped_lock lock(mtx);
 
-                            vertices.emplace_back(position);
-                            indices(i, 3) = static_cast<int>(vertices.size()) - 1;
+                        vertices.emplace_back(position);
+                        indices(i, 3) = static_cast<int>(vertices.size()) - 1;
 
-                            lock.release();
-                        }
+                        lock.release();
                     }
                 }
+            }
         );
 
         spdlog::debug("Finished creating surface vertices={} ({:.3}s)", vertices.size(), watch);
@@ -291,10 +284,10 @@ namespace surfacenets {
     }
 
     std::vector<Vector4i> SurfaceNetsMeshStrategy::create_faces(
-            const MatrixXi &indices,
-            const MatrixXf &sdf,
-            const int resolution,
-            const NdToFlatIndexer &linearize
+        const MatrixXi &indices,
+        const MatrixXf &sdf,
+        const int resolution,
+        const NdToFlatIndexer &linearize
     ) const {
         spdlog::debug("Creating faces");
         spdlog::stopwatch watch;
@@ -354,10 +347,9 @@ namespace surfacenets {
     }
 
     entities::Mesh finalize_mesh(
-            const std::vector<Vector3f> &vertices,
-            const std::vector<Vector4i> &faces
+        const std::vector<Vector3f> &vertices,
+        const std::vector<Vector4i> &faces
     ) {
-
         spdlog::debug("Creating mesh data structure");
         spdlog::stopwatch watch;
 
@@ -389,16 +381,19 @@ namespace surfacenets {
     }
 
     entities::Mesh SurfaceNetsMeshStrategy::mesh(
-            const entities::SDFn &sdfn,
-            const int resolution,
-            const AlignedBox3f &bounds
+        const entities::SDFn &sdfn,
+        const int resolution,
+        const AlignedBox3f &bounds
     ) const {
-        spdlog::stopwatch watch, watch_total;
+        spdlog::stopwatch watch;
 
-        AlignedBox3f bounds_ = bounds;
-        if (bounds_.volume() == 0) {
-            bounds_ = estimate_bounding_box(sdfn, resolution);
+        if (bounds.volume() == 0.0f) {
+            throw std::invalid_argument("Bounds must have a volume greater than zero");
         }
+
+        spdlog::info("Creating mesh from SDF with resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
+                     resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
+                     bounds.max().y(), bounds.max().z());
 
         MatrixXi indices = create_indices(resolution);
 
@@ -408,13 +403,14 @@ namespace surfacenets {
                    + idx_nd.z() * (resolution + 1) * (resolution + 1);
         };
 
-        const auto domain = scale_to_domain(indices, bounds_, resolution);
+        const auto domain = scale_to_domain(indices, bounds, resolution);
         const auto sdf = sample_sdf(sdfn, domain);
         const auto vertices = create_vertices(indices, domain, sdf, resolution, bounds, linearize);
         const auto faces = create_faces(indices, sdf, resolution, linearize);
         const auto mesh = finalize_mesh(vertices, faces);
 
+        spdlog::debug("Finished creating mesh ({})", watch);
+
         return mesh;
     }
-
 }
