@@ -23,48 +23,6 @@ namespace surfacenets {
         return distance1 < 0 && 0 < distance2;
     }
 
-    AlignedBox3f SurfaceNetsMeshStrategy::estimate_bounding_box(
-        const entities::SDFn &sdfn,
-        int resolution
-    ) const {
-        spdlog::debug("Estimating bounding box");
-        spdlog::stopwatch watch;
-
-        float step_size = 0.5f;
-
-        VectorXf lower_bound = VectorXf::Constant(3, std::numeric_limits<float>::max());
-        VectorXf upper_bound = VectorXf::Constant(3, std::numeric_limits<float>::lowest());
-
-        const int total_points = (2 * resolution + 1) * (2 * resolution + 1) * (2 * resolution + 1);
-
-        MatrixXf domain(total_points, 3);
-        int index = 0;
-        for (int x = -resolution; x <= resolution; ++x) {
-            for (int y = -resolution; y <= resolution; ++y) {
-                for (int z = -resolution; z <= resolution; ++z) {
-                    domain.row(index++) << static_cast<float>(x) * step_size,
-                            static_cast<float>(y) * step_size,
-                            static_cast<float>(z) * step_size;
-                }
-            }
-        }
-
-        const VectorXf distances = sdfn(domain);
-
-        for (int i = 0; i < total_points; ++i) {
-            if (distances[i] <= 0.0f) {
-                lower_bound = lower_bound.array().min(domain.row(i).transpose().array());
-                upper_bound = upper_bound.array().max(domain.row(i).transpose().array());
-            }
-        }
-
-        AlignedBox3f bounds(lower_bound, upper_bound);
-        spdlog::debug("Estimated bounding box: min = ({}, {}, {}), max = ({}, {}, {}), elapsed = {}",
-                      bounds.min().x(), bounds.min().y(), bounds.min().z(),
-                      bounds.max().x(), bounds.max().y(), bounds.max().z(), watch);
-        return bounds;
-    }
-
     VectorXi create_face(
         const VectorXi &face_indices,
         bool is_negative_face
@@ -382,8 +340,8 @@ namespace surfacenets {
 
     entities::Mesh SurfaceNetsMeshStrategy::mesh(
         const entities::SDFn &sdfn,
-        const int resolution,
-        const AlignedBox3f &bounds
+        const AlignedBox3f &bounds,
+        const int resolution
     ) const {
         spdlog::stopwatch watch;
 

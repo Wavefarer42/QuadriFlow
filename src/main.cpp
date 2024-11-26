@@ -9,6 +9,7 @@
 #include "field-math.h"
 
 using namespace services;
+const std::string version = "0.1.0";
 
 entities::CLIArgs read_args(int argc, char **argv) {
     argparse::ArgumentParser program("meshbound");
@@ -43,7 +44,7 @@ entities::CLIArgs read_args(int argc, char **argv) {
             .default_value(100)
             .scan<'i', int>();
 
-    spdlog::info("meshbound \n{}", program.help().str());
+    spdlog::info("meshbound ({})\n{}", version, program.help().str());
 
     int valid_args = 0;
     entities::CLIArgs args;
@@ -117,7 +118,7 @@ int main(int argc, char **argv) {
     if (args.path_in.ends_with(".ubs")) {
         auto model = service.load_unbound_model_from_file(args.path_in);
         if (model.size() > 0) {
-            mesh = service.mesh(model[0], args.resolution);
+            mesh = service.mesh(model[0], args.resolution, model.bounding_box(0));
         } else {
             spdlog::warn("The given Unbound collection does not contain any models.");
             return 2;

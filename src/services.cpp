@@ -602,7 +602,7 @@ namespace services {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
         surfacenets::SurfaceNetsMeshStrategy strategy;
-        return strategy.mesh(sdfn, resolution, bounds);
+        return strategy.mesh(sdfn, bounds, resolution);
     }
 
     Parametrizer MeshService::remesh(

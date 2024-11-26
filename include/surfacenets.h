@@ -12,14 +12,8 @@ namespace surfacenets {
         [[nodiscard]]
         entities::Mesh mesh(
                 const entities::SDFn &sdfn,
-                int resolution = 32,
-                const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
-        ) const;
-
-        [[nodiscard]]
-        AlignedBox3f estimate_bounding_box(
-                const entities::SDFn &sdfn,
-                int resolution
+                const AlignedBox3f &bounds,
+                int resolution = 100
         ) const;
 
     private:
