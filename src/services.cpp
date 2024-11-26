@@ -10,7 +10,6 @@
 #include "adapters.h"
 #include "surfacenets.h"
 #include "sdfn.h"
-#include "mathext.h"
 
 namespace services {
     // IO
@@ -347,7 +346,7 @@ namespace services {
 
     // Conversions
 
-    entities::Mesh MeshService::to_trimesh(
+    entities::Mesh MeshService::remesh_to_trimesh(
         entities::Mesh &mesh
     ) const {
         spdlog::info("Converting mesh to triangle mesh vertices={} faces={}", mesh.n_vertices(), mesh.n_faces());
@@ -381,223 +380,12 @@ namespace services {
         return mesh;
     }
 
-    // Fields
-
-    VectorXf MeshService::create_laplacian_angle_field(
-        const entities::SDFn &sdfn,
-        entities::Mesh &mesh
-    ) const {
-        VectorXf divergences(mesh.n_vertices());
-
-        tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
-            entities::Mesh::VertexHandle it_vertex(idx);
-
-            const auto centroids = mathext::face_centroids_ring(mesh, it_vertex);
-            const auto face_normals = sdfn::normal_of(sdfn, centroids);
-
-            MatrixXf angles = face_normals * face_normals.transpose();
-            angles = mathext::clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
-
-            divergences[idx] = angles.maxCoeff();
-        });
-
-#ifdef DEV_DEBUG
-        entities::Mesh mesh_face_normals;
-
-        mesh_face_normals.request_vertex_normals();
-        for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-            const auto centroid = mathext::face_centroid(mesh, *it);
-
-            const OpenMesh::VertexHandle vh = mesh_face_normals.add_vertex(
-                entities::Mesh::Point(centroid[0], centroid[1], centroid[2])
-            );
-            Vector3f normal = sdfn::normal_of(sdfn, centroid.matrix().transpose()).row(0);
-            mesh_face_normals.set_normal(vh, entities::Mesh::Normal(normal[0], normal[1], normal[2]));
-        }
-
-        assert(mesh_face_normals.has_vertex_normals());
-
-        OpenMesh::IO::Options options;
-        options += OpenMesh::IO::Options::VertexNormal;
-        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/laplacian-angle-field--face-normals.ply", options);
-
-#endif
-
-        return divergences;
-    }
-
-    // Smoothing
-
-    entities::Mesh MeshService::smoothing_surface_snapping(
-        const entities::SDFn &sdfn,
-        entities::Mesh &mesh,
-        const int iterations,
-        const float rate
-    ) const {
-        spdlog::info("Smoothing mesh with SDFn gradient. iterations={}, rate={}", iterations, rate);
-        spdlog::stopwatch watch;
-
-        auto vertices = MatrixXf(mesh.n_vertices(), 3);
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
-            auto point = mesh.point(entities::Mesh::VertexHandle(i));
-            vertices.row(i) = Vector3f(point[0], point[1], point[2]);
-        }
-
-        const float error_before = sdfn(vertices).cwiseAbs().sum();
-
-        for (int i = 0; i < iterations; ++i) {
-            spdlog::debug("Surface Smoothing iteration {}/{}", i, iterations);
-
-            const MatrixXf direction = sdfn::gradient_of(sdfn, vertices);
-            const VectorXf scale = sdfn(vertices) * rate;
-            const MatrixXf update = direction.array().colwise() * scale.array();
-
-            vertices -= update;
-        }
-
-        const float error_after = sdfn(vertices).cwiseAbs().sum();
-
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
-            mesh.set_point(
-                entities::Mesh::VertexHandle(i),
-                entities::Mesh::Point(
-                    vertices(i, 0),
-                    vertices(i, 1),
-                    vertices(i, 2)
-                )
-            );
-        }
-
-        spdlog::debug("Finished smoothing mesh with SDFn gradient distances before={} after={} ({:.3}s)",
-                      error_before, error_after, watch);
-
-#ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_surface_snapping.ply");
-#endif
-
-        return mesh;
-    }
-
-    entities::Mesh MeshService::smoothing_edge_snapping(
-        const entities::SDFn &sdfn,
-        entities::Mesh &mesh,
-        const int iterations,
-        const float threshold_angle,
-        const float max_error
-    ) const {
-        spdlog::info("Smoothing mesh by snapping vertices to edges.");
-        spdlog::stopwatch watch;
-
-        for (int iteration = 0; iteration < iterations; ++iteration) {
-            const auto field = create_laplacian_angle_field(sdfn, mesh);
-
-            MatrixXf vertices_smoothed(mesh.n_vertices(), 3);
-
-            int i = 0;
-            for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
-                const auto point = mesh.point(*it_v);
-                const auto vertex = Vector3f(point[0], point[1], point[2]);
-                vertices_smoothed.row(i) = vertex;
-
-                if (field[i] > threshold_angle) {
-                    const auto centroids = mathext::face_centroids_ring(mesh, *it_v);
-                    const auto face_normals = sdfn::normal_of(sdfn, centroids);
-                    const auto xerr = mathext::intersect_planes(centroids, face_normals);
-
-                    if (xerr[3] < max_error) {
-                        // TODO: Check if new location is outside neighborhood
-                        vertices_smoothed.row(i) = xerr.head<3>();
-                    }
-                }
-
-                i++;
-            }
-
-            // FIXME: Remove once eigen is used as storage
-            for (int i = 0; i < mesh.n_vertices(); ++i) {
-                mesh.set_point(
-                    entities::Mesh::VertexHandle(i),
-                    entities::Mesh::Point(
-                        vertices_smoothed(i, 0),
-                        vertices_smoothed(i, 1),
-                        vertices_smoothed(i, 2)
-                    )
-                );
-            }
-        }
-
-        spdlog::debug("Finished smoothing mesh by snapping vertices to edges ({:.3}s)", watch);
-
-#ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_edge_snapping.ply");
-#endif
-
-        return mesh;
-    }
-
-    entities::Mesh MeshService::smoothing_laplacian_sdf_projection(
-        const entities::SDFn &sdfn,
-        entities::Mesh &mesh,
-        const int iterations
-    ) const {
-        spdlog::info("Smoothing mesh by laplacian smoothing with SDFn projection.");
-        spdlog::stopwatch watch;
-
-        auto vertices = MatrixXf(mesh.n_vertices(), 3);
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
-            auto point = mesh.point(entities::Mesh::VertexHandle(i));
-            vertices.row(i) = Vector3f(point[0], point[1], point[2]);
-        }
-
-        for (auto iteration = 0; iteration < iterations; ++iteration) {
-            spdlog::trace("Laplacian SDFn projection iteration {}/{}", iteration, iterations);
-
-            for (auto idx_v = 0; idx_v < vertices.rows(); ++idx_v) {
-                int support = 0;
-                auto laplacian = MatrixXf(1, 3);
-                laplacian.setZero();
-
-                for (auto it_vv = mesh.vv_iter(OpenMesh::VertexHandle(idx_v)); it_vv.is_valid(); ++it_vv) {
-                    const auto p = mesh.point(*it_vv);
-                    laplacian.row(0) += Vector3f(p[0], p[1], p[2]);
-                    support++;
-                }
-
-                laplacian.row(0).array() /= static_cast<float>(support);
-
-                // Projection
-                const VectorXf distance = sdfn(laplacian);
-                const MatrixXf normal = sdfn::normal_of(sdfn, laplacian);
-                vertices.row(idx_v) = laplacian - distance * normal;
-            }
-        }
-
-        // Update mesh
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
-            mesh.set_point(
-                entities::Mesh::VertexHandle(i),
-                entities::Mesh::Point(
-                    vertices(i, 0),
-                    vertices(i, 1),
-                    vertices(i, 2)
-                )
-            );
-        }
-
-        spdlog::debug("Finished smoothing mesh by laplacian SDFn projection ({:.3}s)", watch);
-#ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing-laplacian-SDFn-projection.ply");
-#endif
-
-        return mesh;
-    }
-
     // Top level
 
-    entities::Mesh MeshService::mesh(
+    entities::Mesh MeshService::mesh_to_irregular_quadmesh(
         const entities::SDFn &sdfn,
-        const int resolution,
-        const AlignedBox3f &bounds
+        const AlignedBox3f &bounds,
+        const int resolution
     ) const {
         spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
 
@@ -605,7 +393,7 @@ namespace services {
         return strategy.mesh(sdfn, bounds, resolution);
     }
 
-    Parametrizer MeshService::remesh(
+    Parametrizer MeshService::remesh_to_regular_quadmesh(
         const entities::Mesh &mesh,
         const int face_count,
         const bool preserve_edges,
@@ -613,14 +401,13 @@ namespace services {
         const bool use_adaptive_meshing
     ) const {
         assert(is_trimesh(mesh));
+        spdlog::stopwatch watch;
 
         Parametrizer field;
         spdlog::info("Re-meshing mesh with {} target faces", face_count);
 
-        spdlog::stopwatch watch;
 
-        spdlog::info("Initializing parameters");
-        spdlog::debug("Re-meshing mesh with vertices={}, faces={}", mesh.n_vertices(), mesh.n_faces());
+        spdlog::debug("Re-meshing of vertices={}, faces={}", mesh.n_vertices(), mesh.n_faces());
 
         adapters::initialize_parameterizer(field, mesh);
         field.initialize_parameterizer(

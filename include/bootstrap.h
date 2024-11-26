@@ -8,7 +8,9 @@ namespace bootstrap {
     class Container {
     public:
         Container() {
+#ifdef DEV_DEBUG
             spdlog::set_level(spdlog::level::debug);
+#endif
         }
 
         persistence::MeshDao &mesh_dao();

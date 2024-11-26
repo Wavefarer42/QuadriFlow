@@ -5,18 +5,15 @@
 #include "sdfn.h"
 #include "bootstrap.h"
 #include "mathext.h"
+#include "smoothing.h"
 
 using namespace Eigen;
 
 TEST(MeshServiceSuite, to_trimesh) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
     auto mesh = service.load_mesh("../tests/resources/sphere.ply");
 
-    const auto result = service.to_trimesh(mesh);
+    const auto result = service.remesh_to_trimesh(mesh);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/sphere-to_trimesh.ply");
 
@@ -24,31 +21,20 @@ TEST(MeshServiceSuite, to_trimesh) {
 }
 
 TEST(MeshServiceSuite, GradientSmoothingBoxComplex) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
-    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
 
-    auto mesh = service.mesh(sdfn, resolution, bounds);
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
 
-    const auto result = service.smoothing_surface_snapping(sdfn, mesh, 10);
+    const auto result = smoothing::sdfn_projection(model[0], mesh, 10);
 }
 
 TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
 
-    const int resolution = 100;
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
-    auto mesh = service.mesh(sdfn::box, resolution, bounds);
-    const VectorXf field = service.create_laplacian_angle_field(sdfn::box, mesh);
+    auto mesh = service.mesh_to_irregular_quadmesh(sdfn::box, bounds);
+    const VectorXf field = smoothing::laplacian_angular_field(sdfn::box, mesh);
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
 
@@ -69,17 +55,11 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
 }
 
 TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
-    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
 
-    auto mesh = service.mesh(sdfn, resolution, bounds);
-    const VectorXf field = service.create_laplacian_angle_field(sdfn, mesh);
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    const VectorXf field = smoothing::laplacian_angular_field(model[0], mesh);
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
 
@@ -100,49 +80,31 @@ TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
 }
 
 TEST(MeshServiceSuite, SmoothingEdgeSnappingUnboundBox) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
-    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box.ubs")[0];
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    auto model = service.load_unbound_model_from_file("../tests/resources/box.ubs");
 
-    auto mesh = service.mesh(sdfn, resolution, bounds);
-    const auto result = service.smoothing_edge_snapping(sdfn, mesh, 3);
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    const auto result = smoothing::edge_snapping(model[0], mesh, 3);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-smoothing_edge_snapping.ply");
 }
 
 TEST(MeshServiceSuite, SmoothingEdgeSnappingUnboundBoxComplex) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
-    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
 
-    auto mesh = service.mesh(sdfn, resolution, bounds);
-    const auto result = service.smoothing_edge_snapping(sdfn, mesh, 1);
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    const auto result = smoothing::edge_snapping(model[0], mesh, 1);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-complex-smoothing_edge_snapping.ply");
 }
 
 TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxComplex) {
-#ifdef DEV_DEBUG
-    spdlog::set_level(spdlog::level::debug);
-#endif
-
     const auto service = bootstrap::Container().mesh_service();
-    const auto sdfn = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs")[0];
-    const int resolution = 100;
-    const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
 
-    auto mesh = service.mesh(sdfn, resolution, bounds);
-    const auto result = service.smoothing_laplacian_sdf_projection(sdfn, mesh, 10);
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    const auto result = smoothing::laplacian_with_sdfn_projection(model[0], mesh, 10);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/smoothing-laplacian-sdfn-projection-box-complex.ply");
 }

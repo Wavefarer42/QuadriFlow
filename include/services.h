@@ -275,12 +275,6 @@ namespace services {
             const entities::Mesh &mesh
         ) const;
 
-        // Conversion
-
-        entities::Mesh to_trimesh(
-            entities::Mesh &mesh
-        ) const;
-
         // Quadriflow
 
         static void set_boundary_constraints(Hierarchy &hierarchy);
@@ -298,50 +292,25 @@ namespace services {
             MatrixXd &normals_faces
         );
 
-        // Smoothing and Snapping
+        // Meshing
 
-        entities::Mesh smoothing_surface_snapping(
+        entities::Mesh mesh_to_irregular_quadmesh(
             const entities::SDFn &sdfn,
-            entities::Mesh &mesh,
-            const int iterations = 3,
-            const float rate = 0.1
+            const AlignedBox3f &bounds,
+            const int resolution = 100
         ) const;
 
-        entities::Mesh smoothing_edge_snapping(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh,
-            const int iterations = 3,
-            const float threshold_angle = 30,
-            const float max_error = 1e-1
-        ) const;
-
-        entities::Mesh smoothing_laplacian_sdf_projection(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh,
-            const int iterations
-        ) const;
-
-        // Fields
-
-        VectorXf create_laplacian_angle_field(
-            const entities::SDFn &sdfn,
-            entities::Mesh &mesh
-        ) const;
-
-        // Top level
-
-        entities::Mesh mesh(
-            const entities::SDFn &sdfn,
-            const int resolution = 100,
-            const AlignedBox3f &bounds = AlignedBox3f(Vector3f(0, 0, 0), Vector3f(0, 0, 0))
-        ) const;
-
-        Parametrizer remesh(
+        // Re-meshing
+        Parametrizer remesh_to_regular_quadmesh(
             const entities::Mesh &mesh,
             const int face_count = 10000,
             const bool preserve_edges = false,
             const bool preserve_boundaries = false,
             const bool use_adaptive_meshing = false
+        ) const;
+
+        entities::Mesh remesh_to_trimesh(
+            entities::Mesh &mesh
         ) const;
 
     private:

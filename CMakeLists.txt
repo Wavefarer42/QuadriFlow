@@ -130,6 +130,7 @@ add_executable(
         src/surfacenets.cpp
         src/sdfn.cpp
         src/mathext.cpp
+        src/smoothing.cpp
 )
 
 target_link_libraries(
@@ -164,7 +165,6 @@ add_executable(
         tests/test_libraries.cpp
         tests/test_surfacenets.cpp
         tests/test_e2e.cpp
-        tests/test_services.cpp
         tests/test_sdfn.cpp
         tests/test_mathext.cpp
 
@@ -179,6 +179,8 @@ add_executable(
         src/surfacenets.cpp
         src/sdfn.cpp
         src/mathext.cpp
+        src/smoothing.cpp
+        tests/test_smoothing.cpp
 )
 
 target_link_libraries(

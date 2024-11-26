@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
     if (args.path_in.ends_with(".ubs")) {
         auto model = service.load_unbound_model_from_file(args.path_in);
         if (model.size() > 0) {
-            mesh = service.mesh(model[0], args.resolution, model.bounding_box(0));
+            mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0), args.resolution);
         } else {
             spdlog::warn("The given Unbound collection does not contain any models.");
             return 2;
@@ -127,9 +127,9 @@ int main(int argc, char **argv) {
         mesh = service.load_mesh(args.path_in);
     }
 
-    service.to_trimesh(mesh);
+    service.remesh_to_trimesh(mesh);
 
-    auto field = service.remesh(
+    auto field = service.remesh_to_regular_quadmesh(
         mesh,
         args.face_count,
         args.preserve_edges,

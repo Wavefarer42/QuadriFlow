@@ -6,6 +6,8 @@ namespace adapters {
     using namespace Eigen;
 
     void initialize_parameterizer(services::Parametrizer &field, entities::Mesh mesh) {
+        spdlog::debug("Initializing parameters");
+
         field.m_vertices = MatrixXd(3, mesh.n_vertices());
         for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
             auto idx = (*it_v).idx();
