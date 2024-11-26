@@ -30,7 +30,7 @@ namespace services {
         int n_triangles = 0;
         int n_non_triangles = 0;
         for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(it_f) == 3) {
+            if (mesh.valence(*it_f) == 3) {
                 n_triangles++;
             } else {
                 n_non_triangles++;
@@ -356,17 +356,17 @@ namespace services {
 
         mesh.request_face_status();
         for (entities::Mesh::FaceIter it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(it_f) == 3) continue;
+            if (mesh.valence(*it_f) == 3) continue;
 
-            if (mesh.valence(it_f) == 4) {
+            if (mesh.valence(*it_f) == 4) {
                 // quad
-                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(it_f);
+                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(*it_f);
                 auto v0 = *fv_it;
                 auto v1 = *(++fv_it);
                 auto v2 = *(++fv_it);
                 auto v3 = *(++fv_it);
 
-                mesh.delete_face(it_f, false);
+                mesh.delete_face(*it_f, false);
                 mesh.add_face(v0, v1, v2);
                 mesh.add_face(v0, v2, v3);
             } else {
@@ -406,7 +406,7 @@ namespace services {
 
         mesh_face_normals.request_vertex_normals();
         for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-            const auto centroid = mathext::face_centroid(mesh, it);
+            const auto centroid = mathext::face_centroid(mesh, *it);
 
             const OpenMesh::VertexHandle vh = mesh_face_normals.add_vertex(
                 entities::Mesh::Point(centroid[0], centroid[1], centroid[2])
@@ -495,12 +495,12 @@ namespace services {
 
             int i = 0;
             for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
-                const auto point = mesh.point(it_v);
+                const auto point = mesh.point(*it_v);
                 const auto vertex = Vector3f(point[0], point[1], point[2]);
                 vertices_smoothed.row(i) = vertex;
 
                 if (field[i] > threshold_angle) {
-                    const auto centroids = mathext::face_centroids_ring(mesh, it_v);
+                    const auto centroids = mathext::face_centroids_ring(mesh, *it_v);
                     const auto face_normals = sdfn::normal_of(sdfn, centroids);
                     const auto xerr = mathext::intersect_planes(centroids, face_normals);
 
@@ -558,7 +558,7 @@ namespace services {
                 laplacian.setZero();
 
                 for (auto it_vv = mesh.vv_iter(OpenMesh::VertexHandle(idx_v)); it_vv.is_valid(); ++it_vv) {
-                    const auto p = mesh.point(it_vv);
+                    const auto p = mesh.point(*it_vv);
                     laplacian.row(0) += Vector3f(p[0], p[1], p[2]);
                     support++;
                 }

@@ -1,4 +1,3 @@
-#include <format>
 #include <filesystem>
 
 #include <argparse/argparse.hpp>
@@ -12,7 +11,6 @@
 using namespace services;
 
 entities::CLIArgs read_args(int argc, char **argv) {
-
     argparse::ArgumentParser program("meshbound");
     program.add_argument("--input")
             .help("Input mesh file [obj, ply, ubs]")
@@ -62,10 +60,11 @@ entities::CLIArgs read_args(int argc, char **argv) {
 
         if (std::filesystem::exists(args.path_in)
             && (args.path_in.ends_with(".obj")
-                || args.path_in.ends_with(".ply"))) {
+                || args.path_in.ends_with(".ply")
+                || args.path_in.ends_with(".ubs"))) {
             valid_args++;
         } else {
-            spdlog::error("Input file must exist and be .obj or .ply");
+            spdlog::error("Input file must exist and be .obj, .ply, or .ubs");
         }
 
         if (args.path_out.ends_with(".obj") || args.path_out.ends_with(".ply")) {
@@ -91,7 +90,6 @@ entities::CLIArgs read_args(int argc, char **argv) {
         } else {
             spdlog::error("Resolution must be greater than 0");
         }
-
     } catch (const std::runtime_error &err) {
         spdlog::error("Error parsing arguments: {}", err.what());
     }
@@ -107,6 +105,8 @@ entities::CLIArgs read_args(int argc, char **argv) {
 
 
 int main(int argc, char **argv) {
+    spdlog::stopwatch watch_total;
+
     const auto args = read_args(argc, argv);
     if (!args.is_valid) return 1;
 
@@ -115,22 +115,25 @@ int main(int argc, char **argv) {
 
     entities::Mesh mesh;
     if (args.path_in.ends_with(".ubs")) {
-        const auto model = service.load_unbound_model_from_file(args.path_in);
-        mesh = service.mesh(model.sdfn_as_list()[0], args.resolution);
+        auto model = service.load_unbound_model_from_file(args.path_in);
+        if (model.size() > 0) {
+            mesh = service.mesh(model[0], args.resolution);
+        } else {
+            spdlog::warn("The given Unbound collection does not contain any models.");
+            return 2;
+        }
     } else {
         mesh = service.load_mesh(args.path_in);
     }
 
     service.to_trimesh(mesh);
 
-    spdlog::stopwatch watch_total;
-
     auto field = service.remesh(
-            mesh,
-            args.face_count,
-            args.preserve_edges,
-            args.preserve_boundaries,
-            args.use_adaptive_meshing
+        mesh,
+        args.face_count,
+        args.preserve_edges,
+        args.preserve_boundaries,
+        args.use_adaptive_meshing
     );
 
     service.save_mesh(args.path_out, field);

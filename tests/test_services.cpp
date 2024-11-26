@@ -54,13 +54,13 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
 
     mesh.request_face_status();
     for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-        mesh.delete_face(it, false);
+        mesh.delete_face(*it, false);
     }
 
     mesh.request_vertex_status();
     for (auto it = mesh.vertices_begin(); it != mesh.vertices_end(); ++it) {
         if (field[it->idx()] < 30) {
-            mesh.delete_vertex(it, false);
+            mesh.delete_vertex(*it, false);
         }
     }
 
@@ -85,13 +85,13 @@ TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
 
     mesh.request_face_status();
     for (auto it = mesh.faces_begin(); it != mesh.faces_end(); ++it) {
-        mesh.delete_face(it, false);
+        mesh.delete_face(*it, false);
     }
 
     mesh.request_vertex_status();
     for (auto it = mesh.vertices_begin(); it != mesh.vertices_end(); ++it) {
         if (field[it->idx()] < 30) {
-            mesh.delete_vertex(it, false);
+            mesh.delete_vertex(*it, false);
         }
     }
 
@@ -142,7 +142,7 @@ TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxComplex) {
     const AlignedBox3f bounds(Vector3f(-200, -200, -200), Vector3f(200, 200, 200));
 
     auto mesh = service.mesh(sdfn, resolution, bounds);
-    const auto result = service.smoothing_laplacian_sdf_projection(sdfn, mesh, 3);
+    const auto result = service.smoothing_laplacian_sdf_projection(sdfn, mesh, 10);
 
     OpenMesh::IO::write_mesh(result, "../tests/out/smoothing-laplacian-sdfn-projection-box-complex.ply");
 }

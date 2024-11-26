@@ -237,17 +237,18 @@ namespace entities {
     typedef std::function<VectorXf(MatrixXf)> SDFn;
 
     class UnboundModel {
-    private:
         const UB::Collection _collection;
+        std::vector<UB::InstructionList> _models;
         std::map<std::string, SDFn> _sdfns;
         std::vector<std::string> _keys;
 
     public:
         explicit UnboundModel(UB::Collection collection)
             : _collection(collection) {
+            _models.resize(collection.models.size());
             _keys.resize(collection.models.size());
 
-            int idx_keys = 0;
+            int idx = 0;
             for (auto const &[id_model, model]: collection.models) {
                 UB::InstructionList evalList;
                 UB::compileEditList(model.editList, evalList);
@@ -267,8 +268,10 @@ namespace entities {
                     return distances;
                 };
 
+                _models[idx] = evalList;
                 _sdfns[uuids::to_string(id_model)] = sampler;
-                _keys[idx_keys++] = uuids::to_string(id_model);
+                _keys[idx] = uuids::to_string(id_model);
+                idx++;
             }
         }
 
@@ -303,6 +306,19 @@ namespace entities {
         SDFn &operator[](const int &key) {
             assert(key < _keys.size());
             return _sdfns[_keys[key]];
+        }
+
+        AlignedBox3f bounding_box(const int &idx) {
+            if (idx >= _models.size()) {
+                throw std::runtime_error("Index out of bounds");
+            }
+
+            const auto bb = UB::getTightAABB(_models[idx]);
+
+            return AlignedBox3f(
+                Vector3f(bb.x.lb, bb.y.lb, bb.z.lb).array().ceil(),
+                Vector3f(bb.x.ub, bb.y.ub, bb.z.ub).array().ceil()
+            );
         }
     };
 }

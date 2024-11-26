@@ -1,11 +1,10 @@
 #include "mathext.h"
 
 namespace mathext {
-
     MatrixXf clip(
-            const MatrixXf &mat,
-            float minVal,
-            float maxVal
+        const MatrixXf &mat,
+        float minVal,
+        float maxVal
     ) {
         return mat.unaryExpr([minVal, maxVal](float val) {
             return std::min(std::max(val, minVal), maxVal);
@@ -53,18 +52,17 @@ namespace mathext {
 
     // Mesh math
     Vector3f face_centroid(
-            entities::Mesh &mesh,
-            const entities::Mesh::FaceHandle &face
+        entities::Mesh &mesh,
+        const entities::Mesh::FaceHandle &face
     ) {
-
         int total = 0;
         Vector3f centroid = Vector3f::Zero();
         for (auto it_face_vertex = mesh.fv_iter(face);
              it_face_vertex.is_valid(); ++it_face_vertex) {
-            const auto p = mesh.point(it_face_vertex);
+            const auto p = mesh.point(*it_face_vertex);
             centroid += Vector3f(p[0], p[1], p[2]);
             total++;
-             }
+        }
 
         centroid /= total;
 
@@ -72,13 +70,13 @@ namespace mathext {
     }
 
     MatrixXf face_centroids_ring(
-            entities::Mesh &mesh,
-            const entities::Mesh::VertexHandle vertex
+        entities::Mesh &mesh,
+        const entities::Mesh::VertexHandle vertex
     ) {
         std::vector<Vector3f> centroids_list;
         for (auto it_face = mesh.vf_iter(vertex);
              it_face.is_valid(); ++it_face) {
-            const auto centroid = face_centroid(mesh, it_face);
+            const auto centroid = face_centroid(mesh, *it_face);
             centroids_list.push_back(centroid);
         }
 
@@ -91,7 +89,7 @@ namespace mathext {
     }
 
     MatrixXf count_unique(
-            const MatrixXf &mat
+        const MatrixXf &mat
     ) {
         // Create an unordered map to store unique elements and their counts
         std::map<float, int> elementCounts;
@@ -110,8 +108,8 @@ namespace mathext {
         // Fill the matrix with unique elements and their counts
         int index = 0;
         for (const auto &[element, count]: elementCounts) {
-            uniqueElementsWithCounts(index, 0) = element;   // Unique element
-            uniqueElementsWithCounts(index, 1) = count;  // Count of that element
+            uniqueElementsWithCounts(index, 0) = element; // Unique element
+            uniqueElementsWithCounts(index, 1) = count; // Count of that element
             index++;
         }
 
@@ -119,9 +117,9 @@ namespace mathext {
     }
 
     Vector4f intersect_planes(
-    const MatrixXf &vertices,
-    const MatrixXf &normals
-) {
+        const MatrixXf &vertices,
+        const MatrixXf &normals
+    ) {
         const auto svd_vmul_sym = [](MatrixXf a, VectorXf v) {
             return Vector3f{
                 a.row(0).dot(v),
@@ -157,6 +155,5 @@ namespace mathext {
 
         return {x[0], x[1], x[2], error};
     }
-
 
 }
