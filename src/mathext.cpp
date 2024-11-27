@@ -156,4 +156,28 @@ namespace mathext {
         return {x[0], x[1], x[2], error};
     }
 
+    std::tuple<MatrixXd, double, Vector3d> normalize(
+        const MatrixXd &vertices_c
+    ) {
+        const Vector3d upper = vertices_c.rowwise().maxCoeff();
+        const Vector3d lower = vertices_c.rowwise().minCoeff();
+
+        const double scale = (upper - lower).maxCoeff() * 0.5;
+        const Vector3d offset = (upper + lower) * 0.5;
+        const MatrixXd vertices_scaled = (vertices_c.array().colwise() - offset.array()) / scale;
+
+        return std::make_tuple(
+            vertices_scaled,
+            scale,
+            offset
+        );
+    }
+
+    MatrixXd denormalize(
+        const MatrixXd &vertices_c,
+        const double scale,
+        const Vector3d &offset
+    ) {
+        return (vertices_c.array() * scale).colwise() + offset.array();
+    }
 }

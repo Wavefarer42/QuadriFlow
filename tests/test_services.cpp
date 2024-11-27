@@ -38,3 +38,4 @@ TEST(MeshingSuite, RemeshSharpEdgesBoxComplex) {
     service.save_mesh("../tests/out/box-complex-remesh-base.obj", field_base);
     service.save_mesh("../tests/out/box-complex-remesh-edges.obj", field_edges);
 }
+

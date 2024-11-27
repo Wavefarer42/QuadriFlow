@@ -141,11 +141,6 @@ namespace services {
 
         // Mesh Initialization
 
-        /**
-         * Rescale and center the mesh to bounding box.
-         * TODO : Use the bounding box from the field.
-         */
-        void normalize_mesh();
 
         /**
          * Analyzes mesh basic topological statistics such as, surface area, average edge length, max edge length.

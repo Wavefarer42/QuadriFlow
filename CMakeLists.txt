@@ -169,6 +169,7 @@ add_executable(
         tests/test_mathext.cpp
         tests/test_smoothing.cpp
         tests/test_services.cpp
+        tests/test_migration.cpp
 
         src/dedge.cpp
         src/hierarchy.cpp

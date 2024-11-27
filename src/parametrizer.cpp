@@ -4,12 +4,11 @@
 #include <set>
 #include <random>
 
-#include <Eigen/Sparse>
-
 #include "services.h"
 #include "field-math.h"
 #include "optimizer.h"
 #include "dedge.h"
+#include "mathext.h"
 #include "smoothing.h"
 #include "spdlog/spdlog.h"
 
@@ -588,7 +587,10 @@ namespace services {
         std::optional<std::reference_wrapper<entities::SDFn> > sdfn
     ) {
         m_hierarchy.clearConstraints();
-        normalize_mesh();
+
+        auto [vertices, scale, offset] = mathext::normalize(m_vertices);
+        m_vertices = vertices;
+
         analyze_mesh();
 
         // initialize m_rho
@@ -660,28 +662,6 @@ namespace services {
         m_hierarchy.m_E2E = std::move(m_E2E);
         m_hierarchy.m_faces = std::move(m_faces);
         m_hierarchy.Initialize(m_scale, with_scale);
-    }
-
-    void Parametrizer::normalize_mesh() {
-        double maxV[3] = {-1e30, -1e30, -1e30};
-        double minV[3] = {1e30, 1e30, 1e30};
-
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                maxV[j] = std::max(maxV[j], m_vertices(j, i));
-                minV[j] = std::min(minV[j], m_vertices(j, i));
-            }
-        }
-        double scale = std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                m_vertices(j, i) = (m_vertices(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
-            }
-        }
-        this->m_normalize_scale = scale;
-        this->m_normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]),
-                                            0.5 * (maxV[1] + minV[1]),
-                                            0.5 * (maxV[2] + minV[2]));
     }
 
     void Parametrizer::analyze_mesh() {

@@ -6,6 +6,7 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include "bootstrap.h"
 #include "mathext.h"
 
 using namespace Eigen;
@@ -140,4 +141,19 @@ TEST(SVDSuite, ComparisonExamples) {
     std::cout << "Difference:\n" << result.block<10, 3>(0, 0) - result.block<10, 3>(0, 3) << std::endl;
 
     ASSERT_TRUE(result.block(0, 0, result.rows(), 3).isApprox(result.block(0, 3, result.rows(), 3), 1e-1));
+}
+
+TEST(MathExtensions, NormalizeAndDenormalize) {
+    const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
+
+    MatrixXd vertices(3, mesh.n_vertices());
+    for (int i = 0; i < mesh.n_vertices(); ++i) {
+        auto v = mesh.point(entities::Mesh::VertexHandle(i));
+        vertices.col(i) = Vector3d(v[0], v[1], v[2]);
+    }
+
+    const auto [vertices_norm, scale, offset] = mathext::normalize(vertices);
+    const MatrixXd vertices_back = mathext::denormalize(vertices_norm, scale, offset);
+
+    EXPECT_TRUE(vertices.isApprox(vertices_back, 1e-6));
 }
