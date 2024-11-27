@@ -262,11 +262,6 @@ namespace services {
 
         void save_mesh(
             const std::string &filename,
-            const Parametrizer &field
-        ) const;
-
-        void save_mesh(
-            const std::string &filename,
             const entities::Mesh &mesh
         ) const;
 
@@ -304,7 +299,7 @@ namespace services {
         ) const;
 
         // Re-meshing
-        Parametrizer remesh_to_regular_quadmesh(
+        entities::Mesh remesh_to_regular_quadmesh(
             const entities::Mesh &mesh,
             const int face_count = 10000,
             const bool preserve_edges = false,

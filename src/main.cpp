@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
 
     service.remesh_to_trimesh(mesh);
 
-    services::Parametrizer field = service.remesh_to_regular_quadmesh(
+    entities::Mesh remesh = service.remesh_to_regular_quadmesh(
         mesh,
         args.face_count,
         args.preserve_edges,
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
         model_opt
     );
 
-    service.save_mesh(args.path_out, adapters::from_parametrizer_to_quad_mesh(field));
+    service.save_mesh(args.path_out, remesh);
 
     spdlog::info("Finished generating mesh ({:.3}s)", watch_total);
     return 0;

@@ -89,6 +89,8 @@ namespace services {
             }
         }
 
+        spdlog::debug("Subdividing {} edges to length {}", queue.size(), maxLength);
+
         int nV = V.cols(), nF = F.cols(), nSplit = 0;
         /*
         /   v0  \

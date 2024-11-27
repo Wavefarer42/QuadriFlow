@@ -52,26 +52,6 @@ namespace services {
 
     void MeshService::save_mesh(
         const std::string &filename,
-        const Parametrizer &field
-    ) const {
-        spdlog::info("Saving mesh to file {}", filename);
-
-        std::ofstream os(filename);
-        for (int i = 0; i < field.m_positions_compact.size(); ++i) {
-            auto t = field.m_positions_compact[i] * field.m_normalize_scale + field.m_normalize_offset;
-            os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
-        }
-        for (auto &i: field.m_faces_compact) {
-            os << "f " << i[0] + 1 << " " << i[1] + 1 << " "
-                    << i[2] + 1 << " " << i[3] + 1 << "\n";
-        }
-        os.close();
-
-
-    }
-
-    void MeshService::save_mesh(
-        const std::string &filename,
         const entities::Mesh &mesh
     ) const {
         spdlog::info("Saving mesh to file {}", filename);
@@ -364,7 +344,7 @@ namespace services {
     }
 
 
-    Parametrizer MeshService::remesh_to_regular_quadmesh(
+    entities::Mesh MeshService::remesh_to_regular_quadmesh(
         const entities::Mesh &mesh,
         const int face_count,
         const bool preserve_edges,
@@ -444,6 +424,6 @@ namespace services {
 
         spdlog::debug("Finished solving index map ({:.3}s)", watch);
 
-        return field;
+        return adapters::from_parametrizer_to_quad_mesh(field);
     }
 }
