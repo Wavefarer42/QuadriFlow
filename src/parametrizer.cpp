@@ -32,25 +32,25 @@ namespace services {
         auto F = field.m_faces;
         int face_valence = F.rows();
         for (int f = 0; f < F.cols(); ++f) {
-        const auto fh = mesh.add_face({
-        entities::Mesh::VertexHandle(F(0, f)),
-        entities::Mesh::VertexHandle(F(1, f)),
-        entities::Mesh::VertexHandle(F(2, f))
-        });
+            const auto fh = mesh.add_face({
+                entities::Mesh::VertexHandle(F(0, f)),
+                entities::Mesh::VertexHandle(F(1, f)),
+                entities::Mesh::VertexHandle(F(2, f))
+            });
 
-        assert(fh.idx() == f);
+            assert(fh.idx() == f);
 
-        //     for (auto i = 0; i < face_valence; ++i) {
-        //         auto v = F(i, f);
-        //         auto v_next = F((i + 1) % face_valence, f);
-        //         auto e = face_valence * f + i;
-        //
-        //         const auto heh = mesh.halfedge_handle(mesh.vertex_handle(v));
-        //         const auto v_to = mesh.to_vertex_handle(heh);
-        //
-        //         assert(heh.idx() == e);
-        //         assert(v_to.idx() == v_next);
-        //     }
+            //     for (auto i = 0; i < face_valence; ++i) {
+            //         auto v = F(i, f);
+            //         auto v_next = F((i + 1) % face_valence, f);
+            //         auto e = face_valence * f + i;
+            //
+            //         const auto heh = mesh.halfedge_handle(mesh.vertex_handle(v));
+            //         const auto v_to = mesh.to_vertex_handle(heh);
+            //
+            //         assert(heh.idx() == e);
+            //         assert(v_to.idx() == v_next);
+            //     }
         }
 
         return mesh;
@@ -632,6 +632,8 @@ namespace services {
 
         const auto [vertices_normalized, scale, offset] = mathext::normalize(m_vertices.cast<float>().transpose());
         m_vertices = vertices_normalized.cast<double>().transpose();
+        m_normalize_scale = scale;
+        m_normalize_offset = offset.cast<double>();
 
 #ifdef DEV_DEBUG
         if (sdfn_opt.has_value()) {

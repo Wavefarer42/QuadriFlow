@@ -14,7 +14,7 @@ TEST(MeshingSuite, RemeshNoEdgeConstraints) {
     mesh = service.remesh_to_trimesh(mesh);
 
     entities::Mesh result = service.remesh_to_regular_quadmesh(
-        mesh, 10000, false, false, model[0]
+        mesh, 10000, true, false
     );
 
     service.save_mesh("../tests/out/box-complex-remesh.ply", result);
