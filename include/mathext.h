@@ -45,16 +45,16 @@ namespace mathext {
     /**
     * Takes a column-major matrix of vertices and normalizes them between -1 and 1.
     */
-    std::tuple<MatrixXd, double, Vector3d> normalize(
-        const MatrixXd &vertices_c
+    std::tuple<MatrixXf, float, Vector3f> normalize(
+        const MatrixXf &vertices
     );
 
     /**
      * Denormalizes the vertices with the given scale and offset.
      */
-    MatrixXd denormalize(
-        const MatrixXd &vertices_c,
-        const double scale,
-        const Vector3d &offset
+    MatrixXf denormalize(
+        const MatrixXf &vertices,
+        const float scale,
+        const Vector3f &offset
     );
 }

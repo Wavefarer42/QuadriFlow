@@ -57,25 +57,25 @@ TEST(MigrationSuite, NormalizeMesh) {
 TEST(MigrationSuite, NormalizeMeshComparison) {
     const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
 
-    MatrixXd m_vertices(3, mesh.n_vertices());
+    MatrixXd vertices_orig(3, mesh.n_vertices());
     for (int i = 0; i < mesh.n_vertices(); ++i) {
         auto v = mesh.point(entities::Mesh::VertexHandle(i));
-        m_vertices.col(i) = Vector3d(v[0], v[1], v[2]);
+        vertices_orig.col(i) = Vector3d(v[0], v[1], v[2]);
     }
-    MatrixXd vertices = m_vertices;
 
-    std::cout << "Original:\n" << m_vertices.block(0, 0, 3, 10) << std::endl;
-
+    MatrixXd m_vertices = vertices_orig;
     double m_normalize_scale = 0;
     Vector3d m_normalize_offset = Vector3d::Zero();
     normalize_mesh_old(m_vertices, m_normalize_scale, m_normalize_offset);
 
+    const MatrixXf vertices = vertices_orig.cast<float>().transpose();
     const auto [vertices_scaled, scale, offset] = mathext::normalize(vertices);
 
+    std::cout << "Original:\n" << vertices_orig.block(0, 0, 3, 10) << std::endl;
     std::cout << "Normalized (old):\n" << m_vertices.block(0, 0, 3, 10) << std::endl;
-    std::cout << "Normalized (new):\n" << vertices_scaled.block(0, 0, 3, 10) << std::endl;
+    std::cout << "Normalized (new):\n" << vertices_scaled.block(0, 0, 10, 3).transpose() << std::endl;
 
-    EXPECT_NEAR(m_normalize_scale, scale, 1e-6);
-    EXPECT_TRUE(m_normalize_offset.isApprox(offset, 1e-6));
-    EXPECT_TRUE(m_vertices.isApprox(vertices_scaled, 1e-6));
+    EXPECT_NEAR(m_normalize_scale, scale, 1e-4);
+    EXPECT_TRUE(m_normalize_offset.isApprox(offset.cast<double>(), 1e-4));
+    EXPECT_TRUE(m_vertices.isApprox(vertices_scaled.cast<double>().transpose(), 1e-4));
 }

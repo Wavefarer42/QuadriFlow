@@ -18,26 +18,30 @@ namespace sdfn {
     VectorXf cylinder(const MatrixXf &domain);
 
     entities::SDFn rotate(
-            entities::SDFn sdfn,
-            const Vector3f axis,
-            float angle
+        entities::SDFn sdfn,
+        const Vector3f axis,
+        float angle
     );
 
     MatrixXf gradient_of(
-            const entities::SDFn &sdfn,
-            const MatrixXf &domain,
-            const float epsilon = 1e-3
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain,
+        const float epsilon = 1e-3
     );
 
     MatrixXf normal_of(
-            const entities::SDFn &sdfn,
-            const MatrixXf &domain,
-            const float epsilon = 1e-3
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain,
+        const float epsilon = 1e-3
     );
 
     MatrixXf normal_of(
-            const MatrixXf &gradients
+        const MatrixXf &gradients
+    );
+
+    entities::SDFn scale(
+        const entities::SDFn &sdfn,
+        const float scale,
+        const Vector3f &offset
     );
 }
-
-

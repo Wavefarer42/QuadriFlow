@@ -1,5 +1,7 @@
 #include "sdfn.h"
 
+#include "mathext.h"
+
 namespace sdfn {
     VectorXf sphere(const MatrixXf &domain) {
         float radius = 1;
@@ -83,5 +85,17 @@ namespace sdfn {
 
 
         return gradients.array().colwise() / norms.array();
+    }
+
+    entities::SDFn scale(
+        const entities::SDFn &sdfn,
+        const float scale,
+        const Vector3f &offset
+    ) {
+        const entities::SDFn sdfn_scaled = [sdfn, scale, offset](const MatrixXf &domain) -> VectorXf {
+            return sdfn(mathext::denormalize(domain, scale, offset)) / scale;
+        };
+
+        return sdfn_scaled;
     }
 }

@@ -47,7 +47,7 @@ namespace smoothing {
 
         OpenMesh::IO::Options options;
         options += OpenMesh::IO::Options::VertexNormal;
-        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/laplacian-angle-field--face-normals.ply", options);
+        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/7-laplacian-angle-field.ply", options);
 
 #endif
 

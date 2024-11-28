@@ -3,12 +3,14 @@
 #include <fstream>
 #include <set>
 #include <random>
+#include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "services.h"
 #include "field-math.h"
 #include "optimizer.h"
 #include "dedge.h"
 #include "mathext.h"
+#include "sdfn.h"
 #include "smoothing.h"
 #include "spdlog/spdlog.h"
 
@@ -16,20 +18,39 @@
 namespace services {
     entities::Mesh to_mesh(const Parametrizer &field) {
         entities::Mesh mesh;
+
         for (int i = 0; i < field.m_vertices.cols(); ++i) {
-            mesh.add_vertex(entities::Mesh::Point(
+            const auto vh = mesh.add_vertex(entities::Mesh::Point(
                 field.m_vertices(0, i),
                 field.m_vertices(1, i),
                 field.m_vertices(2, i)
             ));
+
+            assert(vh.idx() == i);
         }
 
-        for (int i = 0; i < field.m_faces.cols(); ++i) {
-            mesh.add_face({
-                entities::Mesh::VertexHandle(field.m_faces(0, i)),
-                entities::Mesh::VertexHandle(field.m_faces(1, i)),
-                entities::Mesh::VertexHandle(field.m_faces(2, i))
-            });
+        auto F = field.m_faces;
+        int face_valence = F.rows();
+        for (int f = 0; f < F.cols(); ++f) {
+        const auto fh = mesh.add_face({
+        entities::Mesh::VertexHandle(F(0, f)),
+        entities::Mesh::VertexHandle(F(1, f)),
+        entities::Mesh::VertexHandle(F(2, f))
+        });
+
+        assert(fh.idx() == f);
+
+        //     for (auto i = 0; i < face_valence; ++i) {
+        //         auto v = F(i, f);
+        //         auto v_next = F((i + 1) % face_valence, f);
+        //         auto e = face_valence * f + i;
+        //
+        //         const auto heh = mesh.halfedge_handle(mesh.vertex_handle(v));
+        //         const auto v_to = mesh.to_vertex_handle(heh);
+        //
+        //         assert(heh.idx() == e);
+        //         assert(v_to.idx() == v_next);
+        //     }
         }
 
         return mesh;
@@ -582,16 +603,54 @@ namespace services {
         }
     }
 
+    MatrixXd normalize(MatrixXd &vertices) {
+        auto [vertices_normalized, scale, offset] = mathext::normalize(vertices.cast<float>());
+
+#ifdef DEV_DEBUG
+        entities::Mesh mesh;
+        for (int i = 0; i < vertices.cols(); ++i) {
+            mesh.add_vertex(entities::Mesh::Point(
+                vertices_normalized(0, i),
+                vertices_normalized(1, i),
+                vertices_normalized(2, i)
+            ));
+        }
+
+        OpenMesh::IO::write_mesh(mesh, "..tests/out/6-normalized.ply");
+#endif
+
+        return vertices_normalized.cast<double>().transpose();
+    }
+
     void Parametrizer::initialize(
         bool should_preserve_edges,
         int target_face_count,
         bool with_scale,
-        std::optional<std::reference_wrapper<entities::SDFn> > sdfn
+        std::optional<std::reference_wrapper<entities::SDFn> > sdfn_opt
     ) {
         m_hierarchy.clearConstraints();
 
-        auto [vertices, scale, offset] = mathext::normalize(m_vertices);
-        m_vertices = vertices;
+        const auto [vertices_normalized, scale, offset] = mathext::normalize(m_vertices.cast<float>().transpose());
+        m_vertices = vertices_normalized.cast<double>().transpose();
+
+#ifdef DEV_DEBUG
+        if (sdfn_opt.has_value()) {
+            const entities::SDFn sdfn = sdfn::scale(sdfn_opt.value(), scale, offset);
+            const auto sdf = sdfn(m_vertices.transpose().cast<float>());
+            entities::Mesh mesh;
+            for (int i = 0; i < m_vertices.cols(); ++i) {
+                if (sdf[i] < 0) {
+                    mesh.add_vertex(entities::Mesh::Point(
+                        m_vertices(0, i),
+                        m_vertices(1, i),
+                        m_vertices(2, i)
+                    ));
+                }
+            }
+
+            OpenMesh::IO::write_mesh(mesh, "../tests/out/6-normalized.ply");
+        }
+#endif
 
         analyze_mesh();
 
@@ -611,10 +670,9 @@ namespace services {
         // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
         double target_len = std::min(m_scale / 2, m_average_edge_length * 2);
         if (target_len < m_max_edge_length) {
-            while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
+            compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold);
             subdivide_edges_to_length(m_faces, m_vertices, m_rho, m_V2E, m_E2E, m_boundary, m_non_manifold, target_len);
         }
-        while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
 
         // Compute the adjacency matrix
         generate_adjacency_matrix_uniform(m_faces, m_V2E, m_E2E, m_non_manifold, m_adjacency_matrix);
@@ -632,8 +690,9 @@ namespace services {
         }
 
         m_edges_preserve.resize(m_faces.cols() * 3);
-        if (should_preserve_edges && sdfn.has_value()) {
-            find_and_set_edges(sdfn.value(), 30);
+        if (should_preserve_edges && sdfn_opt.has_value() && false) {
+            const entities::SDFn sdfn = sdfn::scale(sdfn_opt.value(), scale, offset);
+            find_and_set_edges(sdfn, 30);
         } else if (should_preserve_edges) {
             find_and_set_edges();
         }
@@ -784,14 +843,36 @@ namespace services {
         const auto field_angular = smoothing::laplacian_angular_field(sdfn, mesh);
 
         int count = 0;
-        for (int i = 0; i < field_angular.size(); ++i) {
-            if (field_angular[i] >= max_angle) {
-                m_edges_preserve[m_V2E[i]] = 1;
-                count++;
+        for (int idx_v = 0; idx_v < field_angular.size(); ++idx_v) {
+            if (field_angular[idx_v] >= max_angle) {
+                for (auto vv = mesh.vv_begin(mesh.vertex_handle(idx_v));
+                     vv != mesh.vv_end(mesh.vertex_handle(idx_v)); ++vv) {
+                    if (field_angular[vv->idx()] >= max_angle) {
+                        const auto edge_start = m_V2E[idx_v];
+                        const auto edge_inverse = m_V2E[vv->idx()];
+                        if (edge_start == m_E2E[edge_inverse]) {
+                            count++;
+                        }
+                        // if (m_edges_preserve[e] == 0 && e == eb) {
+                        // m_edges_preserve[e] = 1;
+                        // count++;
+                        // }
+                    }
+                }
             }
         }
 
 #ifdef DEV_DEBUG
+        std::vector<entities::Mesh::VertexHandle> to_delete;
+
+        entities::Mesh mesh_edges;
+        for (auto vh = mesh.vertices_begin(); vh != mesh.vertices_end(); ++vh) {
+            if (field_angular[vh->idx()] >= max_angle) {
+                mesh_edges.add_vertex(mesh.point(*vh));
+            }
+        }
+
+        OpenMesh::IO::write_mesh(mesh_edges, "../tests/out/8-edges.ply");
         spdlog::debug("Found {} edges to preserve", count);
 #endif
     }

@@ -146,14 +146,14 @@ TEST(SVDSuite, ComparisonExamples) {
 TEST(MathExtensions, NormalizeAndDenormalize) {
     const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
 
-    MatrixXd vertices(3, mesh.n_vertices());
+    MatrixXf vertices( mesh.n_vertices(), 3);
     for (int i = 0; i < mesh.n_vertices(); ++i) {
         auto v = mesh.point(entities::Mesh::VertexHandle(i));
-        vertices.col(i) = Vector3d(v[0], v[1], v[2]);
+        vertices.row(i) = Vector3f(v[0], v[1], v[2]);
     }
 
     const auto [vertices_norm, scale, offset] = mathext::normalize(vertices);
-    const MatrixXd vertices_back = mathext::denormalize(vertices_norm, scale, offset);
+    const MatrixXf vertices_back = mathext::denormalize(vertices_norm, scale, offset);
 
     EXPECT_TRUE(vertices.isApprox(vertices_back, 1e-6));
 }
