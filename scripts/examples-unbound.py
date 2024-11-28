@@ -1,7 +1,7 @@
 import os
 import pathlib
 
-cmd = "cmake-build-release/meshbound"
+cmd = "../cmake-build-release/meshbound"
 
 pathlib.Path("examples").mkdir(exist_ok=True)
 os.system(f"{cmd} --input /Users/hannes/Data/Unbound/models/Demon.ubs --output examples/demon-10k-ne-nb-na.obj --faces 10000")

@@ -112,12 +112,12 @@ int main(int argc, char **argv) {
     const MeshService service = container.mesh_service();
 
     entities::Mesh mesh;
-    std::optional<std::reference_wrapper<entities::SDFn> > model_opt = std::nullopt;
+    std::optional<std::reference_wrapper<entities::SDFn> > sdfn_opt = std::nullopt;
     if (args.path_in.ends_with(".ubs")) {
         auto model = service.load_unbound_model_from_file(args.path_in);
         if (model.size() > 0) {
             mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0), args.resolution);
-            model_opt = model[0];
+            sdfn_opt = model[0];
         } else {
             spdlog::warn("The given Unbound collection does not contain any models.");
             return 2;
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
         args.face_count,
         args.preserve_edges,
         args.use_adaptive_meshing,
-        model_opt
+        sdfn_opt
     );
 
     service.save_mesh(args.path_out, remesh);

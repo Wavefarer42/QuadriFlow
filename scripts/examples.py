@@ -1,7 +1,7 @@
 import os
 import pathlib
 
-cmd = "cmake-build-release/meshbound"
+cmd = "../cmake-build-release/meshbound"
 
 pathlib.Path("examples", exist_ok=True)
 os.system(f"{cmd} --input tests/resources/sphere.ply --output examples/sphere-10k-ne-nb-na.obj --faces 10000")

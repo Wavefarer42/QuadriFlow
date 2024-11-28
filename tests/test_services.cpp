@@ -7,6 +7,19 @@
 
 using namespace Eigen;
 
+TEST(MeshingSuite, BoxSmokeTest) {
+    const auto service = bootstrap::Container().mesh_service();
+    auto model = service.load_unbound_model_from_file("../tests/resources/benchmark/1-sphere.ubs");
+    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    mesh = service.remesh_to_trimesh(mesh);
+
+    entities::Mesh result = service.remesh_to_regular_quadmesh(
+        mesh, 10000, false, false
+    );
+
+    service.save_mesh("../tests/out/out-1-sphere.ply", result);
+}
+
 TEST(MeshingSuite, RemeshNoEdgeConstraints) {
     const auto service = bootstrap::Container().mesh_service();
     auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
