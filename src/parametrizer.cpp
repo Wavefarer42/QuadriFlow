@@ -3,6 +3,7 @@
 #include <fstream>
 #include <set>
 #include <random>
+#include <mach/mig.h>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "services.h"
@@ -658,9 +659,7 @@ namespace services {
 
         // initialize m_rho
         m_rho.resize(m_vertices.cols(), 1);
-        for (int i = 0; i < m_vertices.cols(); ++i) {
-            m_rho[i] = 1;
-        }
+        m_rho.setConstant(1);
 
         // initialize the scale of the mesh
         if (target_face_count <= 0) {
@@ -672,9 +671,10 @@ namespace services {
         // Computes the directed graph and subdivides if the scale is larger than the maximum edge length.
         double target_len = std::min(m_scale / 2, m_average_edge_length * 2);
         if (target_len < m_max_edge_length) {
-            compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold);
+            while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
             subdivide_edges_to_length(m_faces, m_vertices, m_rho, m_V2E, m_E2E, m_boundary, m_non_manifold, target_len);
         }
+        while (!compute_direct_graph(m_vertices, m_faces, m_V2E, m_E2E, m_boundary, m_non_manifold));
 
         // Compute the adjacency matrix
         generate_adjacency_matrix_uniform(m_faces, m_V2E, m_E2E, m_non_manifold, m_adjacency_matrix);

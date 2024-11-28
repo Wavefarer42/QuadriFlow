@@ -22,17 +22,13 @@ if __name__ == '__main__':
 
     for path_in in dir_input.iterdir():
         if path_in.suffix == ".ubs":
-            path_out = dir_output.joinpath(path_in.stem + ".ply")
-            arguments = [
-                f"--input", path_in,
-                f"--output", path_out,
-            ]
-
             for faces, preserve_edges in cases:
-                arguments.extend([f"--faces", str(faces)])
-                if preserve_edges:
-                    arguments.extend([f"--edges"])
+                arguments = [
+                    cmd,
+                    f"--input", path_in,
+                    "--output", dir_output.joinpath(f"{path_in.stem}-{faces}-{'e' if preserve_edges else 'ne'}.ply"),
+                    f"--faces", faces,
+                    f"--edges" if preserve_edges else None
+                ]
 
-                path_out = dir_output.joinpath(f"{path_out.stem}-{faces}-{'e' if preserve_edges else 'ne'}.ply")
-
-                subprocess.run([cmd, *arguments])
+                subprocess.run([str(it) for it in arguments if it])
