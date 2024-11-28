@@ -47,7 +47,7 @@ namespace smoothing {
 
         OpenMesh::IO::Options options;
         options += OpenMesh::IO::Options::VertexNormal;
-        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/7-laplacian-angle-field.ply", options);
+        OpenMesh::IO::write_mesh(mesh_face_normals, "../tests/out/stage/7-laplacian-angle-field.ply", options);
 
 #endif
 
@@ -76,11 +76,9 @@ namespace smoothing {
         for (int i = 0; i < iterations; ++i) {
             spdlog::debug("Surface Smoothing iteration {}/{}", i, iterations);
 
-            const MatrixXf direction = sdfn::gradient_of(sdfn, vertices);
             const VectorXf scale = sdfn(vertices) * rate;
-            const MatrixXf update = direction.array().colwise() * scale.array();
-
-            vertices -= update;
+            const MatrixXf direction = sdfn::normal_of(sdfn, vertices);
+            vertices = vertices - direction * scale;
         }
 
         const float error_after = sdfn(vertices).cwiseAbs().sum();
@@ -100,7 +98,7 @@ namespace smoothing {
                       error_before, error_after, watch);
 
 #ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_surface_snapping.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/smoothing_surface_snapping.ply");
 #endif
 
         return mesh;
@@ -157,7 +155,7 @@ namespace smoothing {
         spdlog::debug("Finished smoothing mesh by snapping vertices to edges ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing_edge_snapping.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/smoothing_edge_snapping.ply");
 #endif
 
         return mesh;
@@ -166,7 +164,8 @@ namespace smoothing {
     entities::Mesh laplacian_with_sdfn_projection(
         const entities::SDFn &sdfn,
         entities::Mesh &mesh,
-        const int iterations
+        const int iterations,
+        const float rate_projection
     ) {
         spdlog::info("Smoothing mesh by laplacian smoothing with SDFn projection.");
         spdlog::stopwatch watch;
@@ -194,9 +193,9 @@ namespace smoothing {
                 laplacian.row(0).array() /= static_cast<float>(support);
 
                 // Projection
-                const VectorXf distance = sdfn(laplacian);
-                const MatrixXf normal = sdfn::normal_of(sdfn, laplacian);
-                vertices.row(idx_v) = laplacian - distance * normal;
+                const VectorXf scale = sdfn(laplacian) * rate_projection;
+                const MatrixXf direction = sdfn::normal_of(sdfn, laplacian);
+                vertices.row(idx_v) = laplacian - scale * direction;
             }
         }
 
@@ -214,7 +213,7 @@ namespace smoothing {
 
         spdlog::debug("Finished smoothing mesh by laplacian SDFn projection ({:.3}s)", watch);
 #ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/smoothing-laplacian-SDFn-projection.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/smoothing-laplacian-SDFn-projection.ply");
 #endif
 
         return mesh;

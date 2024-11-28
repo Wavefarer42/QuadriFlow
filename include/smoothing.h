@@ -25,7 +25,7 @@ namespace smoothing {
     entities::Mesh edge_snapping(
         const entities::SDFn &sdfn,
         entities::Mesh &mesh,
-        int iterations = 3,
+        int iterations = 10,
         float threshold_angle = 30,
         float max_error = 1e-1
     );
@@ -33,6 +33,7 @@ namespace smoothing {
     entities::Mesh laplacian_with_sdfn_projection(
         const entities::SDFn &sdfn,
         entities::Mesh &mesh,
-        int iterations = 3
+        int iterations = 10,
+        const float rate_projection = 1
     );
 };

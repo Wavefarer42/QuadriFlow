@@ -7,6 +7,7 @@
 
 #include "sdfn.h"
 #include "bootstrap.h"
+#include "smoothing.h"
 
 namespace fs = std::filesystem;
 
@@ -43,6 +44,42 @@ TEST(E2E, FromSDFsCylinder) {
     service.save_mesh("../tests/out/cylinder-100-fff-10000-remesh.obj", mesh_final);
 }
 
+TEST(E2E, FullPipeline) {
+    const auto service = bootstrap::Container().mesh_service();
+
+    const auto dir_input = "../tests/resources/benchmark/";
+    const auto dir_output = "../tests/out/e2e/";
+
+    if (fs::exists(dir_output)) fs::remove_all(dir_output);
+    fs::create_directories(dir_output);
+
+    EXPECT_TRUE(fs::exists(dir_input));
+
+    const auto faces = 10000;
+    const auto edges = true;
+    for (const auto &entry: fs::directory_iterator(dir_input)) {
+        const auto path = entry.path();
+        const auto filename = path.filename().string();
+        const auto ext = path.extension().string();
+
+        if (ext != ".ubs") continue;
+
+        auto model = service.load_unbound_model_from_file(path.string());
+        auto sdfn = model[0];
+        auto mesh = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+        mesh = service.remesh_to_trimesh(mesh);
+        mesh = service.remesh_to_regular_quadmesh(
+            mesh, faces, edges, false
+        );
+        mesh = smoothing::edge_snapping(sdfn, mesh);
+        mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh);
+
+        const auto path_out = std::format("{}{}-f{}-e{}.ply",
+                                          dir_output, filename, faces, edges ? "y" : "n");
+        service.save_mesh(path_out, mesh);
+    }
+}
+
 TEST(E2E, Benchmark) {
     const auto service = bootstrap::Container().mesh_service();
 
@@ -71,11 +108,13 @@ TEST(E2E, Benchmark) {
                 spdlog::info("--- Case {}/{}: {} ---", i_case, total_case, filename);
 
                 auto model = service.load_unbound_model_from_file(path.string());
-                auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+                auto sdfn = model[0];
+                auto mesh = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
                 mesh = service.remesh_to_trimesh(mesh);
                 mesh = service.remesh_to_regular_quadmesh(
                     mesh, it_face, it_edge, false
                 );
+                smoothing::laplacian_with_sdfn_projection(sdfn, mesh);
 
                 const auto path_out = std::format("{}{}-f{}-e{}.ply",
                                                   dir_output, filename, it_face, it_edge ? "y" : "n");

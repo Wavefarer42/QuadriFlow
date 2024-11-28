@@ -97,7 +97,7 @@ namespace surfacenets {
         for (int i = 0; i < indices.rows(); ++i) {
             mesh.add_vertex(entities::Mesh::Point(indices(i, 0), indices(i, 1), indices(i, 2)));
         }
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/1-indices.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/1-indices.ply");
 #endif
 
         return indices;
@@ -123,7 +123,7 @@ namespace surfacenets {
         for (int i = 0; i < indices.rows(); ++i) {
             mesh.add_vertex(entities::Mesh::Point(domain(i, 0), domain(i, 1), domain(i, 2)));
         }
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/2-domain.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/2-domain.ply");
 #endif
 
         return domain;
@@ -168,7 +168,7 @@ namespace surfacenets {
                 mesh.add_vertex(entities::Mesh::Point(domain(i, 0), domain(i, 1), domain(i, 2)));
             }
         }
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/3-sdf.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/3-sdf.ply");
 #endif
 
         return sdf;
@@ -235,7 +235,7 @@ namespace surfacenets {
         for (int i = 0; i < vertices.size(); ++i) {
             mesh.add_vertex(entities::Mesh::Point(vertices[i].x(), vertices[i].y(), vertices[i].z()));
         }
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/4-vertices.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/4-vertices.ply");
 #endif
 
         return vertices;
@@ -332,7 +332,7 @@ namespace surfacenets {
         spdlog::debug("Finished creating mesh data structure ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
-        OpenMesh::IO::write_mesh(mesh, "../tests/out/5-faces.ply");
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/5-faces.ply");
 #endif
 
         return mesh;

@@ -604,25 +604,6 @@ namespace services {
         }
     }
 
-    MatrixXd normalize(MatrixXd &vertices) {
-        auto [vertices_normalized, scale, offset] = mathext::normalize(vertices.cast<float>());
-
-#ifdef DEV_DEBUG
-        entities::Mesh mesh;
-        for (int i = 0; i < vertices.cols(); ++i) {
-            mesh.add_vertex(entities::Mesh::Point(
-                vertices_normalized(0, i),
-                vertices_normalized(1, i),
-                vertices_normalized(2, i)
-            ));
-        }
-
-        OpenMesh::IO::write_mesh(mesh, "..tests/out/6-normalized.ply");
-#endif
-
-        return vertices_normalized.cast<double>().transpose();
-    }
-
     void Parametrizer::initialize(
         bool should_preserve_edges,
         int target_face_count,
@@ -651,7 +632,7 @@ namespace services {
                 }
             }
 
-            OpenMesh::IO::write_mesh(mesh, "../tests/out/6-normalized.ply");
+            OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/6-normalized.ply");
         }
 #endif
 

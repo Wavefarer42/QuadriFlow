@@ -20,13 +20,17 @@ TEST(MeshServiceSuite, to_trimesh) {
     EXPECT_TRUE(service.is_trimesh(mesh));
 }
 
-TEST(MeshServiceSuite, GradientSmoothingBoxComplex) {
+TEST(MeshServiceSuite, SmoothingSDFnProjectionBox) {
     const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+    const auto sdfn = model[0];
 
-    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_smooth = mesh_base;
+    const auto result = smoothing::sdfn_projection(sdfn, mesh_smooth, 10);
 
-    const auto result = smoothing::sdfn_projection(model[0], mesh, 10);
+    OpenMesh::IO::write_mesh(mesh_base, "../tests/out/smoothing-sdfn-projection-box-base.ply");
+    OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-sdfn-projection-box-smooth.ply");
 }
 
 TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
@@ -54,7 +58,7 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
     OpenMesh::IO::write_mesh(mesh, "../tests/out/box-laplacian_angle_field.ply");
 }
 
-TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
+TEST(MeshServiceSuite, LaplacianAngleFieldBoxComplex) {
     const auto service = bootstrap::Container().mesh_service();
     auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
 
@@ -79,32 +83,29 @@ TEST(MeshServiceSuite, LaplacianAngleFieldUnboundBoxComplex) {
     OpenMesh::IO::write_mesh(mesh, "../tests/out/box-complex-laplacian_angle_field.ply");
 }
 
-TEST(MeshServiceSuite, SmoothingEdgeSnappingUnboundBox) {
+TEST(MeshServiceSuite, SmoothingEdgeSnappingBox) {
     const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box.ubs");
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+    auto sdfn = model[0];
 
-    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
-    const auto result = smoothing::edge_snapping(model[0], mesh, 3);
+    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_smooth = mesh_base;
+    const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 10);
 
-    OpenMesh::IO::write_mesh(result, "../tests/out/box-smoothing_edge_snapping.ply");
+    OpenMesh::IO::write_mesh(mesh_base, "../tests/out/smoothing-edge-snapping-box-base.ply");
+    OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");
 }
 
-TEST(MeshServiceSuite, SmoothingEdgeSnappingUnboundBoxComplex) {
+
+TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxSharpAligned) {
     const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
+    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+    auto sdfn = model[0];
 
-    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
-    const auto result = smoothing::edge_snapping(model[0], mesh, 1);
+    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_smooth = mesh_base;
+    const auto result = smoothing::laplacian_with_sdfn_projection(sdfn, mesh_smooth, 10);
 
-    OpenMesh::IO::write_mesh(result, "../tests/out/box-complex-smoothing_edge_snapping.ply");
-}
-
-TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxComplex) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
-
-    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
-    const auto result = smoothing::laplacian_with_sdfn_projection(model[0], mesh, 10);
-
-    OpenMesh::IO::write_mesh(result, "../tests/out/smoothing-laplacian-sdfn-projection-box-complex.ply");
+    OpenMesh::IO::write_mesh(mesh_base, "../tests/out/smoothing-laplacian-projection-box-base.ply");
+    OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-laplacian-projection-box-smooth.ply");
 }
