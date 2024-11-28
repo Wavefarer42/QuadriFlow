@@ -78,7 +78,9 @@ namespace smoothing {
 
             const VectorXf scale = sdfn(vertices) * rate;
             const MatrixXf direction = sdfn::normal_of(sdfn, vertices);
-            vertices = vertices - direction * scale;
+            const MatrixXf update = direction.array().colwise() * scale.array();
+
+            vertices -= update;
         }
 
         const float error_after = sdfn(vertices).cwiseAbs().sum();
@@ -114,42 +116,42 @@ namespace smoothing {
         spdlog::info("Smoothing mesh by snapping vertices to edges.");
         spdlog::stopwatch watch;
 
+
         for (int iteration = 0; iteration < iterations; ++iteration) {
             const auto field = laplacian_angular_field(sdfn, mesh);
 
             MatrixXf vertices_smoothed(mesh.n_vertices(), 3);
 
-            int i = 0;
-            for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
-                const auto point = mesh.point(*it_v);
+            tbb::parallel_for(static_cast<size_t>(0), mesh.n_vertices(), [&](size_t idx) {
+                const auto it_v = mesh.vertex_handle(idx);
+                const auto point = mesh.point(it_v);
                 const auto vertex = Vector3f(point[0], point[1], point[2]);
-                vertices_smoothed.row(i) = vertex;
+                vertices_smoothed.row(idx) = vertex;
 
-                if (field[i] > threshold_angle) {
-                    const auto centroids = mathext::face_centroids_ring(mesh, *it_v);
+                if (field[idx] > threshold_angle) {
+                    const auto centroids = mathext::face_centroids_ring(mesh, it_v);
                     const auto face_normals = sdfn::normal_of(sdfn, centroids);
                     const auto xerr = mathext::intersect_planes(centroids, face_normals);
 
                     if (xerr[3] < max_error) {
-                        // TODO: Check if new location is outside neighborhood
-                        vertices_smoothed.row(i) = xerr.head<3>();
+                        // Move a bit into direction of the new position
+                        // FIXME Point might move outside the neighborhood of the face
+                        vertices_smoothed.row(idx) = xerr.head<3>();
                     }
                 }
+            });
 
-                i++;
-            }
-
-            // FIXME: Remove once eigen is used as storage
-            for (int i = 0; i < mesh.n_vertices(); ++i) {
+            // Update mesh
+            tbb::parallel_for(static_cast<size_t>(0), mesh.n_vertices(), [&](size_t idx) {
                 mesh.set_point(
-                    entities::Mesh::VertexHandle(i),
+                    mesh.vertex_handle(idx),
                     entities::Mesh::Point(
-                        vertices_smoothed(i, 0),
-                        vertices_smoothed(i, 1),
-                        vertices_smoothed(i, 2)
+                        vertices_smoothed(idx, 0),
+                        vertices_smoothed(idx, 1),
+                        vertices_smoothed(idx, 2)
                     )
                 );
-            }
+            });
         }
 
         spdlog::debug("Finished smoothing mesh by snapping vertices to edges ({:.3}s)", watch);
@@ -217,14 +219,5 @@ namespace smoothing {
 #endif
 
         return mesh;
-    }
-
-    entities::Mesh smoothing_laplacian_adaptive_edge_snapping(
-        const entities::SDFn &sdfn,
-        entities::Mesh &mesh,
-        const int iterations
-    ) {
-        // Compute angle field
-        // Take vertices with angle > threshold and subdivide neighborhood
     }
 }

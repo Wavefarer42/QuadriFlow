@@ -18,8 +18,8 @@ namespace smoothing {
     entities::Mesh sdfn_projection(
         const entities::SDFn &sdfn,
         entities::Mesh &mesh,
-        int iterations = 3,
-        float rate = 0.1
+        int iterations = 10,
+        float rate = 0.2
     );
 
     entities::Mesh edge_snapping(

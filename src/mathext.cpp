@@ -128,21 +128,10 @@ namespace mathext {
             };
         };
 
-#ifdef DEV_DEBUG
-        std::cout << "Vertices:\n" << vertices << std::endl;
-        std::cout << "Normals:\n" << normals << std::endl;
-#endif
-
         const MatrixXf ATA = (normals.transpose() * normals).triangularView<Upper>();
         const VectorXf b = (vertices.array() * normals.array()).rowwise().sum();
         VectorXf ATb = (b.asDiagonal() * normals).colwise().sum();
         const Vector3f centroid = vertices.colwise().sum() / static_cast<float>(vertices.rows());
-
-#ifdef DEV_DEBUG
-        std::cout << "ATA:\n" << ATA << std::endl;
-        std::cout << "ATb:\n" << ATb << std::endl;
-        std::cout << "Centroid:\n" << centroid << std::endl;
-#endif
 
         const VectorXf ATb_mass = svd_vmul_sym(ATA, centroid);
         ATb -= ATb_mass.transpose();
