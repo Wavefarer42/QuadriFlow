@@ -39,7 +39,15 @@ namespace mathext {
 
     Vector4f intersect_planes(
         const MatrixXf &vertices,
-        const MatrixXf &normals
+        const MatrixXf &normals,
+        int patience = 10
+    );
+
+    Vector4f intersect_planes(
+        const MatrixXf &vertices,
+        const MatrixXf &normals,
+        const Vector3f &bias,
+        int patience = 10
     );
 
     /**

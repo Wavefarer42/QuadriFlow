@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "mathext.h"
 
 namespace mathext {
@@ -116,9 +118,10 @@ namespace mathext {
         return uniqueElementsWithCounts;
     }
 
-    Vector4f intersect_planes(
+    Vector4f _intersect_planes(
         const MatrixXf &vertices,
-        const MatrixXf &normals
+        const MatrixXf &normals,
+        const Vector3f &bias
     ) {
         const auto svd_vmul_sym = [](MatrixXf a, VectorXf v) {
             return Vector3f{
@@ -131,19 +134,54 @@ namespace mathext {
         const MatrixXf ATA = (normals.transpose() * normals).triangularView<Upper>();
         const VectorXf b = (vertices.array() * normals.array()).rowwise().sum();
         VectorXf ATb = (b.asDiagonal() * normals).colwise().sum();
-        const Vector3f centroid = vertices.colwise().sum() / static_cast<float>(vertices.rows());
 
-        const VectorXf ATb_mass = svd_vmul_sym(ATA, centroid);
-        ATb -= ATb_mass.transpose();
+        const VectorXf constraint_center = svd_vmul_sym(ATA, bias);
+        ATb -= constraint_center.transpose();
 
         VectorXf x = ATA.colPivHouseholderQr().solve(ATb);
         const Vector3f differences = ATb - svd_vmul_sym(ATA, x);
         float error = differences.dot(differences);
 
-        x += centroid;
+        x += bias;
 
         return {x[0], x[1], x[2], error};
     }
+
+    Vector4f intersect_planes(
+        const MatrixXf &vertices,
+        const MatrixXf &normals,
+        const Vector3f &bias,
+        int patience
+    ) {
+        assert(vertices.rows() == normals.rows());
+
+        const float max_displacement = (vertices.rowwise() - bias.transpose())
+                                       .rowwise()
+                                       .norm()
+                                       .minCoeff() * 0.9;
+
+        float displacement = 0;
+        Vector4f solution;
+        int iteration = 0;
+        do {
+            solution = _intersect_planes(vertices, normals, bias);
+            displacement = (solution.head<3>() - bias).norm();
+
+            iteration++;
+        } while (displacement > max_displacement && iteration < patience);
+
+        return solution;
+    }
+
+    Vector4f intersect_planes(
+        const MatrixXf &vertices,
+        const MatrixXf &normals,
+        int patience
+    ) {
+        const Vector3f centroid = vertices.colwise().sum() / static_cast<float>(vertices.rows());
+        return intersect_planes(vertices, normals, centroid, patience);
+    }
+
 
     std::tuple<MatrixXf, float, Vector3f> normalize(
         const MatrixXf &vertices
@@ -156,9 +194,9 @@ namespace mathext {
         const MatrixXf vertices_scaled = (vertices.rowwise() - offset.transpose()) / scale;
 
         return std::make_tuple(
-        vertices_scaled,
-        scale,
-        offset
+            vertices_scaled,
+            scale,
+            offset
         );
     }
 

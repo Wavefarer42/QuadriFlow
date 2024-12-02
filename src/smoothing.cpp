@@ -130,14 +130,9 @@ namespace smoothing {
 
                 if (field[idx] > threshold_angle) {
                     const auto centroids = mathext::face_centroids_ring(mesh, it_v);
-                    const auto face_normals = sdfn::normal_of(sdfn, centroids);
-                    const auto xerr = mathext::intersect_planes(centroids, face_normals);
-
-                    if (xerr[3] < max_error) {
-                        // Move a bit into direction of the new position
-                        // FIXME Point might move outside the neighborhood of the face
-                        vertices_smoothed.row(idx) = xerr.head<3>();
-                    }
+                    const auto normals = sdfn::normal_of(sdfn, centroids);
+                    const auto xerr = mathext::intersect_planes(centroids, normals, vertex, 3);
+                    vertices_smoothed.row(idx) = xerr.head<3>();
                 }
             });
 

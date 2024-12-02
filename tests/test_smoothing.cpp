@@ -96,6 +96,19 @@ TEST(MeshServiceSuite, SmoothingEdgeSnappingBox) {
     OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");
 }
 
+TEST(MeshServiceSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
+    const auto service = bootstrap::Container().mesh_service();
+    auto model = service.load_unbound_model_from_file("../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs");
+    auto sdfn = model[0];
+
+    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    mesh_base = service.remesh_to_trimesh(mesh_base);
+    auto mesh_smooth = mesh_base;
+    const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 10);
+
+    OpenMesh::IO::write_mesh(mesh_base, "../tests/out/smoothing-edge-snapping-box-base.ply");
+    OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");
+}
 
 TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxSharpAligned) {
     const auto service = bootstrap::Container().mesh_service();

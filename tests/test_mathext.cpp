@@ -11,7 +11,7 @@
 
 using namespace Eigen;
 
-std::vector<std::tuple<MatrixXf, MatrixXf, Vector3f, float> >
+std::vector<std::tuple<MatrixXf, MatrixXf, Vector3f, Vector3f, float> >
 load_test_data() {
     std::ifstream inputFile("../tests/resources/svd-component.json");
     if (!inputFile.is_open()) {
@@ -22,7 +22,7 @@ load_test_data() {
     nlohmann::json jsonData;
     inputFile >> jsonData;
 
-    std::vector<std::tuple<MatrixXf, MatrixXf, Vector3f, float> > examples;
+    std::vector<std::tuple<MatrixXf, MatrixXf, Vector3f, Vector3f, float> > examples;
     for (auto example: jsonData) {
         auto vertices = MatrixXf(example["vertices"].size(), 3);
         for (int i = 0; i < example["vertices"].size(); ++i) {
@@ -44,12 +44,14 @@ load_test_data() {
         }
         auto intersection = Vector3f(example["intersection"][0], example["intersection"][1],
                                      example["intersection"][2]);
+        auto origin = Vector3f(example["origin"][0], example["origin"][1], example["origin"][2]);
         float error = example["error"];
 
 
         examples.emplace_back(std::make_tuple(
             vertices,
             normals,
+            origin,
             intersection,
             error
         ));
@@ -122,7 +124,7 @@ TEST(SVDSuite, ComparisonExamples) {
     int i = 0;
     auto inputs = MatrixXf(examples.size(), 6);
     auto result = MatrixXf(examples.size(), 8);
-    for (auto &[vertices, normals, x, error]: examples) {
+    for (auto &[vertices, normals, origin, x, error]: examples) {
         Vector3f v_sum = vertices.colwise().sum();
         Vector3f n_sum = normals.colwise().sum();
         inputs.block<1, 3>(0, 0) = v_sum;
@@ -143,10 +145,37 @@ TEST(SVDSuite, ComparisonExamples) {
     ASSERT_TRUE(result.block(0, 0, result.rows(), 3).isApprox(result.block(0, 3, result.rows(), 3), 1e-1));
 }
 
+TEST(SVDSuite, ComparisonExamplesIntersectPlanes1) {
+    auto examples = load_test_data();
+
+    int i = 0;
+    auto inputs = MatrixXf(examples.size(), 6);
+    auto result = MatrixXf(examples.size(), 8);
+    for (auto &[vertices, normals, origin, x, error]: examples) {
+        Vector3f v_sum = vertices.colwise().sum();
+        Vector3f n_sum = normals.colwise().sum();
+        inputs.block<1, 3>(0, 0) = v_sum;
+        inputs.block<1, 3>(0, 3) = n_sum;
+
+        const auto xerr = mathext::intersect_planes(vertices, normals, origin);
+        result.row(i).block<1, 3>(0, 0) = x;
+        result.row(i).block<1, 3>(0, 3) = xerr.head<3>();
+        result.row(i)[6] = error;
+        result.row(i)[7] = xerr[3];
+        i++;
+    }
+
+    std::cout << "Inputs:\n" << inputs.block<10, 6>(0, 0) << std::endl;
+    std::cout << "Results:\n" << result.block<10, 8>(0, 0) << std::endl;
+    std::cout << "Difference:\n" << result.block<10, 3>(0, 0) - result.block<10, 3>(0, 3) << std::endl;
+
+    ASSERT_TRUE(result.block(0, 0, result.rows(), 3).isApprox(result.block(0, 3, result.rows(), 3), 1e-1));
+}
+
 TEST(MathExtensions, NormalizeAndDenormalize) {
     const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
 
-    MatrixXf vertices( mesh.n_vertices(), 3);
+    MatrixXf vertices(mesh.n_vertices(), 3);
     for (int i = 0; i < mesh.n_vertices(); ++i) {
         auto v = mesh.point(entities::Mesh::VertexHandle(i));
         vertices.row(i) = Vector3f(v[0], v[1], v[2]);
