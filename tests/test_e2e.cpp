@@ -5,6 +5,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <OpenMesh/Core/IO/MeshIO.hh>
 
 #include "sdfn.h"
 #include "bootstrap.h"
@@ -121,25 +122,29 @@ TEST(E2E, FullPipelineBoxComplex) {
     mesh = service.remesh_to_trimesh(mesh);
     service.save_mesh(std::format("{}/{}.ply", path_base, "1-trimesh"), mesh);
 
-    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
+    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh);
     service.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
 
+    mesh = smoothing::edge_snapping(sdfn, mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "3-edges"), mesh);
+
     mesh = service.remesh_to_regular_quadmesh(mesh, faces, true, false);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "3-remesh"), mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh"), mesh);
 
     mesh = smoothing::sdfn_projection(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "4-project"), mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "5-project"), mesh);
 
-    // Need to fix the degeneration of the mesh
     mesh = smoothing::edge_snapping(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "5-intersect"), mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "6-edges"), mesh);
 
     mesh = service.remesh_to_trimesh(mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "6-trimesh"), mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "7-trimesh"), mesh);
 
     mesh = service.remesh_to_regular_quadmesh(mesh, faces, true, false);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh"), mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "8-remesh"), mesh);
 
+    mesh = smoothing::sdfn_projection(sdfn, mesh);
+    service.save_mesh(std::format("{}/{}.ply", path_base, "9-project"), mesh);
 
     // Notes on the pipeline
     // No final smooth as it breaks the edges.
