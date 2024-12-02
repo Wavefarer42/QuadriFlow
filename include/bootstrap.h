@@ -9,7 +9,18 @@ namespace bootstrap {
     public:
         Container() {
 #ifdef DEV_DEBUG
+#include <filesystem>
+
             spdlog::set_level(spdlog::level::debug);
+            if (!std::filesystem::exists("../tests/out/benchmark")) {
+                std::filesystem::create_directories("../tests/out/benchmark");
+            }
+            if (!std::filesystem::exists("../tests/out/stage")) {
+                std::filesystem::create_directories("../tests/out/stage");
+            }
+            if (!std::filesystem::exists("../tests/out/e2e")) {
+                std::filesystem::create_directories("../tests/out/e2e");
+            }
 #endif
         }
 

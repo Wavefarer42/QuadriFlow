@@ -131,7 +131,7 @@ namespace smoothing {
                 if (field[idx] > threshold_angle) {
                     const auto centroids = mathext::face_centroids_ring(mesh, it_v);
                     const auto normals = sdfn::normal_of(sdfn, centroids);
-                    const auto xerr = mathext::intersect_planes(centroids, normals, vertex, 3);
+                    const auto xerr = mathext::intersect_planes(centroids, normals, 3);
                     vertices_smoothed.row(idx) = xerr.head<3>();
                 }
             });

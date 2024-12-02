@@ -43,13 +43,6 @@ namespace mathext {
         int patience = 10
     );
 
-    Vector4f intersect_planes(
-        const MatrixXf &vertices,
-        const MatrixXf &normals,
-        const Vector3f &bias,
-        int patience = 10
-    );
-
     /**
     * Takes a column-major matrix of vertices and normalizes them between -1 and 1.
     */

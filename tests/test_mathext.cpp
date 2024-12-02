@@ -157,7 +157,7 @@ TEST(SVDSuite, ComparisonExamplesIntersectPlanes1) {
         inputs.block<1, 3>(0, 0) = v_sum;
         inputs.block<1, 3>(0, 3) = n_sum;
 
-        const auto xerr = mathext::intersect_planes(vertices, normals, origin);
+        const auto xerr = mathext::intersect_planes(vertices, normals, 1);
         result.row(i).block<1, 3>(0, 0) = x;
         result.row(i).block<1, 3>(0, 3) = xerr.head<3>();
         result.row(i)[6] = error;
@@ -165,11 +165,18 @@ TEST(SVDSuite, ComparisonExamplesIntersectPlanes1) {
         i++;
     }
 
+    const MatrixXf expected = result.block(0, 0, result.rows(), 3);
+    const MatrixXf actual = result.block(0, 3, result.rows(), 3);
+    const MatrixXf fudge = expected.array().abs() * 1e-2;
+    const MatrixXf diff = (expected - actual).array().abs();
+    const MatrixXi is_valid = (diff.array() < fudge.array()).cast<int>();
+
     std::cout << "Inputs:\n" << inputs.block<10, 6>(0, 0) << std::endl;
     std::cout << "Results:\n" << result.block<10, 8>(0, 0) << std::endl;
-    std::cout << "Difference:\n" << result.block<10, 3>(0, 0) - result.block<10, 3>(0, 3) << std::endl;
+    std::cout << "Difference:\n" << diff.block<10, 3>(0, 0) << std::endl;
+    std::cout << std::format("Valid: {}/{}", is_valid.sum(), is_valid.size()) << std::endl;
 
-    ASSERT_TRUE(result.block(0, 0, result.rows(), 3).isApprox(result.block(0, 3, result.rows(), 3), 1e-1));
+    ASSERT_TRUE(is_valid.all());
 }
 
 TEST(MathExtensions, NormalizeAndDenormalize) {

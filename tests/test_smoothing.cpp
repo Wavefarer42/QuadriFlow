@@ -104,7 +104,7 @@ TEST(MeshServiceSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
     auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
     mesh_base = service.remesh_to_trimesh(mesh_base);
     auto mesh_smooth = mesh_base;
-    const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 10);
+    const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 5);
 
     OpenMesh::IO::write_mesh(mesh_base, "../tests/out/smoothing-edge-snapping-box-base.ply");
     OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");

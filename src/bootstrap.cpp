@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 namespace bootstrap {
+
     persistence::MeshDao &Container::mesh_dao() {
         if (m_mesh_dao == nullptr) {
             m_mesh_dao = std::make_unique<persistence::MeshDao>();
