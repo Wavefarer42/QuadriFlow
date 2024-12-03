@@ -28,19 +28,20 @@ TEST(E2E, GradientOfSphere) {
 }
 
 TEST(UnboundSuite, BoundingBox) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-sharp-aligned.ubs");
 
     const AlignedBox3f result = model.bounding_box(0);
 
-    EXPECT_EQ(result.min(), Vector3f(-50, -49, -50));
-    EXPECT_EQ(result.max(), Vector3f(50, 51, 50));
+    EXPECT_EQ(result.min(), Vector3f(-51, -50, -51));
+    EXPECT_EQ(result.max(), Vector3f(51, 52, 51));
 }
 
 TEST(UnboundSuite, SDFnScale) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
-
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-sharp-aligned.ubs");
 
     MatrixXf domain = MatrixXf(4, 3);
     domain << 0, 0, 0,

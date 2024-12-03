@@ -2,37 +2,36 @@
 
 #include <argparse/argparse.hpp>
 
-#include "adapters.h"
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
 #include "bootstrap.h"
 #include "services.h"
-#include "field-math.h"
 
-using namespace services;
-const std::string version = "0.1.0";
+namespace fs = std::filesystem;
+static const std::string version = "0.1.0";
 
-entities::CLIArgs read_args(int argc, char **argv) {
+struct CLIArgs {
+    std::string path_in;
+    std::string path_out;
+    int face_count = -1;
+    int preserve_edges = 0;
+    int preserve_boundaries = 0;
+    int use_adaptive_meshing = 0;
+    int seed = 0;
+    int resolution = 100;
+    bool is_valid = true;
+};
+
+
+CLIArgs read_args(int argc, char **argv) {
     argparse::ArgumentParser program("meshbound");
     program.add_argument("--input")
-            .help("Input mesh file [obj, ply, ubs]")
+            .help("Input unbound model file [.ubs]")
             .required();
     program.add_argument("--output")
-            .help("Output mesh file [obj, ply]")
-            .required();
-    program.add_argument("--edges")
-            .help("Detect and preserve sharp edges")
-            .default_value(false)
-            .implicit_value(true);
-    program.add_argument("--adaptive")
-            .help("Adaptive scaling")
-            .default_value(false)
-            .implicit_value(true);
-    program.add_argument("--seed")
-            .help("Seed of the run")
-            .default_value(14)
-            .scan<'i', int>();
+            .help("Output directory.")
+            .default_value(".");
     program.add_argument("--faces")
             .help("Target face count")
             .default_value(10000)
@@ -42,45 +41,32 @@ entities::CLIArgs read_args(int argc, char **argv) {
             .default_value(100)
             .scan<'i', int>();
 
-    spdlog::info("meshbound ({})\n{}", version, program.help().str());
 
     int valid_args = 0;
-    entities::CLIArgs args;
+    CLIArgs args;
     try {
         program.parse_args(argc, argv);
         args.path_in = program.get<std::string>("--input");
         args.path_out = program.get<std::string>("--output");
         args.face_count = program.get<int>("--faces");
-        args.use_adaptive_meshing = program.get<bool>("--adaptive");
-        args.preserve_edges = program.get<bool>("--edges");
-        args.seed = program.get<int>("--seed");
         args.resolution = program.get<int>("--resolution");
 
-        if (std::filesystem::exists(args.path_in)
-            && (args.path_in.ends_with(".obj")
-                || args.path_in.ends_with(".ply")
-                || args.path_in.ends_with(".ubs"))) {
+        if (std::filesystem::exists(args.path_in) && args.path_in.ends_with(".ubs")) {
             valid_args++;
         } else {
             spdlog::error("Input file must exist and be .obj, .ply, or .ubs");
         }
 
-        if (args.path_out.ends_with(".obj") || args.path_out.ends_with(".ply")) {
+        if (!fs::exists(args.path_out) || fs::is_directory(args.path_out)) {
             valid_args++;
         } else {
-            spdlog::error("Output file must be .obj or .ply");
+            spdlog::error("Output must be a directory or not exist");
         }
 
         if (args.face_count > 0) {
             valid_args++;
         } else {
             spdlog::error("Face count must be greater than 0");
-        }
-
-        if (args.seed > 0) {
-            valid_args++;
-        } else {
-            spdlog::error("Seed must be greater than 0");
         }
 
         if (args.resolution > 0) {
@@ -90,9 +76,10 @@ entities::CLIArgs read_args(int argc, char **argv) {
         }
     } catch (const std::runtime_error &err) {
         spdlog::error("Error parsing arguments: {}", err.what());
+        spdlog::info("meshbound ({})\n{}", version, program.help().str());
     }
 
-    if (valid_args == 5) {
+    if (valid_args == 4) {
         args.is_valid = true;
     } else {
         args.is_valid = false;
@@ -103,40 +90,24 @@ entities::CLIArgs read_args(int argc, char **argv) {
 
 
 int main(int argc, char **argv) {
-    spdlog::stopwatch watch_total;
-
     const auto args = read_args(argc, argv);
     if (!args.is_valid) return 1;
 
-    bootstrap::Container container = bootstrap::Container();
-    const MeshService service = container.mesh_service();
-
-    entities::Mesh mesh;
-    std::optional<std::reference_wrapper<entities::SDFn> > sdfn_opt = std::nullopt;
-    if (args.path_in.ends_with(".ubs")) {
-        auto model = service.load_unbound_model_from_file(args.path_in);
-        if (model.size() > 0) {
-            mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0), args.resolution);
-            sdfn_opt = model[0];
-        } else {
-            spdlog::warn("The given Unbound collection does not contain any models.");
-            return 2;
-        }
-    } else {
-        mesh = service.load_mesh(args.path_in);
+    if (!fs::exists(args.path_out)) {
+        fs::create_directories(args.path_out);
     }
 
-    service.remesh_to_trimesh(mesh);
+    const spdlog::stopwatch watch_total;
 
-    entities::Mesh remesh = service.remesh_to_regular_quadmesh(
-        mesh,
-        args.face_count,
-        args.preserve_edges,
-        args.use_adaptive_meshing,
-        sdfn_opt
+    bootstrap::Container container = bootstrap::Container();
+    const services::MeshService service = container.mesh_service();
+
+    service.to_isotropic_quadmesh(
+        args.path_in,
+        args.path_out,
+        args.resolution,
+        args.face_count
     );
-
-    service.save_mesh(args.path_out, remesh);
 
     spdlog::info("Finished generating mesh ({:.3}s)", watch_total);
     return 0;

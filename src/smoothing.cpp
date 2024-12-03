@@ -1,12 +1,12 @@
-#include "smoothing.h"
-
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/IO/Options.hh>
 
+#include "spdlog/stopwatch.h"
+#include "spdlog/spdlog.h"
+
+#include "smoothing.h"
 #include "mathext.h"
 #include "sdfn.h"
-#include "cmake-build-release/_deps/spdlog-src/include/spdlog/stopwatch.h"
-#include "spdlog/spdlog.h"
 
 namespace smoothing {
     // Fields

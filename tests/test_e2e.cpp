@@ -1,107 +1,20 @@
-#include "gtest/gtest.h"
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
-
 #include <Eigen/Core>
-#include <Eigen/Dense>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
-#include "sdfn.h"
+#include "gtest/gtest.h"
+
 #include "bootstrap.h"
 #include "smoothing.h"
+#include "meshing.h"
 
 namespace fs = std::filesystem;
 
-TEST(E2E, FromSDFsSphere) {
-    const auto service = bootstrap::Container().mesh_service();
-
-    const Eigen::AlignedBox3f bounds(Eigen::Vector3f(-1.1, -1.1, -1.1), Eigen::Vector3f(1.1, 1.1, 1.1));
-    auto mesh_quad = service.mesh_to_irregular_quadmesh(sdfn::sphere, bounds);
-    const auto mesh_tri = service.remesh_to_trimesh(mesh_quad);
-    const auto mesh_final = service.remesh_to_regular_quadmesh(mesh_tri);
-
-    service.save_mesh("../tests/out/sphere-100-fff-10000-remesh.obj", mesh_final);
-}
-
-TEST(E2E, FromSDFsBox) {
-    const auto service = bootstrap::Container().mesh_service();
-
-    const Eigen::AlignedBox3f bounds(Eigen::Vector3f(-1.1, -1.1, -1.1), Eigen::Vector3f(1.1, 1.1, 1.1));
-    auto mesh_quad = service.mesh_to_irregular_quadmesh(sdfn::box, bounds);
-    const auto mesh_tri = service.remesh_to_trimesh(mesh_quad);
-    const auto mesh_final = service.remesh_to_regular_quadmesh(mesh_tri);
-
-    service.save_mesh("../tests/out/box-100-fff-10000-remesh.obj", mesh_final);
-}
-
-TEST(E2E, FromSDFsCylinder) {
-    const auto service = bootstrap::Container().mesh_service();
-
-    const Eigen::AlignedBox3f bounds(Eigen::Vector3f(-1.1, -1.1, -1.1), Eigen::Vector3f(1.1, 1.1, 1.1));
-    auto mesh_quad = service.mesh_to_irregular_quadmesh(sdfn::cylinder, bounds);
-    const auto mesh_tri = service.remesh_to_trimesh(mesh_quad);
-    const auto mesh_final = service.remesh_to_regular_quadmesh(mesh_tri);
-
-    service.save_mesh("../tests/out/cylinder-100-fff-10000-remesh.obj", mesh_final);
-}
-
-TEST(E2E, FullPipeline) {
-    const auto service = bootstrap::Container().mesh_service();
-
-    const auto dir_input = "../tests/resources/benchmark/";
-    const auto dir_output = "../tests/out/e2e";
-
-
-    EXPECT_TRUE(fs::exists(dir_input));
-
-    auto i = 0;
-    const auto faces = 10000;
-    for (const auto &entry: fs::directory_iterator(dir_input)) {
-        if (i > 0) break;
-        const auto path = entry.path();
-        const auto path_base = std::format("{}/{}", dir_output, path.stem().string());
-
-        if (fs::exists(path_base)) fs::remove_all(path_base);
-        fs::create_directories(path_base);
-
-        if (path.extension().string() != ".ubs") continue;
-
-        auto model = service.load_unbound_model_from_file(path.string());
-        auto sdfn = model[0];
-
-        auto mesh = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
-        service.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
-
-        mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "1-project"), mesh);
-
-        mesh = smoothing::edge_snapping(sdfn, mesh, 10);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "2-intersect"), mesh);
-
-        mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "3-laplacian-project"), mesh);
-
-        mesh = service.remesh_to_trimesh(mesh);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "4-trimesh"), mesh);
-
-        mesh = service.remesh_to_regular_quadmesh(mesh, faces, true, false);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "5-remesh"), mesh);
-
-        mesh = smoothing::sdfn_projection(sdfn, mesh);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
-
-        mesh = smoothing::edge_snapping(sdfn, mesh);
-        service.save_mesh(std::format("{}/{}.ply", path_base, "7-intersect"), mesh);
-
-        // Notes on the pipeline
-        // No final smooth as it breaks the edges.
-        i++;
-    }
-}
 
 TEST(E2E, FullPipelineBoxComplex) {
-    const auto service = bootstrap::Container().mesh_service();
+    const auto dao = bootstrap::Container().mesh_dao();
 
     const auto dir_input = "../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs";
     const auto dir_output = "../tests/out/e2e";
@@ -113,38 +26,32 @@ TEST(E2E, FullPipelineBoxComplex) {
     if (fs::exists(path_base)) fs::remove_all(path_base);
     fs::create_directories(path_base);
 
-    auto model = service.load_unbound_model_from_file(path.string());
+    auto model = dao.load_model(path.string());
     auto sdfn = model[0];
 
-    auto mesh = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
-    service.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
+    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
-    mesh = service.remesh_to_trimesh(mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "1-trimesh"), mesh);
+    mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "1-project"), mesh);
 
-    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
+    mesh = smoothing::edge_snapping(sdfn, mesh, 10);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-intersect"), mesh);
 
-    mesh = smoothing::edge_snapping(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "3-edges"), mesh);
+    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-laplacian-project"), mesh);
 
-    mesh = service.remesh_to_regular_quadmesh(mesh, faces, true, false);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh"), mesh);
+    mesh = meshing::remesh_to_trimesh(mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-trimesh"), mesh);
 
-    mesh = smoothing::sdfn_projection(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "5-project"), mesh);
-
-    mesh = smoothing::edge_snapping(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "6-edges"), mesh);
-
-    mesh = service.remesh_to_trimesh(mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "7-trimesh"), mesh);
-
-    mesh = service.remesh_to_regular_quadmesh(mesh, faces, true, false);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "8-remesh"), mesh);
+    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, faces);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-remesh"), mesh);
 
     mesh = smoothing::sdfn_projection(sdfn, mesh);
-    service.save_mesh(std::format("{}/{}.ply", path_base, "9-project"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
+
+    mesh = smoothing::edge_snapping(sdfn, mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "7-intersect"), mesh);
 
     // Notes on the pipeline
     // No final smooth as it breaks the edges.
@@ -153,8 +60,8 @@ TEST(E2E, FullPipelineBoxComplex) {
 TEST(E2E, Benchmark) {
     const auto service = bootstrap::Container().mesh_service();
 
-    const auto dir_input = "../tests/resources/benchmark/";
-    const auto dir_output = "../tests/out/benchmark/";
+    const auto dir_input = "../tests/resources/benchmark";
+    const auto dir_output = "../tests/out/benchmark";
 
     if (!fs::exists(dir_output)) fs::create_directories(dir_output);
 
@@ -173,31 +80,21 @@ TEST(E2E, Benchmark) {
     int i_case = 0;
     int total_case = faces.size() * entries.size();
     for (const auto &entry: entries) {
-        const auto path = entry.path();
-        const auto filename = path.filename().string();
-        const auto ext = path.extension().string();
+        const auto path_model = entry.path();
+        const auto filename = path_model.filename().string();
+        const auto ext = path_model.extension().string();
 
         for (int it_face: faces) {
             spdlog::info("--- Case {}/{} ---\n- filename:{}\n- faces: {}",
                          i_case, total_case, filename, it_face);
-            const auto path_out = std::format("{}{}-f{}.ply",
-                                              dir_output, filename, it_face);
-            if (fs::exists(path_out)) {
+            const auto path_output = std::format("{}/{}", dir_output, filename);
+            if (fs::exists(path_output)) {
                 i_case++;
                 continue;
             }
 
             try {
-                auto model = service.load_unbound_model_from_file(path.string());
-                auto sdfn = model[0];
-
-                auto mesh = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
-                mesh = service.remesh_to_trimesh(mesh);
-                mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
-                mesh = service.remesh_to_regular_quadmesh(mesh, it_face, true);
-                mesh = smoothing::sdfn_projection(sdfn, mesh);
-
-                service.save_mesh(path_out, mesh);
+                service.to_isotropic_quadmesh(path_model, path_output, it_face);
             } catch (const std::exception &e) {
                 spdlog::error("Case {}/{} failed: {}", i_case, total_case, e.what());
                 failed++;

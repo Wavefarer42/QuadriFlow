@@ -180,7 +180,9 @@ TEST(SVDSuite, ComparisonExamplesIntersectPlanes1) {
 }
 
 TEST(MathExtensions, NormalizeAndDenormalize) {
-    const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
+    const auto mesh = bootstrap::Container()
+            .mesh_dao()
+            .load_mesh("../tests/resources/box.ply");
 
     MatrixXf vertices(mesh.n_vertices(), 3);
     for (int i = 0; i < mesh.n_vertices(); ++i) {

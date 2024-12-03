@@ -3,11 +3,11 @@ project(MeshBound LANGUAGES CXX)
 
 option(ENABLE_DEV_DEBUG "Enable development debugging artifacts" ON)
 
-if(ENABLE_DEV_DEBUG)
+if (ENABLE_DEV_DEBUG)
     add_compile_definitions(DEV_DEBUG=1)
-else()
+else ()
     add_compile_definitions(DEV_DEBUG=0)
-endif()
+endif ()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -117,19 +117,14 @@ target_compile_definitions(
 add_executable(
         meshbound
 
-        src/main.cpp
-
-        src/dedge.cpp
-        src/hierarchy.cpp
-        src/optimizer.cpp
-        src/parametrizer.cpp
-        src/persistence.cpp
-        src/services.cpp
         src/bootstrap.cpp
-        src/adapters.cpp
-        src/surfacenets.cpp
-        src/sdfn.cpp
+        src/main.cpp
         src/mathext.cpp
+        src/meshing.cpp
+        src/persistence.cpp
+        src/quadriflow.cpp
+        src/sdfn.cpp
+        src/services.cpp
         src/smoothing.cpp
 )
 
@@ -161,27 +156,22 @@ enable_testing()
 add_executable(
         meshboundTests
 
-        tests/test_persistence.cpp
-        tests/test_libraries.cpp
-        tests/test_surfacenets.cpp
         tests/test_e2e.cpp
-        tests/test_sdfn.cpp
+        tests/test_libraries.cpp
         tests/test_mathext.cpp
-        tests/test_smoothing.cpp
-        tests/test_services.cpp
+        tests/test_meshing.cpp
         tests/test_migration.cpp
+        tests/test_persistence.cpp
+        tests/test_sdfn.cpp
+        tests/test_smoothing.cpp
 
-        src/dedge.cpp
-        src/hierarchy.cpp
-        src/optimizer.cpp
-        src/parametrizer.cpp
-        src/persistence.cpp
-        src/services.cpp
         src/bootstrap.cpp
-        src/adapters.cpp
-        src/surfacenets.cpp
-        src/sdfn.cpp
         src/mathext.cpp
+        src/meshing.cpp
+        src/persistence.cpp
+        src/quadriflow.cpp
+        src/sdfn.cpp
+        src/services.cpp
         src/smoothing.cpp
 )
 

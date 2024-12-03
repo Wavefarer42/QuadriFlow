@@ -1,10 +1,7 @@
 #pragma once
 
 #include <functional>
-
 #include <Eigen/Core>
-#include <Eigen/Dense>
-#include <tbb/parallel_for.h>
 
 #include "entities.h"
 
@@ -19,20 +16,20 @@ namespace sdfn {
 
     entities::SDFn rotate(
         entities::SDFn sdfn,
-        const Vector3f axis,
+        const Vector3f &axis,
         float angle
     );
 
     MatrixXf gradient_of(
         const entities::SDFn &sdfn,
         const MatrixXf &domain,
-        const float epsilon = 1e-3
+        float epsilon = 1e-3
     );
 
     MatrixXf normal_of(
         const entities::SDFn &sdfn,
         const MatrixXf &domain,
-        const float epsilon = 1e-3
+        float epsilon = 1e-3
     );
 
     MatrixXf normal_of(
@@ -41,7 +38,7 @@ namespace sdfn {
 
     entities::SDFn scale(
         const entities::SDFn &sdfn,
-        const float scale,
+        float scale,
         const Vector3f &offset
     );
 }

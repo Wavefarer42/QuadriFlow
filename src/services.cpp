@@ -1,429 +1,70 @@
-#include <fstream>
-#include <OpenMesh/Core/IO/MeshIO.hh>
-
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
 #include "services.h"
-#include "field-math.h"
-#include "optimizer.h"
-#include "adapters.h"
-#include "surfacenets.h"
-#include "sdfn.h"
+#include "meshing.h"
+#include "smoothing.h"
 
 namespace services {
-    // IO
-
-    entities::Mesh MeshService::load_mesh(
-        const std::string &filename
-    ) const {
-        spdlog::info("Loading mesh from file {}", filename);
-        return this->mesh_dao.load_mesh_from_file(filename);
-    }
-
-    bool MeshService::is_trimesh(
-        const entities::Mesh &mesh
-    ) const {
-        spdlog::info("Checking if mesh is a triangle mesh");
-
-        int n_triangles = 0;
-        int n_non_triangles = 0;
-        for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(*it_f) == 3) {
-                n_triangles++;
-            } else {
-                n_non_triangles++;
-            }
-        }
-
-        spdlog::debug("Finished checking if the mesh is a triangle mesh with Triangles={}, Non Triangle={}",
-                      n_triangles, n_non_triangles);
-
-        return n_non_triangles == 0;
-    }
-
-    entities::UnboundModel MeshService::load_unbound_model_from_file(
-        const std::string &filename
-    ) const {
-        spdlog::info("Loading SDFn from file {}", filename);
-
-        return this->mesh_dao.load_unbound_model(filename);
-    }
-
-    void MeshService::save_mesh(
-        const std::string &filename,
-        const entities::Mesh &mesh
-    ) const {
-        spdlog::info("Saving mesh to file {}", filename);
-
-        mesh_dao.save_mesh_to_file(filename, mesh);
-    }
-
-    // Quadriflow
-
-    std::map<int, int> MeshService::find_orientation_singularities(
-        Hierarchy &hierarchy
-    ) {
-        spdlog::info("Finding orientation singularities");
-
-        const MatrixXd &normals = hierarchy.m_normals[0];
-        const MatrixXi &faces = hierarchy.m_faces;
-        MatrixXd &Q = hierarchy.m_orientation[0];
-
-        std::map<int, int> singularities;
-        for (int f = 0; f < faces.cols(); ++f) {
-            int index = 0;
-            int abs_index = 0;
-            for (int k = 0; k < 3; ++k) {
-                int i = faces(k, f), j = faces(k == 2 ? 0 : (k + 1), f);
-                auto value = compat_orientation_extrinsic_index_4(
-                    Q.col(i),
-                    normals.col(i),
-                    Q.col(j),
-                    normals.col(j)
-                );
-                index += value.second - value.first;
-                abs_index += std::abs(value.second - value.first);
-            }
-            int index_mod = modulo(index, 4);
-            if (index_mod == 1 || index_mod == 3) {
-                if (index >= 4 || index < 0) {
-                    // TODO is the negative sign a marking?
-                    Q.col(faces(0, f)) = -Q.col(faces(0, f));
-                }
-                singularities[f] = index_mod;
-            }
-        }
-
-        return singularities;
-    }
-
-    std::tuple<std::map<int, Vector2i>, MatrixXi, MatrixXi> MeshService::find_position_singularities(
-        Hierarchy &m_hierarchy,
-        bool with_scale
-    ) {
-        const MatrixXd &V = m_hierarchy.m_vertices[0];
-        const MatrixXd &N = m_hierarchy.m_normals[0];
-        const MatrixXd &Q = m_hierarchy.m_orientation[0];
-        const MatrixXd &O = m_hierarchy.m_positions[0];
-        const MatrixXi &F = m_hierarchy.m_faces;
-
-        std::map<int, Vector2i> singularity_position;
-        MatrixXi singularity_rank(F.rows(), F.cols());
-        MatrixXi singularity_index(6, F.cols());
-
-        for (int f = 0; f < F.cols(); ++f) {
-            Vector2i index = Vector2i::Zero();
-            uint32_t i0 = F(0, f), i1 = F(1, f), i2 = F(2, f);
-
-            Vector3d q[3] = {Q.col(i0).normalized(), Q.col(i1).normalized(), Q.col(i2).normalized()};
-            Vector3d n[3] = {N.col(i0), N.col(i1), N.col(i2)};
-            Vector3d o[3] = {O.col(i0), O.col(i1), O.col(i2)};
-            Vector3d v[3] = {V.col(i0), V.col(i1), V.col(i2)};
-
-            int best[3];
-            double best_dp = -std::numeric_limits<double>::infinity();
-            for (int i = 0; i < 4; ++i) {
-                Vector3d v0 = rotate90_by(q[0], n[0], i);
-                for (int j = 0; j < 4; ++j) {
-                    Vector3d v1 = rotate90_by(q[1], n[1], j);
-                    for (int k = 0; k < 4; ++k) {
-                        Vector3d v2 = rotate90_by(q[2], n[2], k);
-                        double dp = std::min(std::min(v0.dot(v1), v1.dot(v2)), v2.dot(v0));
-                        if (dp > best_dp) {
-                            best_dp = dp;
-                            best[0] = i;
-                            best[1] = j;
-                            best[2] = k;
-                        }
-                    }
-                }
-            }
-            singularity_rank(0, f) = best[0];
-            singularity_rank(1, f) = best[1];
-            singularity_rank(2, f) = best[2];
-            for (int k = 0; k < 3; ++k) q[k] = rotate90_by(q[k], n[k], best[k]);
-
-            for (int k = 0; k < 3; ++k) {
-                int kn = k == 2 ? 0 : (k + 1);
-                double scale_x = m_hierarchy.m_scale, scale_y = m_hierarchy.m_scale,
-                        scale_x_1 = m_hierarchy.m_scale, scale_y_1 = m_hierarchy.m_scale;
-                if (with_scale) {
-                    scale_x *= m_hierarchy.m_scales[0](0, F(k, f));
-                    scale_y *= m_hierarchy.m_scales[0](1, F(k, f));
-                    scale_x_1 *= m_hierarchy.m_scales[0](0, F(kn, f));
-                    scale_y_1 *= m_hierarchy.m_scales[0](1, F(kn, f));
-                    if (best[k] % 2 != 0) std::swap(scale_x, scale_y);
-                    if (best[kn] % 2 != 0) std::swap(scale_x_1, scale_y_1);
-                }
-                double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y,
-                        inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
-                std::pair<Vector2i, Vector2i> value = compat_position_extrinsic_index_4(
-                    v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
-                    inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
-                auto diff = value.first - value.second;
-                index += diff;
-                singularity_index(k * 2, f) = diff[0];
-                singularity_index(k * 2 + 1, f) = diff[1];
-            }
-
-            if (index != Vector2i::Zero()) {
-                singularity_position[f] = rshift90(index, best[0]);
-            }
-        }
-
-        return std::make_tuple(singularity_position, singularity_rank, singularity_index);
-    }
-
-    std::tuple<MatrixXd, MatrixXd> MeshService::estimate_slope(
-        Hierarchy &hierarchy,
-        std::vector<MatrixXd> &triangle_space,
-        MatrixXd &normals_faces
-    ) {
-        spdlog::info("Estimating adaptive slope");
-
-        auto &faces = hierarchy.m_faces;
-        auto &orientation = hierarchy.m_orientation[0];
-        auto &normals = hierarchy.m_normals[0];
-        auto &vertices = hierarchy.m_vertices[0];
-
-        MatrixXd faces_slope(2, faces.cols());
-        MatrixXd faces_orientation(3, faces.cols());
-
-        for (int i = 0; i < faces.cols(); ++i) {
-            const Vector3d &n = normals_faces.col(i);
-            const Vector3d &q_1 = orientation.col(faces(0, i)), &q_2 = orientation.col(
-                faces(1, i)), &q_3 = orientation.col(faces(2, i));
-            const Vector3d &n_1 = normals.col(faces(0, i)), &n_2 = normals.col(faces(1, i)), &n_3 = normals.col(
-                faces(2, i));
-            Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
-            Vector3d q_2n = rotate_vector_into_plane(q_2, n_2, n);
-            Vector3d q_3n = rotate_vector_into_plane(q_3, n_3, n);
-
-            auto p = compat_orientation_extrinsic_4(q_1n, n, q_2n, n);
-            Vector3d q = (p.first + p.second).normalized();
-            p = compat_orientation_extrinsic_4(q, n, q_3n, n);
-            q = (p.first * 2 + p.second);
-            q = q - n * q.dot(n);
-            faces_orientation.col(i) = q.normalized();
-        }
-        for (int i = 0; i < faces.cols(); ++i) {
-            double step = hierarchy.m_scale * 1.f;
-
-            const Vector3d &n = normals_faces.col(i);
-            Vector3d p =
-                    (vertices.col(faces(0, i)) + vertices.col(faces(1, i)) + vertices.col(faces(2, i))) * (1.0 / 3.0);
-            Vector3d q_x = faces_orientation.col(i), q_y = n.cross(q_x);
-            Vector3d q_xl = -q_x, q_xr = q_x;
-            Vector3d q_yl = -q_y, q_yr = q_y;
-            Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
-            int f;
-            double tx, ty, len;
-
-            f = i;
-            len = step;
-            TravelField(p, q_xl, len, f, hierarchy.m_E2E, vertices, faces, normals_faces, faces_orientation,
-                        orientation, normals, triangle_space, &tx,
-                        &ty,
-                        &q_yl_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_xr, len, f, hierarchy.m_E2E, vertices, faces, normals_faces, faces_orientation,
-                        orientation, normals, triangle_space, &tx,
-                        &ty,
-                        &q_yr_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_yl, len, f, hierarchy.m_E2E, vertices, faces, normals_faces, faces_orientation,
-                        orientation, normals, triangle_space, &tx,
-                        &ty,
-                        &q_xl_unfold);
-
-            f = i;
-            len = step;
-            TravelField(p, q_yr, len, f, hierarchy.m_E2E, vertices, faces, normals_faces, faces_orientation,
-                        orientation, normals, triangle_space, &tx,
-                        &ty,
-                        &q_xr_unfold);
-            double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * step);
-            double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
-            faces_slope.col(i) = Vector2d(dSx, dSy);
-        }
-
-        std::vector<double> areas(vertices.cols(), 0.0);
-        for (int i = 0; i < faces.cols(); ++i) {
-            Vector3d p1 = vertices.col(faces(1, i)) - vertices.col(faces(0, i));
-            Vector3d p2 = vertices.col(faces(2, i)) - vertices.col(faces(0, i));
-            double area = p1.cross(p2).norm();
-            for (int j = 0; j < 3; ++j) {
-                auto index = compat_orientation_extrinsic_index_4(faces_orientation.col(i), normals_faces.col(i),
-                                                                  orientation.col(faces(j, i)),
-                                                                  normals.col(faces(j, i)));
-                double scaleX = faces_slope.col(i).x(), scaleY = faces_slope.col(i).y();
-                if (index.first != index.second % 2) {
-                    std::swap(scaleX, scaleY);
-                }
-                if (index.second >= 2) {
-                    scaleX = -scaleX;
-                    scaleY = -scaleY;
-                }
-                hierarchy.m_areas[0].col(faces(j, i)) += area * Vector2d(scaleX, scaleY);
-                areas[faces(j, i)] += area;
-            }
-        }
-        for (int i = 0; i < vertices.cols(); ++i) {
-            if (areas[i] != 0)
-                hierarchy.m_areas[0].col(i) /= areas[i];
-        }
-        for (int l = 0; l < hierarchy.m_areas.size() - 1; ++l) {
-            const MatrixXd &K = hierarchy.m_areas[l];
-            MatrixXd &K_next = hierarchy.m_areas[l + 1];
-            auto &toUpper = hierarchy.mToUpper[l];
-            for (int i = 0; i < toUpper.cols(); ++i) {
-                Vector2i upper = toUpper.col(i);
-                Vector2d k0 = K.col(upper[0]);
-
-                if (upper[1] != -1) {
-                    Vector2d k1 = K.col(upper[1]);
-                    k0 = 0.5 * (k0 + k1);
-                }
-
-                K_next.col(i) = k0;
-            }
-        }
-
-        return std::make_tuple(faces_slope, faces_orientation);
-    }
-
-
-    entities::Mesh MeshService::mesh_to_irregular_quadmesh(
-        const entities::SDFn &sdfn,
-        const AlignedBox3f &bounds,
-        const int resolution
-    ) const {
-        spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
-
-        surfacenets::SurfaceNetsMeshStrategy strategy;
-        return strategy.mesh(sdfn, bounds, resolution);
-    }
-
-    entities::Mesh MeshService::remesh_to_trimesh(
-        entities::Mesh &mesh
-    ) const {
-        spdlog::info("Converting mesh to triangle mesh vertices={} faces={}", mesh.n_vertices(), mesh.n_faces());
-
-        spdlog::stopwatch watch;
-
-        mesh.request_face_status();
-        for (entities::Mesh::FaceIter it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            if (mesh.valence(*it_f) == 3) continue;
-
-            if (mesh.valence(*it_f) == 4) {
-                // quad
-                entities::Mesh::CFVIter fv_it = mesh.cfv_iter(*it_f);
-                auto v0 = *fv_it;
-                auto v1 = *(++fv_it);
-                auto v2 = *(++fv_it);
-                auto v3 = *(++fv_it);
-
-                mesh.delete_face(*it_f, false);
-                mesh.add_face(v0, v1, v2);
-                mesh.add_face(v0, v2, v3);
-            } else {
-                spdlog::warn("Encountered non-quad face which is not yet supported in the triangle mesh conversion");
-            }
-        }
-
-        mesh.garbage_collection();
-        spdlog::debug("Finished converting mesh to triangle mesh vertices={} faces={} ({:.3}s)",
-                      mesh.n_vertices(), mesh.n_faces(), watch);
-
-        return mesh;
-    }
-
-
-    entities::Mesh MeshService::remesh_to_regular_quadmesh(
-        const entities::Mesh &mesh,
+    void MeshService::to_isotropic_quadmesh(
+        const std::string &path_input,
+        const std::string &path_output,
         const int face_count,
-        const bool preserve_edges,
-        const bool use_adaptive_meshing,
-        std::optional<std::reference_wrapper<entities::SDFn> > sdfn
+        const int sdfn_resolution
     ) const {
-        assert(is_trimesh(mesh));
-        spdlog::stopwatch watch;
-
-        Parametrizer field;
-        spdlog::info("Re-meshing mesh with {} target faces", face_count);
-
-
-        spdlog::debug("Re-meshing of vertices={}, faces={}", mesh.n_vertices(), mesh.n_faces());
-
-        adapters::initialize_parameterizer(field, mesh);
-        field.initialize(
-            preserve_edges,
-            face_count,
-            use_adaptive_meshing,
-            sdfn
+        spdlog::info(
+            "Meshing unbound collection via isotropic quad meshing \n\tinput={}, output={}, faces={}, resolution={}",
+            path_input, path_output, face_count, sdfn_resolution
         );
 
-        spdlog::debug("Finished initializing parameters ({:.3}s)", watch);
+        std::filesystem::path _path_input = path_input;
+        std::filesystem::path _path_output = path_output;
 
-        watch.reset();
-        spdlog::info("Solving orientation field");
+        assert(std::filesystem::exists(_path_input));
+        assert(_path_input.extension() == ".ubs");
+        assert(std::filesystem::exists(_path_output));
+        assert(std::filesystem::is_directory(_path_output));
 
-        Optimizer::optimize_orientations(field.m_hierarchy);
-        find_orientation_singularities(field.m_hierarchy);
+        spdlog::stopwatch watch_total;
 
-        spdlog::debug("Finished solving orientation field ({:.3}s)", watch);
+        entities::UnboundModel model = mesh_dao.load_model(path_input);
+        for (int idx_model = 0; idx_model < model.size(); idx_model++) {
+            try {
+                spdlog::stopwatch watch;
 
+                spdlog::info("Meshing model {}/{} via dual flow meshing", idx_model + 1, model.size());
 
-        if (use_adaptive_meshing) {
-            watch.reset();
-            spdlog::info("Analyzing mesh for adaptive scaling");
+                auto sdfn = model[idx_model];
 
-            const auto [faces_slope, faces_orientation] = estimate_slope(
-                field.m_hierarchy,
-                field.m_triangle_space,
-                field.m_faces_normals
-            );
-            field.m_faces_slope = faces_slope;
-            field.m_faces_orientation = faces_orientation;
+                auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), sdfn_resolution);
+                mesh = meshing::remesh_to_trimesh(mesh);
+                mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10, 1);
+                mesh = smoothing::edge_snapping(sdfn, mesh, 10, 30, 0.1);
+                mesh = meshing::remesh_to_quadmesh(sdfn, mesh, face_count);
+                mesh = smoothing::sdfn_projection(sdfn, mesh);
+                mesh = smoothing::edge_snapping(sdfn, mesh);
+                mesh = meshing::remesh_to_trimesh(mesh);
+                mesh = meshing::remesh_to_quadmesh(sdfn, mesh, face_count);
+                mesh = smoothing::sdfn_projection(sdfn, mesh);
 
-            spdlog::info("Finished analyzing mesh for adaptive scaling ({:.3}s)", watch);
+                const auto path_filename = fmt::format(
+                    "{}-{}-{}-{}.ply",
+                    _path_input.stem().string(),
+                    face_count,
+                    sdfn_resolution,
+                    idx_model
+                );
+                mesh_dao.save_mesh(_path_output / path_filename, mesh);
+
+                spdlog::info("Finished meshing model {}/{} via dual flow meshing ({:.3}s)",
+                             idx_model + 1, model.size(), watch);
+            } catch (const std::exception &e) {
+                spdlog::error("Error meshing model {}/{} via dual flow meshing: {}", idx_model + 1, model.size(),
+                              e.what());
+            }
         }
 
-
-        watch.reset();
-        spdlog::info("Solving field for adaptive scale");
-
-        Optimizer::optimize_scale(field.m_hierarchy, field.m_rho, use_adaptive_meshing);
-
-        spdlog::debug("Finished solving field for adaptive scale ({:.3}s)", watch);
-
-
-        watch.reset();
-        spdlog::info("Solving for position field");
-
-        Optimizer::optimize_positions(field.m_hierarchy);
-        const auto [singularity_position, singularity_rank, singularity_index] = find_position_singularities(
-            field.m_hierarchy,
-            true
-        );
-        field.m_singularity_position = singularity_position;
-        field.m_singularity_rank = singularity_rank;
-        field.m_singularity_index = singularity_index;
-
-        spdlog::debug("Finished solving for position field ({:.3}s)", watch);
-
-        watch.reset();
-        spdlog::info("Solving index map");
-
-        field.compute_index_map(field.m_hierarchy);
-
-        spdlog::debug("Finished solving index map ({:.3}s)", watch);
-
-        return adapters::from_parametrizer_to_quad_mesh(field);
+        spdlog::info("Finished meshing {} models via dual flow meshing faces={}, resolution={} ({:.3}s)",
+                     model.size(), face_count, sdfn_resolution, watch_total);
     }
 }

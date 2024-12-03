@@ -5,27 +5,18 @@
 #include "sdfn.h"
 #include "bootstrap.h"
 #include "mathext.h"
+#include "meshing.h"
 #include "smoothing.h"
 
 using namespace Eigen;
 
-TEST(MeshServiceSuite, to_trimesh) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto mesh = service.load_mesh("../tests/resources/sphere.ply");
 
-    const auto result = service.remesh_to_trimesh(mesh);
-
-    OpenMesh::IO::write_mesh(result, "../tests/out/sphere-to_trimesh.ply");
-
-    EXPECT_TRUE(service.is_trimesh(mesh));
-}
-
-TEST(MeshServiceSuite, SmoothingSDFnProjectionBox) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+TEST(SmoothingTestSuite, SmoothingSDFnProjectionBox) {
+    const auto dao = bootstrap::Container().mesh_dao();
+    auto model = dao.load_model("../tests/resources/box-sharp-aligned.ubs");
     const auto sdfn = model[0];
 
-    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_base = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
     auto mesh_smooth = mesh_base;
     const auto result = smoothing::sdfn_projection(sdfn, mesh_smooth, 10);
 
@@ -33,11 +24,9 @@ TEST(MeshServiceSuite, SmoothingSDFnProjectionBox) {
     OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-sdfn-projection-box-smooth.ply");
 }
 
-TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
-    const auto service = bootstrap::Container().mesh_service();
-
+TEST(SmoothingTestSuite, LaplacianAngleFieldBox) {
     const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
-    auto mesh = service.mesh_to_irregular_quadmesh(sdfn::box, bounds);
+    auto mesh = meshing::mesh_to_quadmesh(sdfn::box, bounds);
     const VectorXf field = smoothing::laplacian_angular_field(sdfn::box, mesh);
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
@@ -58,11 +47,12 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBox) {
     OpenMesh::IO::write_mesh(mesh, "../tests/out/box-laplacian_angle_field.ply");
 }
 
-TEST(MeshServiceSuite, LaplacianAngleFieldBoxComplex) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-complex.ubs");
+TEST(SmoothingTestSuite, LaplacianAngleFieldBoxComplex) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-complex.ubs");
 
-    auto mesh = service.mesh_to_irregular_quadmesh(model[0], model.bounding_box(0));
+    auto mesh = meshing::mesh_to_quadmesh(model[0], model.bounding_box(0));
     const VectorXf field = smoothing::laplacian_angular_field(model[0], mesh);
 
     std::cout << "Field: " << mathext::count_unique(field) << std::endl;
@@ -83,12 +73,13 @@ TEST(MeshServiceSuite, LaplacianAngleFieldBoxComplex) {
     OpenMesh::IO::write_mesh(mesh, "../tests/out/box-complex-laplacian_angle_field.ply");
 }
 
-TEST(MeshServiceSuite, SmoothingEdgeSnappingBox) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+TEST(SmoothingTestSuite, SmoothingEdgeSnappingBox) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-sharp-aligned.ubs");
     auto sdfn = model[0];
 
-    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_base = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
     auto mesh_smooth = mesh_base;
     const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 10);
 
@@ -96,13 +87,14 @@ TEST(MeshServiceSuite, SmoothingEdgeSnappingBox) {
     OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");
 }
 
-TEST(MeshServiceSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs");
+TEST(SmoothingTestSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs");
     auto sdfn = model[0];
 
-    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
-    mesh_base = service.remesh_to_trimesh(mesh_base);
+    auto mesh_base = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
+    mesh_base = meshing::remesh_to_trimesh(mesh_base);
     auto mesh_smooth = mesh_base;
     const auto result = smoothing::edge_snapping(sdfn, mesh_smooth, 5);
 
@@ -110,12 +102,13 @@ TEST(MeshServiceSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
     OpenMesh::IO::write_mesh(mesh_smooth, "../tests/out/smoothing-edge-snapping-box-smooth.ply");
 }
 
-TEST(MeshServiceSuite, SmoothingLaplacianSDFnProjectionBoxSharpAligned) {
-    const auto service = bootstrap::Container().mesh_service();
-    auto model = service.load_unbound_model_from_file("../tests/resources/box-sharp-aligned.ubs");
+TEST(SmoothingTestSuite, SmoothingLaplacianSDFnProjectionBoxSharpAligned) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-sharp-aligned.ubs");
     auto sdfn = model[0];
 
-    auto mesh_base = service.mesh_to_irregular_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh_base = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
     auto mesh_smooth = mesh_base;
     const auto result = smoothing::laplacian_with_sdfn_projection(sdfn, mesh_smooth, 10);
 

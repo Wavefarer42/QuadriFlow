@@ -34,7 +34,9 @@ void normalize_mesh_old(
 
 
 TEST(MigrationSuite, NormalizeMesh) {
-    const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
+    const auto mesh = bootstrap::Container()
+            .mesh_dao()
+            .load_mesh("../tests/resources/box.ply");
 
     MatrixXd m_vertices(3, mesh.n_vertices());
     for (int i = 0; i < mesh.n_vertices(); ++i) {
@@ -55,7 +57,9 @@ TEST(MigrationSuite, NormalizeMesh) {
 }
 
 TEST(MigrationSuite, NormalizeMeshComparison) {
-    const auto mesh = bootstrap::Container().mesh_service().load_mesh("../tests/resources/box.ply");
+    const auto mesh = bootstrap::Container()
+            .mesh_dao()
+            .load_mesh("../tests/resources/box.ply");
 
     MatrixXd vertices_orig(3, mesh.n_vertices());
     for (int i = 0; i < mesh.n_vertices(); ++i) {

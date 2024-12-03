@@ -9,7 +9,6 @@ namespace sdfn {
         return (domain.rowwise() - origin.transpose()).rowwise().norm().array() - radius;
     }
 
-
     VectorXf box(const MatrixXf &domain) {
         const Vector3f boxSize = Vector3f(1, 1, 1);
         MatrixXf q = domain.array().cwiseAbs().rowwise() - boxSize.transpose().array();
@@ -23,7 +22,7 @@ namespace sdfn {
     }
 
     VectorXf cylinder(const MatrixXf &domain) {
-        const float radius = 0.8;
+        constexpr float radius = 0.8;
         const VectorXf distances = domain.block(0, 1, domain.rows(), 2).rowwise().norm().array() - radius;
 
         return distances;
@@ -31,7 +30,7 @@ namespace sdfn {
 
     entities::SDFn rotate(
         entities::SDFn sdfn,
-        const Vector3f axis,
+        const Vector3f &axis,
         const float angle
     ) {
         const auto _rotate = [sdfn, axis, angle](const MatrixXf &domain) -> VectorXf {
