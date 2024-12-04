@@ -42,6 +42,9 @@ include_directories(${Boost_INCLUDE_DIRS})
 # OpenMesh
 find_package(OpenMesh REQUIRED)
 
+# CGAL
+find_package(CGAL REQUIRED)
+
 # PCG32
 include_directories(third_party/pcg32/include)
 
@@ -139,6 +142,7 @@ target_link_libraries(
         "-framework CoreFoundation"
         TBB::tbb
         argparse
+        CGAL::CGAL
 )
 
 # Testing
@@ -186,6 +190,7 @@ target_link_libraries(
         UnboundEval
         "-framework CoreFoundation"
         TBB::tbb
+        CGAL::CGAL
 )
 
 # Testing

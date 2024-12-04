@@ -19,7 +19,7 @@ namespace entities {
 
     typedef OpenMesh::PolyMesh_ArrayKernelT<OpenMesh::DefaultTraits> Mesh;
 
-    typedef std::function<VectorXf(MatrixXf)> SDFn;
+    typedef std::function<VectorXf(const MatrixXf&)> SDFn;
 
     class UnboundModel {
         const UB::Collection _collection;

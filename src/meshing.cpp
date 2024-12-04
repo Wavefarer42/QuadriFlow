@@ -1,6 +1,16 @@
 #include <OpenMesh/Tools/Utils/MeshCheckerT.hh>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <tbb/mutex.h>
+#include <fstream>
+#include <vector>
+#include <nlohmann/json.hpp>
+
+#include <CGAL/Surface_mesh_default_triangulation_3.h>
+#include <CGAL/Complex_2_in_triangulation_3.h>
+#include <CGAL/make_surface_mesh.h>
+#include <CGAL/Implicit_surface_3.h>
+#include <CGAL/IO/facets_in_complex_2_to_triangle_mesh.h>
+#include <CGAL/Surface_mesh.h>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
@@ -15,14 +25,17 @@ using namespace Eigen;
 namespace surfacenets {
     using NdToFlatIndexer = std::function<int(const Vector3i &)>;
 
-    static const MatrixXi CUBE_CORNERS = (MatrixXi(8, 3) << 0, 0, 0,
-                                          1, 0, 0,
-                                          0, 1, 0,
-                                          1, 1, 0,
-                                          0, 0, 1,
-                                          1, 0, 1,
-                                          0, 1, 1,
-                                          1, 1, 1).finished();
+    static const MatrixXi CUBE_CORNERS = (
+        MatrixXi(8, 3) <<
+        0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
+        0, 0, 1,
+        1, 0, 1,
+        0, 1, 1,
+        1, 1, 1
+    ).finished();
 
     static const Matrix<int, 12, 2> CUBE_EDGES = (Matrix<int, 12, 2>() << 0b000, 0b001,
                                                   0b000, 0b010,
@@ -105,7 +118,9 @@ namespace surfacenets {
         }
     }
 
-    MatrixXi create_indices(int resolution) {
+    MatrixXi create_indices(
+        int resolution
+    ) {
         spdlog::debug("Creating domain indices");
         spdlog::stopwatch watch;
 
@@ -174,7 +189,7 @@ namespace surfacenets {
         face_indices[2] = indices(linearize(vidx - axis_c), 3);
         face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
 
-        assert(face_indices.minCoeff() >= 0);
+        assert(face_indices.minCoeff() >= 0 && "Inconsistency between face indices from the vertex creation.") ;
 
         return face_indices;
     }
@@ -211,7 +226,6 @@ namespace surfacenets {
         const MatrixXf &domain,
         const MatrixXf &sdf,
         const int resolution,
-        const AlignedBox3f &bounds,
         const NdToFlatIndexer &linearize
     ) {
         spdlog::debug("Creating surface vertices");
@@ -370,6 +384,16 @@ namespace surfacenets {
         return mesh;
     }
 
+    std::function<int(Vector3i)> indexer_nd_to_linear(
+        int resolution
+    ) {
+        return [resolution](Vector3i idx_nd) {
+            return idx_nd.x()
+                   + idx_nd.y() * (resolution + 1)
+                   + idx_nd.z() * (resolution + 1) * (resolution + 1);
+        };
+    }
+
     entities::Mesh mesh(
         const entities::SDFn &sdfn,
         const AlignedBox3f &bounds,
@@ -387,15 +411,10 @@ namespace surfacenets {
 
         MatrixXi indices = create_indices(resolution);
 
-        const auto linearize = [resolution](Vector3i idx_nd) {
-            return idx_nd.x()
-                   + idx_nd.y() * (resolution + 1)
-                   + idx_nd.z() * (resolution + 1) * (resolution + 1);
-        };
-
+        const auto linearize = indexer_nd_to_linear(resolution);
         const auto domain = scale_to_domain(indices, bounds, resolution);
         const auto sdf = sample_sdf(sdfn, domain);
-        const auto vertices = create_vertices(indices, domain, sdf, resolution, bounds, linearize);
+        const auto vertices = create_vertices(indices, domain, sdf, resolution, linearize);
         const auto faces = create_faces(indices, sdf, resolution, linearize);
         const auto mesh = finalize_mesh(vertices, faces);
 
@@ -405,6 +424,65 @@ namespace surfacenets {
     }
 }
 
+namespace delaunay {
+    typedef CGAL::Surface_mesh_default_triangulation_3 Tr;
+    typedef CGAL::Complex_2_in_triangulation_3<Tr> C2t3;
+    typedef Tr::Geom_traits GT;
+    typedef GT::Sphere_3 Sphere_3;
+    typedef GT::Point_3 Point_3;
+    typedef GT::FT FT;
+
+    typedef FT (*Function)(Point_3);
+
+    typedef CGAL::Implicit_surface_3<GT, Function> Surface_3;
+    typedef CGAL::Surface_mesh<Point_3> Surface_mesh;
+
+    entities::Mesh mesh(
+        const entities::SDFn &sdfn,
+        const AlignedBox3f &bounds,
+        const int resolution
+    ) {
+        spdlog::debug("Meshing with Delaunay triangulation");
+
+        const auto _sdfn = [sdfn](const Point_3 &p) {
+            const Vector3f domain = {
+                static_cast<float>(p.x()),
+                static_cast<float>(p.y()),
+                static_cast<float>(p.z())
+            };
+            const auto distance = sdfn(domain.transpose());
+            return distance(0);
+        };
+
+        Tr tr;
+        C2t3 c2t3(tr);
+        Surface_mesh _mesh;
+
+        const auto radius = (bounds.max() - bounds.min()).norm() / 2;
+        const auto surface = Surface_3(_sdfn, Sphere_3(CGAL::ORIGIN, radius * radius));
+        const auto criteria = CGAL::Surface_mesh_default_criteria_3<Tr>(30., radius / resolution, radius / resolution);
+
+        CGAL::make_surface_mesh(c2t3, surface, criteria, CGAL::Manifold_tag());
+        CGAL::facets_in_complex_2_to_triangle_mesh(c2t3, _mesh);
+
+        entities::Mesh mesh;
+        std::map<Surface_mesh::Vertex_index, entities::Mesh::VertexHandle> mapping;
+        for (Surface_mesh::Vertex_index vi: _mesh.vertices()) {
+            const auto p = _mesh.point(vi);
+            mapping[vi] = mesh.add_vertex(entities::Mesh::Point(p.x(), p.y(), p.z()));
+        }
+
+        for (Surface_mesh::Face_index fi: _mesh.faces()) {
+            std::vector<entities::Mesh::VertexHandle> face;
+            for (Surface_mesh::Vertex_index vi: _mesh.vertices_around_face(_mesh.halfedge(fi))) {
+                face.emplace_back(mapping[vi]);
+            }
+            mesh.add_face(face);
+        }
+
+        return mesh;
+    }
+}
 
 namespace meshing {
     void initialize_parameterizer(quadriflow::Parametrizer &field, entities::Mesh mesh) {
@@ -412,17 +490,15 @@ namespace meshing {
 
         field.m_vertices = MatrixXd(3, mesh.n_vertices());
         for (auto it_v = mesh.vertices_begin(); it_v != mesh.vertices_end(); ++it_v) {
-            auto idx = (*it_v).idx();
-            auto point = mesh.point(*it_v);
-            field.m_vertices.col(idx) = Vector3d(point[0], point[1], point[2]);
+            const auto point = mesh.point(*it_v);
+            field.m_vertices.col(it_v->idx()) = Vector3d(point[0], point[1], point[2]);
         }
 
         field.m_faces = MatrixXi(3, mesh.n_faces());
         for (auto it_f = mesh.faces_begin(); it_f != mesh.faces_end(); ++it_f) {
-            auto idx = (*it_f).idx();
             auto fv_it = mesh.cfv_iter(*it_f);
             for (int i = 0; i < 3; ++i) {
-                field.m_faces(i, idx) = (*fv_it).idx();
+                field.m_faces(i, it_f->idx()) = fv_it->idx();
                 ++fv_it;
             }
         }
@@ -586,20 +662,36 @@ namespace meshing {
         return n_non_triangles == 0;
     }
 
+    entities::Mesh mesh_to_trimesh(
+        const entities::SDFn &sdfn,
+        const AlignedBox3f &bounds,
+        const int resolution,
+        const std::string &algorithm
+    ) {
+        spdlog::info("Meshing SDFn to trimesh. algorithm={}, resolution={}", algorithm, resolution);
+
+        if (algorithm == "delaunay") {
+            return delaunay::mesh(sdfn, bounds, resolution);
+        }
+
+        throw std::invalid_argument("Invalid algorithm");
+    }
+
     /**
-     * Returns a irregular quad mesh from an implicit surface using resolution as base sampling rate.
+     * Returns an irregular quad mesh from an implicit surface using resolution as base sampling rate.
      * @param sdfn signed distance function
      * @param bounds bounding box
      * @param resolution samplesing resolution
+     * @param algorithm currently: surface-nets
      * @return The quad mesh
      */
     entities::Mesh mesh_to_quadmesh(
         const entities::SDFn &sdfn,
         const AlignedBox3f &bounds,
-        int resolution,
+        const int resolution,
         const std::string &algorithm
     ) {
-        spdlog::info("Meshing SDFn via surface nets with resolution {}", resolution);
+        spdlog::info("Meshing SDFn to quadmesh. algorithm={} resolution {}", algorithm, resolution);
 
         if (algorithm == "surface-nets") {
             return surfacenets::mesh(sdfn, bounds, resolution);
@@ -655,7 +747,7 @@ namespace meshing {
      * @return The re-meshed quad mesh.
      */
     entities::Mesh remesh_to_quadmesh(
-        entities::SDFn sdfn,
+        const entities::SDFn &sdfn,
         const entities::Mesh &mesh,
         const int face_count
     ) {

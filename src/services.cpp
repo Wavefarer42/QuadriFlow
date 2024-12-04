@@ -22,8 +22,11 @@ namespace services {
 
         assert(std::filesystem::exists(_path_input));
         assert(_path_input.extension() == ".ubs");
-        assert(std::filesystem::exists(_path_output));
-        assert(std::filesystem::is_directory(_path_output));
+        assert(!std::filesystem::is_directory(_path_output) || std::filesystem::is_directory(_path_output));
+
+        if (!std::filesystem::exists(_path_output)) {
+            std::filesystem::create_directories(_path_output);
+        }
 
         spdlog::stopwatch watch_total;
 

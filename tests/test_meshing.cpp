@@ -172,3 +172,15 @@ TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotated) {
 
     EXPECT_EQ(result.n_vertices(), 0);
 }
+
+TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotatedDelaunay) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/box-sharp-round-rotated.ubs");
+
+    const auto result = meshing::mesh_to_trimesh(model[0], model.bounding_box(0), 100, "delaunay");
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/box-sharp-round-rotated.ply");
+
+    EXPECT_EQ(result.n_vertices(), 0);
+}

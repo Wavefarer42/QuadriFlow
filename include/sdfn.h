@@ -38,7 +38,7 @@ namespace sdfn {
 
     entities::SDFn scale(
         const entities::SDFn &sdfn,
-        float scale,
+        const float scale,
         const Vector3f &offset
     );
 }

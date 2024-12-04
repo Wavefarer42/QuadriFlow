@@ -1,5 +1,4 @@
 #include "sdfn.h"
-
 #include "mathext.h"
 
 namespace sdfn {

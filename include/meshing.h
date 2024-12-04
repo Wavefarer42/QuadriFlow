@@ -9,6 +9,13 @@ namespace meshing {
         const entities::Mesh &mesh
     );
 
+    entities::Mesh mesh_to_trimesh(
+        const entities::SDFn &sdfn,
+        const AlignedBox3f &bounds,
+        int resolution = 100,
+        const std::string &algorithm = "delaunay"
+    );
+
     entities::Mesh mesh_to_quadmesh(
         const entities::SDFn &sdfn,
         const AlignedBox3f &bounds,
@@ -21,7 +28,7 @@ namespace meshing {
     );
 
     entities::Mesh remesh_to_quadmesh(
-        entities::SDFn sdfn,
+        const entities::SDFn &sdfn,
         const entities::Mesh &mesh,
         int face_count
     );

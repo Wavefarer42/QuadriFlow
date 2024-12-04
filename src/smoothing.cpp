@@ -74,7 +74,7 @@ namespace smoothing {
         const float error_before = sdfn(vertices).cwiseAbs().sum();
 
         for (int i = 0; i < iterations; ++i) {
-            spdlog::debug("Surface Smoothing iteration {}/{}", i, iterations);
+            spdlog::trace("Surface Smoothing iteration {}/{}", i, iterations);
 
             const VectorXf scale = sdfn(vertices) * rate;
             const MatrixXf direction = sdfn::normal_of(sdfn, vertices);

@@ -67,6 +67,7 @@ TEST(E2E, Benchmark) {
 
     EXPECT_TRUE(fs::exists(dir_input));
 
+    const int sdfn_resolution = 100;
     const std::vector faces = {100, 1000, 10000};
     std::vector<fs::directory_entry> entries;
     for (const auto &entry: fs::directory_iterator(dir_input)) {
@@ -74,27 +75,29 @@ TEST(E2E, Benchmark) {
             entries.emplace_back(entry);;
         }
     }
-    std::sort(entries.begin(), entries.end());
+    std::ranges::sort(entries);
 
     int failed = 0;
     int i_case = 0;
     int total_case = faces.size() * entries.size();
     for (const auto &entry: entries) {
         const auto path_model = entry.path();
-        const auto filename = path_model.filename().string();
-        const auto ext = path_model.extension().string();
 
         for (int it_face: faces) {
             spdlog::info("--- Case {}/{} ---\n- filename:{}\n- faces: {}",
-                         i_case, total_case, filename, it_face);
-            const auto path_output = std::format("{}/{}", dir_output, filename);
-            if (fs::exists(path_output)) {
+                         i_case, total_case, path_model.stem().string(), it_face);
+            const auto path_output = std::format("{}/{}", dir_output, path_model.stem().string());
+            const auto file_output = std::format("{}/{}-{}-{}-{}.ply",
+                                                 path_output, path_model.stem().string(), it_face,
+                                                 sdfn_resolution, 0);
+            if (fs::exists(file_output)) {
+                spdlog::info("Skipping case as output already exists");
                 i_case++;
                 continue;
             }
 
             try {
-                service.to_isotropic_quadmesh(path_model, path_output, it_face);
+                service.to_isotropic_quadmesh(path_model, path_output, it_face, sdfn_resolution);
             } catch (const std::exception &e) {
                 spdlog::error("Case {}/{} failed: {}", i_case, total_case, e.what());
                 failed++;
@@ -103,6 +106,60 @@ TEST(E2E, Benchmark) {
             i_case++;
         }
     }
+
+    spdlog::info("Finished benchmark with {} / {} failed cases", failed, total_case);
+}
+
+TEST(E2E, PipelineDebug) {
+    const auto service = bootstrap::Container().mesh_service();
+
+    const fs::path model = "7-box-sharpx-roundedy-rotated.ubs";
+    const fs::path path_input = "../tests/resources/benchmark" / model;
+    const fs::path path_output = "../tests/out/benchmark" / path_input.stem();
+
+    assert(fs::exists(path_input));
+    if (fs::exists(path_output)) {
+        fs::remove_all(path_output);
+    }
+    fs::create_directories(path_output);
+
+    const std::vector param_resolution = {
+        50,
+        100,
+        200
+    };
+    const std::vector param_face_count = {
+        100,
+        1000,
+        10000
+    };
+
+    int failed = 0;
+    int i_case = 0;
+    int total_case = param_resolution.size() * param_face_count.size();
+
+    for (int it_resolution: param_resolution) {
+        for (int it_face: param_face_count) {
+            spdlog::info(
+                "--- Case {}/{} ---\n- filename:{}\n- faces: {} \n- resolution: {}",
+                i_case,
+                total_case,
+                path_input.stem().string(),
+                it_face,
+                it_resolution
+            );
+
+            try {
+                service.to_isotropic_quadmesh(path_input, path_output, it_face, it_resolution);
+            } catch (const std::exception &e) {
+                spdlog::error("Case {}/{} failed: {}", i_case, total_case, e.what());
+                failed++;
+            }
+
+            i_case++;
+        }
+    }
+
 
     spdlog::info("Finished benchmark with {} / {} failed cases", failed, total_case);
 }
