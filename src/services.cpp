@@ -39,8 +39,7 @@ namespace services {
 
                 auto sdfn = model[idx_model];
 
-                auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), sdfn_resolution);
-                mesh = meshing::remesh_to_trimesh(mesh);
+                auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), sdfn_resolution);
                 mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10, 1);
                 mesh = smoothing::edge_snapping(sdfn, mesh, 10, 30, 0.1);
                 mesh = meshing::remesh_to_quadmesh(sdfn, mesh, face_count);

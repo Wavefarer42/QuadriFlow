@@ -13,13 +13,14 @@
 namespace fs = std::filesystem;
 
 
-TEST(E2E, FullPipelineBoxComplex) {
+TEST(E2E, FullPipelineStepwiseDebug) {
     const auto dao = bootstrap::Container().mesh_dao();
 
-    const auto dir_input = "../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs";
+    const auto dir_input = "../tests/resources/benchmark/14-box-sphere-union-sharp.ubs";
     const auto dir_output = "../tests/out/e2e";
 
-    const auto faces = 10000;
+    const auto faces = 500;
+    const auto faces_out = 100;
     const auto path = fs::path(dir_input);;
     const auto path_base = std::format("{}/{}", dir_output, path.stem().string());
 
@@ -29,32 +30,32 @@ TEST(E2E, FullPipelineBoxComplex) {
     auto model = dao.load_model(path.string());
     auto sdfn = model[0];
 
-    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));
+    auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(0), 100);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
-    mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "1-project"), mesh);
+    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "1-laplacian-project"), mesh);
 
     mesh = smoothing::edge_snapping(sdfn, mesh, 10);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-intersect"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-project-edges"), mesh);
 
-    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-laplacian-project"), mesh);
-
-    mesh = meshing::remesh_to_trimesh(mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-trimesh"), mesh);
-
-    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, faces);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-remesh"), mesh);
+    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 20000);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-remesh-quad"), mesh);
 
     mesh = smoothing::sdfn_projection(sdfn, mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-project"), mesh);
 
     mesh = smoothing::edge_snapping(sdfn, mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "7-intersect"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-project-edges"), mesh);
 
-    // Notes on the pipeline
-    // No final smooth as it breaks the edges.
+    mesh = meshing::remesh_to_trimesh(mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-remesh-tri"), mesh);
+
+    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, faces);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-quad"), mesh);
+
+    mesh = smoothing::sdfn_projection(sdfn, mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "8-project"), mesh);
 }
 
 TEST(E2E, Benchmark) {
@@ -113,7 +114,7 @@ TEST(E2E, Benchmark) {
 TEST(E2E, PipelineDebug) {
     const auto service = bootstrap::Container().mesh_service();
 
-    const fs::path model = "7-box-sharpx-roundedy-rotated.ubs";
+    const fs::path model = "18-box-sphere-cut-roundedx-rotated.ubs";
     const fs::path path_input = "../tests/resources/benchmark" / model;
     const fs::path path_output = "../tests/out/benchmark" / path_input.stem();
 
@@ -124,13 +125,13 @@ TEST(E2E, PipelineDebug) {
     fs::create_directories(path_output);
 
     const std::vector param_resolution = {
-        50,
+        // 50,
         100,
-        200
+        // 200
     };
     const std::vector param_face_count = {
-        100,
-        1000,
+        // 100,
+        // 1000,
         10000
     };
 

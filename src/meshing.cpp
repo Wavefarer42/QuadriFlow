@@ -189,7 +189,7 @@ namespace surfacenets {
         face_indices[2] = indices(linearize(vidx - axis_c), 3);
         face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
 
-        assert(face_indices.minCoeff() >= 0 && "Inconsistency between face indices from the vertex creation.") ;
+        assert(face_indices.minCoeff() >= 0 && "Inconsistency between face indices from the vertex creation.");
 
         return face_indices;
     }
@@ -442,8 +442,6 @@ namespace delaunay {
         const AlignedBox3f &bounds,
         const int resolution
     ) {
-        spdlog::debug("Meshing with Delaunay triangulation");
-
         const auto _sdfn = [sdfn](const Point_3 &p) {
             const Vector3f domain = {
                 static_cast<float>(p.x()),
@@ -458,9 +456,19 @@ namespace delaunay {
         C2t3 c2t3(tr);
         Surface_mesh _mesh;
 
-        const auto radius = (bounds.max() - bounds.min()).norm() / 2;
+        const auto diameter = (bounds.max() - bounds.min()).norm();
+        const auto radius = diameter / 2;
+        constexpr auto angle_bound = 20.0;
+        const auto radius_bound = diameter / resolution;
+        const auto distance_bound = diameter / 1000;
+
+        spdlog::debug(
+            "Meshing with Delaunay triangulation diameter={}, radius={}, angle={}, radius_bound={}, distance_bound={}",
+            diameter, radius, angle_bound, radius_bound, distance_bound
+        );
+
         const auto surface = Surface_3(_sdfn, Sphere_3(CGAL::ORIGIN, radius * radius));
-        const auto criteria = CGAL::Surface_mesh_default_criteria_3<Tr>(30., radius / resolution, radius / resolution);
+        const auto criteria = CGAL::Surface_mesh_default_criteria_3<Tr>(angle_bound, radius_bound, distance_bound);
 
         CGAL::make_surface_mesh(c2t3, surface, criteria, CGAL::Manifold_tag());
         CGAL::facets_in_complex_2_to_triangle_mesh(c2t3, _mesh);
