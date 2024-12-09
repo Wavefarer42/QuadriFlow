@@ -90,7 +90,7 @@ TEST(SmoothingTestSuite, SmoothingEdgeSnappingBox) {
 TEST(SmoothingTestSuite, SmoothingEdgeSnappingBoxSharpRoundedRotated) {
     auto model = bootstrap::Container()
             .mesh_dao()
-            .load_model("../tests/resources/benchmark/7-box-sharpx-roundedy-rotated.ubs");
+            .load_model("../tests/resources/benchmark-base/7-box-sharpx-roundedy-rotated.ubs");
     auto sdfn = model[0];
 
     auto mesh_base = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(0));

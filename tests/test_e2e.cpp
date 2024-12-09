@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 TEST(E2E, FullPipelineStepwiseDebug) {
     const auto dao = bootstrap::Container().mesh_dao();
 
-    const auto dir_input = "../tests/resources/benchmark/14-box-sphere-union-sharp.ubs";
+    const auto dir_input = "../tests/resources/benchmark-base/14-box-sphere-union-sharp.ubs";
     const auto dir_output = "../tests/out/e2e";
 
     const auto faces = 500;
