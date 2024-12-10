@@ -1500,6 +1500,8 @@ namespace quadriflow {
         std::map<int, std::pair<Vector3d, Vector3d> > &sharp_constraints,
         bool with_scale
     ) {
+        spdlog::debug("Optimizing edge positions sharp_edges={}, sharp_vertices={}", sharp_edges.size(), sharp_vertices.size());
+
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
         auto &Q = mRes.m_orientation[0];
@@ -1722,6 +1724,8 @@ namespace quadriflow {
         std::map<int, std::pair<Vector3d, Vector3d> > &sharp_constraints,
         bool with_scale
     ) {
+        spdlog::debug("Optimizing fixed vertex positions sharp_vertices={}", sharp_vertices.size());
+
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
         auto &Q = mRes.m_orientation[0];

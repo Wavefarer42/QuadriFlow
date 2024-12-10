@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <regex>
 #include <Eigen/Core>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
@@ -12,15 +13,14 @@
 
 namespace fs = std::filesystem;
 
-
 TEST(E2E, FullPipelineStepwiseDebug) {
     const auto dao = bootstrap::Container().mesh_dao();
 
-    const auto dir_input = "../tests/resources/benchmark-base/14-box-sphere-union-sharp.ubs";
-    const auto dir_output = "../tests/out/e2e";
+    const auto dir_input = "../tests/resources/benchmark-modeling/001-case.ubs";
+    const auto dir_output = "../tests/out/benchmark-base";
 
-    const auto faces = 500;
-    const auto faces_out = 100;
+    const auto idx_model = 1;
+    const auto faces = 10000;
     const auto path = fs::path(dir_input);;
     const auto path_base = std::format("{}/{}", dir_output, path.stem().string());
 
@@ -28,9 +28,10 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     fs::create_directories(path_base);
 
     auto model = dao.load_model(path.string());
-    auto sdfn = model[0];
+    auto sdfn = model[idx_model];
 
-    auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(0), 100);
+    // auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), 100);
+    auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), 30);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
     mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10);
@@ -39,30 +40,89 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     mesh = smoothing::edge_snapping(sdfn, mesh, 10);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "2-project-edges"), mesh);
 
-    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 20000);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-remesh-quad"), mesh);
+    mesh = meshing::remesh_to_trimesh(mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-trimesh"), mesh);
+
+    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, std::max(std::min(faces * 2, 10000), 20000));
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
 
     mesh = smoothing::sdfn_projection(sdfn, mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-project"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-project"), mesh);
 
     mesh = smoothing::edge_snapping(sdfn, mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-project-edges"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project-edges"), mesh);
 
     mesh = meshing::remesh_to_trimesh(mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-remesh-tri"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-tri"), mesh);
 
     mesh = meshing::remesh_to_quadmesh(sdfn, mesh, faces);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-quad"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "8-remesh-quad"), mesh);
 
     mesh = smoothing::sdfn_projection(sdfn, mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "8-project"), mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "9-project"), mesh);
 }
 
-TEST(E2E, Benchmark) {
+
+TEST(E2E, PipelineDebug) {
     const auto service = bootstrap::Container().mesh_service();
 
-    const auto dir_input = "../tests/resources/benchmark";
-    const auto dir_output = "../tests/out/benchmark";
+    const fs::path model = "18-box-sphere-cut-roundedx-rotated.ubs";
+    const fs::path path_input = "../tests/resources/benchmark-base" / model;
+    const fs::path path_output = "../tests/out/benchmark-base" / path_input.stem();
+
+    assert(fs::exists(path_input));
+    if (fs::exists(path_output)) {
+        fs::remove_all(path_output);
+    }
+    fs::create_directories(path_output);
+
+    const std::vector param_resolution = {
+        // 50,
+        100,
+        // 200
+    };
+    const std::vector param_face_count = {
+        // 100,
+        // 1000,
+        10000
+    };
+
+    int failed = 0;
+    int i_case = 0;
+    int total_case = param_resolution.size() * param_face_count.size();
+
+    for (int it_resolution: param_resolution) {
+        for (int it_face: param_face_count) {
+            spdlog::info(
+                "--- Case {}/{} ---\n- filename:{}\n- faces: {} \n- resolution: {}",
+                i_case,
+                total_case,
+                path_input.stem().string(),
+                it_face,
+                it_resolution
+            );
+
+            try {
+                service.to_isotropic_quadmesh(path_input, path_output, it_face, it_resolution);
+            } catch (const std::exception &e) {
+                spdlog::error("Case {}/{} failed: {}", i_case, total_case, e.what());
+                failed++;
+            }
+
+            i_case++;
+        }
+    }
+
+
+    spdlog::info("Finished benchmark with {} / {} failed cases", failed, total_case);
+}
+
+
+TEST(E2E, BenchmarkBase) {
+    const auto service = bootstrap::Container().mesh_service();
+
+    const auto dir_input = "../tests/resources/benchmark-base";
+    const auto dir_output = "../tests/out/benchmark-base";
 
     if (!fs::exists(dir_output)) fs::create_directories(dir_output);
 
@@ -111,47 +171,67 @@ TEST(E2E, Benchmark) {
     spdlog::info("Finished benchmark with {} / {} failed cases", failed, total_case);
 }
 
-TEST(E2E, PipelineDebug) {
+
+TEST(E2E, BenchmarkModeling) {
     const auto service = bootstrap::Container().mesh_service();
 
-    const fs::path model = "18-box-sphere-cut-roundedx-rotated.ubs";
-    const fs::path path_input = "../tests/resources/benchmark" / model;
-    const fs::path path_output = "../tests/out/benchmark" / path_input.stem();
+    const auto dir_input = "../tests/resources/benchmark-modeling";
+    const auto dir_output = "../tests/out/benchmark-modeling";
 
-    assert(fs::exists(path_input));
-    if (fs::exists(path_output)) {
-        fs::remove_all(path_output);
-    }
-    fs::create_directories(path_output);
+    if (!fs::exists(dir_output)) fs::create_directories(dir_output);
 
-    const std::vector param_resolution = {
-        // 50,
-        100,
-        // 200
-    };
-    const std::vector param_face_count = {
+    EXPECT_TRUE(fs::exists(dir_input));
+
+    const int sdfn_resolution = 100;
+    const std::vector faces = {
         // 100,
         // 1000,
         10000
     };
+    std::vector<std::string> entries;
+    for (const auto &entry: fs::directory_iterator(dir_input)) {
+        const auto filename = entry.path().filename().string();
+        if (filename.starts_with("case-") && filename.ends_with(".ubs")) {
+            entries.emplace_back(entry.path().string());;
+        }
+    }
+    std::ranges::sort(entries);
 
+    std::regex pattern(R"(case-(\d{3})\.skip\.ubs)");
+    int max_case = 1;
     int failed = 0;
     int i_case = 0;
-    int total_case = param_resolution.size() * param_face_count.size();
+    int total_case = faces.size() * entries.size();
+    for (const auto &entry: entries) {
+        const fs::path path_model = entry;
+        int case_number = 0;
+        std::sscanf(path_model.stem().c_str(), "case-%3d", &case_number);
 
-    for (int it_resolution: param_resolution) {
-        for (int it_face: param_face_count) {
-            spdlog::info(
-                "--- Case {}/{} ---\n- filename:{}\n- faces: {} \n- resolution: {}",
-                i_case,
-                total_case,
-                path_input.stem().string(),
+        if (entry.ends_with(".skip.ubs") || case_number > max_case) {
+            i_case++;
+            continue;
+        }
+
+        for (int it_face: faces) {
+            spdlog::info("--- Case {}/{} ---\n- filename:{}\n- faces: {}",
+                         i_case, total_case, path_model.stem().string(), it_face);
+            const auto path_output = std::format("{}/{}", dir_output, path_model.stem().string());
+            const auto file_output = std::format(
+                "{}/{}-{}-{}-{}.ply",
+                path_output,
+                path_model.stem().string(),
                 it_face,
-                it_resolution
+                sdfn_resolution, 0
             );
 
+            if (fs::exists(file_output)) {
+                spdlog::info("Skipping case as output already exists");
+                i_case++;
+                continue;
+            }
+
             try {
-                service.to_isotropic_quadmesh(path_input, path_output, it_face, it_resolution);
+                service.to_isotropic_quadmesh(path_model, path_output, it_face, sdfn_resolution);
             } catch (const std::exception &e) {
                 spdlog::error("Case {}/{} failed: {}", i_case, total_case, e.what());
                 failed++;
@@ -160,7 +240,6 @@ TEST(E2E, PipelineDebug) {
             i_case++;
         }
     }
-
 
     spdlog::info("Finished benchmark with {} / {} failed cases", failed, total_case);
 }

@@ -786,7 +786,7 @@ namespace UB {
         j["models"] = c.models;
         j["nodes"] = c.nodes;
         j["scripts"] = c.scripts;
-        j["animations"] = c.animations;
+        // j["animations"] = c.animations;
     }
 
     static void from_json(const nlohmann::json &j, Collection &c) {
@@ -797,9 +797,9 @@ namespace UB {
             if (j.contains("scripts")) {
                 j.at("scripts").get_to(c.scripts);
             }
-            if (j.contains("animations")) {
-                j.at("animations").get_to(c.animations);
-            }
+            // if (j.contains("animations")) {
+                // j.at("animations").get_to(c.animations);
+            // }
         }
     }
 }

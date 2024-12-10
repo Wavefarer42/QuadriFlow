@@ -23,8 +23,6 @@ using namespace Eigen;
 
 
 namespace surfacenets {
-    using NdToFlatIndexer = std::function<int(const Vector3i &)>;
-
     static const MatrixXi CUBE_CORNERS = (
         MatrixXi(8, 3) <<
         0, 0, 0,
@@ -384,7 +382,7 @@ namespace surfacenets {
         return mesh;
     }
 
-    std::function<int(Vector3i)> indexer_nd_to_linear(
+    NdToFlatIndexer indexer_nd_to_linear(
         int resolution
     ) {
         return [resolution](Vector3i idx_nd) {

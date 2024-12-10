@@ -16,17 +16,20 @@ namespace smoothing {
         entities::Mesh &mesh
     ) {
         VectorXf divergences(mesh.n_vertices());
+        divergences.setZero();
 
         tbb::parallel_for(size_t(0), mesh.n_vertices(), [&](size_t idx) {
             entities::Mesh::VertexHandle it_vertex(idx);
 
             const auto centroids = mathext::face_centroids_ring(mesh, it_vertex);
-            const auto face_normals = sdfn::normal_of(sdfn, centroids);
+            if (centroids.rows() > 0) {
+                const auto face_normals = sdfn::normal_of(sdfn, centroids);
 
-            MatrixXf angles = face_normals * face_normals.transpose();
-            angles = mathext::clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
+                MatrixXf angles = face_normals * face_normals.transpose();
+                angles = mathext::clip(angles, -1.f, 1.f).array().acos() * (180.f / M_PI);
 
-            divergences[idx] = angles.maxCoeff();
+                divergences[idx] = angles.maxCoeff();
+            }
         });
 
 #ifdef DEV_DEBUG

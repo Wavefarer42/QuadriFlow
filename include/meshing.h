@@ -2,6 +2,38 @@
 
 #include "entities.h"
 
+namespace surfacenets {
+    using namespace Eigen;
+    using NdToFlatIndexer = std::function<int(const Vector3i &)>;
+
+    NdToFlatIndexer indexer_nd_to_linear(
+        int resolution
+    );
+
+    MatrixXi create_indices(
+        int resolution
+    );
+
+    MatrixXf scale_to_domain(
+        const MatrixXi &indices,
+        const AlignedBox3f &bounds,
+        const int resolution
+    );
+
+    MatrixXf sample_sdf(
+        const entities::SDFn &sdfn,
+        const MatrixXf &domain
+    );
+
+    std::vector<Vector3f> create_vertices(
+        MatrixXi &indices,
+        const MatrixXf &domain,
+        const MatrixXf &sdf,
+        const int resolution,
+        const NdToFlatIndexer &linearize
+    );
+}
+
 namespace meshing {
     using namespace Eigen;
 

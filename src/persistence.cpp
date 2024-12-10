@@ -63,14 +63,15 @@ namespace persistence {
 
     entities::UnboundModel MeshDao::load_model(const std::string &path_model) const {
         assert(path_model.ends_with(".ubs"));
-        spdlog::info("Loading unbound model for {}", path_model);
-
+        spdlog::debug("Loading unbound model for {}", path_model);
 
         std::ifstream f(path_model);
         if (f.is_open()) {
             try {
                 nlohmann::json data = nlohmann::json::parse(f);
                 const auto collection = data.get<UB::Collection>();
+
+                spdlog::debug("Loaded unbound collection with {} models", collection.models.size());
                 return entities::UnboundModel(collection);
             } catch (nlohmann::json::exception const &e) {
                 spdlog::error("Could not parse collection json:\n{}", e.what());

@@ -273,7 +273,7 @@ namespace UB
         std::map<uuids::uuid, Script> scripts;
         std::map<ModelRef, Model> models;
         std::vector<Node> nodes;
-        std::map<uuids::uuid, AnimDataPtr> animations;
+        // std::map<uuids::uuid, AnimDataPtr> animations;
     };
     
     using CollectionPtr = std::shared_ptr<Collection>;
