@@ -56,14 +56,14 @@ namespace surfacenets {
         const float distance1,
         const float distance2
     ) {
-        return (distance1 < 0 && 0 < distance2) || (distance2 < 0 && 0 < distance1);
+        return (distance1 < 0.0f && 0.0f < distance2) || (distance2 < 0.0f && 0.0f < distance1);
     }
 
     bool is_negative_face(
         const float distance1,
         const float distance2
     ) {
-        return distance1 < 0 && 0 < distance2;
+        return distance1 < 0.0f && 0.0f < distance2;
     }
 
     VectorXi create_face(
