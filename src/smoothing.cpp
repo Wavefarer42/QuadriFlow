@@ -179,7 +179,7 @@ namespace smoothing {
         for (auto iteration = 0; iteration < iterations; ++iteration) {
             spdlog::trace("Laplacian SDFn projection iteration {}/{}", iteration, iterations);
 
-            for (auto idx_v = 0; idx_v < vertices.rows(); ++idx_v) {
+            tbb::parallel_for(static_cast<size_t>(0), mesh.n_vertices(), [&](size_t idx_v) {
                 int support = 0;
                 auto laplacian = MatrixXf(1, 3);
                 laplacian.setZero();
@@ -196,20 +196,20 @@ namespace smoothing {
                 const VectorXf scale = sdfn(laplacian) * rate_projection;
                 const MatrixXf direction = sdfn::normal_of(sdfn, laplacian);
                 vertices.row(idx_v) = laplacian - scale * direction;
-            }
+            });
         }
 
         // Update mesh
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
+        tbb::parallel_for(static_cast<size_t>(0), mesh.n_vertices(), [&](size_t idx_v) {
             mesh.set_point(
-                entities::Mesh::VertexHandle(i),
+                entities::Mesh::VertexHandle(idx_v),
                 entities::Mesh::Point(
-                    vertices(i, 0),
-                    vertices(i, 1),
-                    vertices(i, 2)
+                    vertices(idx_v, 0),
+                    vertices(idx_v, 1),
+                    vertices(idx_v, 2)
                 )
             );
-        }
+        });
 
         spdlog::debug("Finished smoothing mesh by laplacian SDFn projection ({:.3}s)", watch);
 #ifdef DEV_DEBUG

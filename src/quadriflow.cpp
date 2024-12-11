@@ -1500,7 +1500,8 @@ namespace quadriflow {
         std::map<int, std::pair<Vector3d, Vector3d> > &sharp_constraints,
         bool with_scale
     ) {
-        spdlog::debug("Optimizing edge positions sharp_edges={}, sharp_vertices={}", sharp_edges.size(), sharp_vertices.size());
+        spdlog::debug("Optimizing edge positions sharp_edges={}, sharp_vertices={}", sharp_edges.size(),
+                      sharp_vertices.size());
 
         auto &V = mRes.m_vertices[0];
         auto &F = mRes.m_faces;
@@ -1799,6 +1800,9 @@ namespace quadriflow {
             double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.m_scale;
             Vector2i diff = edge_diff[e];
 
+            if (q1 < 0 || q2 < 0) {
+                throw std::runtime_error("Invalid vertex index");
+            };
             Vector3d origin1 =
                     /*(sharp_constraints.count(q1)) ? sharp_constraints[q1].first : */ V.col(q1);
             Vector3d origin2 =
