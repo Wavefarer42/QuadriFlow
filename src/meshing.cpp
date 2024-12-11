@@ -52,19 +52,7 @@ namespace surfacenets {
     static const Vector3i AXIS_Y = {0, 1, 0};
     static const Vector3i AXIS_Z = {0, 0, 1};
 
-    bool is_on_surface(
-        const float distance1,
-        const float distance2
-    ) {
-        return (distance1 < 0.0f && 0.0f < distance2) || (distance2 < 0.0f && 0.0f < distance1);
-    }
 
-    bool is_negative_face(
-        const float distance1,
-        const float distance2
-    ) {
-        return distance1 < 0.0f && 0.0f < distance2;
-    }
 
     VectorXi create_face(
         const VectorXi &face_indices,
@@ -174,24 +162,6 @@ namespace surfacenets {
         return domain;
     }
 
-    Vector4i gather_face_indices(
-        const Vector3i &vidx,
-        const Vector3i &axis_b,
-        const Vector3i &axis_c,
-        const MatrixXi &indices,
-        const NdToFlatIndexer &linearize
-    ) {
-        Vector4i face_indices(4);
-        face_indices[0] = indices(linearize(vidx), 3);
-        face_indices[1] = indices(linearize(vidx - axis_b), 3);
-        face_indices[2] = indices(linearize(vidx - axis_c), 3);
-        face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
-
-        assert(face_indices.minCoeff() >= 0 && "Inconsistency between face indices from the vertex creation.");
-
-        return face_indices;
-    }
-
     MatrixXf sample_sdf(
         const entities::SDFn &sdfn,
         const MatrixXf &domain
@@ -234,43 +204,43 @@ namespace surfacenets {
         std::vector<Vector3f> vertices;
 
         tbb::mutex mtx;
-        tbb::parallel_for(
-            tbb::blocked_range<int>(0, static_cast<int>(indices.rows())),
-            [&](const tbb::blocked_range<int> &range) {
-                for (int i = range.begin(); i < range.end(); ++i) {
-                    if (indices(i, 0) >= resolution
-                        || indices(i, 1) >= resolution
-                        || indices(i, 2) >= resolution) {
-                        continue;
-                    }
-
-                    const Vector3i corner = indices.row(i).head<3>();
-
-                    // Get the field at the sample grid corner points
-                    VectorXf distances_corners(CUBE_CORNERS.rows());
-                    for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-                        const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-                        const int idx_flat = linearize(idx_nd);
-                        distances_corners(j) = sdf(idx_flat);
-                    }
-
-                    auto num_negatives = (distances_corners.array() < 0.0f).count();
-                    if (num_negatives != 0 && num_negatives != 8) {
-                        const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
-
-                        const Vector3f position =
-                                domain_offset + (centroid.array() * domain_scale.array()).matrix();
-
-                        tbb::mutex::scoped_lock lock(mtx);
-
-                        vertices.emplace_back(position);
-                        indices(i, 3) = static_cast<int>(vertices.size()) - 1;
-
-                        lock.release();
-                    }
-                }
+        // tbb::parallel_for(
+        // tbb::blocked_range(0, static_cast<int>(indices.rows())),
+        // [&](const tbb::blocked_range<int> &range) {
+        // for (int i = range.begin(); i < range.end(); ++i) {
+        for (int i = 0; i < indices.rows(); ++i) {
+            if (indices(i, 0) >= resolution
+                || indices(i, 1) >= resolution
+                || indices(i, 2) >= resolution) {
+                continue;
             }
-        );
+
+            const Vector3i corner = indices.row(i).head<3>();
+
+            // Get the field at the sample grid corner points
+            VectorXf distances_corners(CUBE_CORNERS.rows());
+            for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
+                const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
+                const int idx_flat = linearize(idx_nd);
+                distances_corners(j) = sdf(idx_flat);
+            }
+
+            auto num_negatives = (distances_corners.array() < 0.0f).count();
+            if (num_negatives != 0 && num_negatives != 8) {
+                const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
+
+                const Vector3f position = domain_offset + (centroid.array() * domain_scale.array()).matrix();
+
+                tbb::mutex::scoped_lock lock(mtx);
+
+                vertices.emplace_back(position);
+                indices(i, 3) = static_cast<int>(vertices.size()) - 1;
+
+                lock.release();
+            }
+        }
+        // }
+        // );
 
         spdlog::debug("Finished creating surface vertices={} ({:.3}s)", vertices.size(), watch);
 
@@ -285,6 +255,39 @@ namespace surfacenets {
         return vertices;
     }
 
+    bool is_on_surface(
+        const float distance1,
+        const float distance2
+    ) {
+        return (distance1 < 0.0f && 0.0f < distance2) || (distance2 < 0.0f && 0.0f < distance1);
+    }
+
+    bool is_negative_face(
+        const float distance1,
+        const float distance2
+    ) {
+        return distance1 < 0.0f && 0.0f < distance2;
+    }
+
+    Vector4i gather_face_indices(
+    const Vector3i &vidx,
+    const Vector3i &axis_b,
+    const Vector3i &axis_c,
+    const MatrixXi &indices,
+    const NdToFlatIndexer &linearize
+) {
+        // 3d Grid coord to linear index to the surface vertices index.
+        Vector4i face_indices(4);
+        face_indices[0] = indices(linearize(vidx), 3);
+        face_indices[1] = indices(linearize(vidx - axis_b), 3);
+        face_indices[2] = indices(linearize(vidx - axis_c), 3);
+        face_indices[3] = indices(linearize(vidx - axis_b - axis_c), 3);
+
+        assert(face_indices.minCoeff() >= 0 && "Inconsistency between face indices from the vertex creation.");
+
+        return face_indices;
+    }
+
     std::vector<Vector4i> create_faces(
         const MatrixXi &indices,
         const MatrixXf &sdf,
@@ -294,16 +297,29 @@ namespace surfacenets {
         spdlog::debug("Creating faces");
         spdlog::stopwatch watch;
 
+
         std::vector<Vector4i> faces;
         for (int i = 0; i < indices.rows(); ++i) {
             if (indices(i, 3) == -1) continue;
 
             Vector3i idx_vertex = indices.row(i).head<3>();
+            int idx_flat = linearize(idx_vertex);
+            int idx_flat2 = indices(i, 3);
+
+            if (indices(i, 3) == 29524
+                || indices(i, 3) == 29523
+                || indices(i, 3) == 29536
+                || indices(i, 3) == 29535) {
+                spdlog::debug("boundary vertex");
+            }
 
             // Scan along the X-axis
             if (idx_vertex.x() < resolution
                 && idx_vertex.y() > 0
                 && idx_vertex.z() > 0) {
+                const int idx1 = linearize(idx_vertex);
+                const int idx2 = linearize(idx_vertex + AXIS_X);
+
                 const auto d0 = sdf(linearize(idx_vertex));
                 const auto d1 = sdf(linearize(idx_vertex + AXIS_X));
 
@@ -318,6 +334,9 @@ namespace surfacenets {
             if (idx_vertex.x() > 0
                 && idx_vertex.y() < resolution
                 && idx_vertex.z() > 0) {
+                const int idx1 = linearize(idx_vertex);
+                const int idx2 = linearize(idx_vertex + AXIS_Y);
+
                 const auto d0 = sdf(linearize(idx_vertex));
                 const auto d1 = sdf(linearize(idx_vertex + AXIS_Y));
 
@@ -332,6 +351,9 @@ namespace surfacenets {
             if (idx_vertex.x() > 0
                 && idx_vertex.y() > 0
                 && idx_vertex.z() < resolution) {
+                const int idx1 = linearize(idx_vertex);
+                const int idx2 = linearize(idx_vertex + AXIS_Z);
+
                 const auto d0 = sdf(linearize(idx_vertex));
                 const auto d1 = sdf(linearize(idx_vertex + AXIS_Z));
 
@@ -366,7 +388,7 @@ namespace surfacenets {
             mesh.add_face(handles[face[0]], handles[face[1]], handles[face[2]], handles[face[3]]);
         }
 
-        OpenMesh::Utils::MeshCheckerT<entities::Mesh> checker(mesh);
+        OpenMesh::Utils::MeshCheckerT checker(mesh);
         if (checker.check()) {
             spdlog::debug("Mesh is valid");
         } else {
@@ -382,6 +404,9 @@ namespace surfacenets {
         return mesh;
     }
 
+    /**
+     * Creates a index linearizer into the original samples grid index space.
+     */
     NdToFlatIndexer indexer_nd_to_linear(
         int resolution
     ) {
@@ -415,6 +440,15 @@ namespace surfacenets {
         const auto vertices = create_vertices(indices, domain, sdf, resolution, linearize);
         const auto faces = create_faces(indices, sdf, resolution, linearize);
         const auto mesh = finalize_mesh(vertices, faces);
+
+
+        // FIXME remove me
+        std::vector<int> boundary_vertices;
+        for (const auto &he: mesh.halfedges()) {
+            if (mesh.is_boundary(he)) {
+                boundary_vertices.emplace_back(mesh.to_vertex_handle(he).idx());
+            }
+        }
 
         spdlog::debug("Finished creating mesh ({})", watch);
 

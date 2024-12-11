@@ -36,7 +36,7 @@ TEST(MeshingTestSuite, MeshingBox) {
     spdlog::set_level(spdlog::level::debug);
 #endif
 
-    const AlignedBox3f bounds(Vector3f(-1.1, -1.1, -1.1), Vector3f(1.1, 1.1, 1.1));
+    const AlignedBox3f bounds(Vector3f(-2, -2, -2), Vector3f(2, 2, 2));
     const auto result = meshing::mesh_to_quadmesh(sdfn::box, bounds, 100, "surface-nets");
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box.ply");
@@ -169,6 +169,18 @@ TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotated) {
     const auto result = meshing::mesh_to_quadmesh(model[0], model.bounding_box(0), 100, "surface-nets");
 
     OpenMesh::IO::write_mesh(result, "../tests/out/box-sharp-round-rotated.ply");
+
+    EXPECT_EQ(result.n_vertices(), 0);
+}
+
+TEST(MeshingTestSuite, MeshingBoxSphereCut) {
+    auto model = bootstrap::Container()
+            .mesh_dao()
+            .load_model("../tests/resources/benchmark/08-case.skip.ubs");
+
+    const auto result = meshing::mesh_to_quadmesh(model[0], model.bounding_box(0), 100, "surface-nets");
+
+    OpenMesh::IO::write_mesh(result, "../tests/out/08-case.ply");
 
     EXPECT_EQ(result.n_vertices(), 0);
 }
