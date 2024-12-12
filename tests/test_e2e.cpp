@@ -1,7 +1,9 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <iostream>
 #include <regex>
+#include <string>
 #include <Eigen/Core>
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
@@ -73,7 +75,7 @@ TEST(E2E, Benchmark) {
         // 100,
         // 1000,
         // 5000,
-        10000
+        30000
     };
 
     const fs::path path_input = "../tests/resources/benchmark";
@@ -83,12 +85,19 @@ TEST(E2E, Benchmark) {
     assert(param_resolution.size() > 0);
     assert(param_face_count.size() > 0);
 
+    const std::regex re_onlies(R"(\.only\.|\.only-\d+)");
+    const std::regex re_only_number(R"(\.only-(\d+))");
+    std::vector<fs::directory_entry> onlies;
     std::vector<fs::directory_entry> paths_collections;
     for (const auto &entry: fs::directory_iterator(path_input)) {
         if (entry.path().extension() == ".ubs" && !entry.path().string().ends_with(".skip.ubs")) {
-            paths_collections.emplace_back(entry);;
+            paths_collections.emplace_back(entry);
+            if (entry.path().filename().string().find(".only") != std::string::npos) {
+                onlies.emplace_back(entry);
+            }
         }
     }
+    if (!onlies.empty()) paths_collections = onlies;
     std::ranges::sort(paths_collections);
 
     const auto dao = bootstrap::Container().mesh_dao();
@@ -97,15 +106,27 @@ TEST(E2E, Benchmark) {
 
     int failed = 0;
     for (auto &it_col: paths_collections) {
+        const auto filename = it_col.path().filename().string();
         auto model = dao.load_model(it_col.path().string());
 
+        int model_only = -1;
+        std::smatch match;
+        if (std::regex_search(filename, match, re_only_number)) {
+            if (match.size() > 1) {
+                model_only = std::stoi(match[1]);
+            }
+        }
+
         for (int idx_model = 0; idx_model < model.size(); ++idx_model) {
+            if (model_only >= 0 && model_only != idx_model) continue;
+
             for (int it_resolution: param_resolution) {
                 for (int it_face: param_face_count) {
                     spdlog::info(
-                        "-------- Collection: {}\nmodel: {}\nresolution: {}\nfaces: {}",
+                        "-------- Collection: {}\nmodel: {}/{}\nresolution: {}\nfaces: {}",
                         it_col.path().stem().string(),
                         idx_model,
+                        model.size(),
                         it_resolution,
                         it_face
                     );
@@ -134,23 +155,23 @@ TEST(E2E, Benchmark) {
                         mesh = meshing::remesh_to_trimesh(mesh);
                         dao.save_mesh(std::format("{}/{}.ply", path_base, "3-trimesh"), mesh);
 
-                        mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 10000);
+                        mesh = meshing::remesh_to_quadmesh(sdfn, mesh, it_face);
                         dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
 
                         mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
                         dao.save_mesh(std::format("{}/{}.ply", path_base, "5-project"), mesh);
 
-                        mesh = smoothing::edge_snapping(sdfn, mesh, 10);
-                        dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project-edges"), mesh);
-
-                        mesh = meshing::remesh_to_trimesh(mesh);
-                        dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-tri"), mesh);
-
-                        mesh = meshing::remesh_to_quadmesh(sdfn, mesh, it_face);
-                        dao.save_mesh(std::format("{}/{}.ply", path_base, "8-remesh-quad"), mesh);
-
-                        mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
-                        dao.save_mesh(std::format("{}/{}.ply", path_base, "9-project"), mesh);
+                        // mesh = smoothing::edge_snapping(sdfn, mesh, 10);
+                        // dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project-edges"), mesh);
+                        //
+                        // mesh = meshing::remesh_to_trimesh(mesh);
+                        // dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-tri"), mesh);
+                        //
+                        // mesh = meshing::remesh_to_quadmesh(sdfn, mesh, it_face);
+                        // dao.save_mesh(std::format("{}/{}.ply", path_base, "8-remesh-quad"), mesh);
+                        //
+                        // mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
+                        // dao.save_mesh(std::format("{}/{}.ply", path_base, "9-project"), mesh);
                     } catch (const std::exception &e) {
                         spdlog::error(
                             "-------- Collection: {}\nmodel: {}\nresolution: {}\nfaces: {}\nerror: {}",

@@ -53,12 +53,11 @@ namespace surfacenets {
     static const Vector3i AXIS_Z = {0, 0, 1};
 
 
-
-    VectorXi create_face(
-        const VectorXi &face_indices,
+    Vector4i create_face(
+        const Vector4i &face_indices,
         bool is_negative_face
     ) {
-        VectorXi face(4);
+        Vector4i face(4);
 
         if (is_negative_face) {
             face << face_indices[1],
@@ -79,7 +78,7 @@ namespace surfacenets {
         const VectorXf &distances_corners
     ) {
         int n = 0;
-        Vector3f sum = Vector3f::Zero();
+        Vector3f centroid = Vector3f::Zero();
         for (int i = 0; i < CUBE_EDGES.rows(); ++i) {
             const auto idx_edge_a = CUBE_EDGES(i, 0);
             const auto idx_edge_b = CUBE_EDGES(i, 1);
@@ -92,16 +91,14 @@ namespace surfacenets {
 
                 const Vector3f interpolation = interpolation2 * CUBE_CORNERS.row(idx_edge_a).cast<float>()
                                                + interpolation1 * CUBE_CORNERS.row(idx_edge_b).cast<float>();
-                sum += interpolation;
+                centroid += interpolation;
                 n++;
             }
         }
 
-        if (n > 0) {
-            return sum / static_cast<float>(n);
-        } else {
-            return Vector3f::Zero();
-        }
+        if (n > 0) centroid /= static_cast<float>(n);
+
+        return centroid;
     }
 
     MatrixXi create_indices(
@@ -215,6 +212,9 @@ namespace surfacenets {
                 continue;
             }
 
+            if (i == 515150) {
+                spdlog::debug("he");
+            }
             const Vector3i corner = indices.row(i).head<3>();
 
             // Get the field at the sample grid corner points
@@ -225,7 +225,7 @@ namespace surfacenets {
                 distances_corners(j) = sdf(idx_flat);
             }
 
-            auto num_negatives = (distances_corners.array() < 0.0f).count();
+            const auto num_negatives = (distances_corners.array() < 0.0f).count();
             if (num_negatives != 0 && num_negatives != 8) {
                 const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
 
@@ -270,12 +270,12 @@ namespace surfacenets {
     }
 
     Vector4i gather_face_indices(
-    const Vector3i &vidx,
-    const Vector3i &axis_b,
-    const Vector3i &axis_c,
-    const MatrixXi &indices,
-    const NdToFlatIndexer &linearize
-) {
+        const Vector3i &vidx,
+        const Vector3i &axis_b,
+        const Vector3i &axis_c,
+        const MatrixXi &indices,
+        const NdToFlatIndexer &linearize
+    ) {
         // 3d Grid coord to linear index to the surface vertices index.
         Vector4i face_indices(4);
         face_indices[0] = indices(linearize(vidx), 3);
@@ -492,7 +492,7 @@ namespace delaunay {
         const auto radius = diameter / 2;
         constexpr auto angle_bound = 20.0;
         const auto radius_bound = diameter / resolution;
-        const auto distance_bound = diameter / 1000;
+        const auto distance_bound = diameter / 100;
 
         spdlog::debug(
             "Meshing with Delaunay triangulation diameter={}, radius={}, angle={}, radius_bound={}, distance_bound={}",
