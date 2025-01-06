@@ -85,7 +85,7 @@ namespace surfacenets {
             const auto distance_a = distances_corners(idx_edge_a);
             const auto distance_b = distances_corners(idx_edge_b);
 
-            if ((distance_a < 0.0f) != (distance_b < 0.0f)) {
+            if (distance_a < 0.0f != distance_b < 0.0f) {
                 const auto interpolation1 = distance_a / (distance_a - distance_b + 1e-10f);
                 const auto interpolation2 = 1.0f - interpolation1;
 
@@ -96,9 +96,8 @@ namespace surfacenets {
             }
         }
 
-        if (n > 0) centroid /= static_cast<float>(n);
-
-        return centroid;
+        assert(n > 0);
+        return centroid / static_cast<float>(n);
     }
 
     MatrixXi create_indices(
@@ -212,26 +211,29 @@ namespace surfacenets {
                 continue;
             }
 
-            if (i == 515150) {
-                spdlog::debug("he");
-            }
             const Vector3i corner = indices.row(i).head<3>();
 
             // Get the field at the sample grid corner points
             VectorXf distances_corners(CUBE_CORNERS.rows());
+            std::vector<Vector3f> corner_positions(CUBE_CORNERS.rows());
             for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
                 const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
                 const int idx_flat = linearize(idx_nd);
                 distances_corners(j) = sdf(idx_flat);
+                corner_positions[j] = Vector3f(domain(idx_flat, 0), domain(idx_flat, 1), domain(idx_flat, 2)); // debug
             }
 
             const auto num_negatives = (distances_corners.array() < 0.0f).count();
             if (num_negatives != 0 && num_negatives != 8) {
-                const auto centroid = estimate_centroid(distances_corners) + corner.cast<float>();
+                if (i == 504847 || i == 504848 || i == 504948 || i == 504949 || i == 515150) {
+                    spdlog::debug("zero position");
+                }
 
+                const Vector3f centroid = estimate_centroid(distances_corners) + corner.cast<float>();
                 const Vector3f position = domain_offset + (centroid.array() * domain_scale.array()).matrix();
 
                 tbb::mutex::scoped_lock lock(mtx);
+
 
                 vertices.emplace_back(position);
                 indices(i, 3) = static_cast<int>(vertices.size()) - 1;
@@ -301,6 +303,11 @@ namespace surfacenets {
         std::vector<Vector4i> faces;
         for (int i = 0; i < indices.rows(); ++i) {
             if (indices(i, 3) == -1) continue;
+
+
+            if (i == 515150) {
+                spdlog::debug("now");
+            }
 
             Vector3i idx_vertex = indices.row(i).head<3>();
             int idx_flat = linearize(idx_vertex);

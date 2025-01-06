@@ -176,11 +176,11 @@ TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotated) {
 TEST(MeshingTestSuite, MeshingBoxSphereCut) {
     auto model = bootstrap::Container()
             .mesh_dao()
-            .load_model("../tests/resources/benchmark/08-case.skip.ubs");
+            .load_model("../tests/resources/benchmark/Z-08.ubs");
 
     const auto result = meshing::mesh_to_quadmesh(model[0], model.bounding_box(0), 100, "surface-nets");
 
-    OpenMesh::IO::write_mesh(result, "../tests/out/08-case.ply");
+    OpenMesh::IO::write_mesh(result, "../tests/out/Z-08.ply");
 
     EXPECT_EQ(result.n_vertices(), 0);
 }
