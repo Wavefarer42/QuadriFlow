@@ -61,6 +61,8 @@ namespace mathext {
         const float scale,
         const Vector3f &offset
     );
+
+    std::vector<std::vector<entities::Mesh::VertexHandle>> find_boundary_vertices(const entities::Mesh &mesh);
 }
 
 

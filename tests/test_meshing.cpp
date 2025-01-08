@@ -173,6 +173,7 @@ TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotated) {
     EXPECT_EQ(result.n_vertices(), 0);
 }
 
+
 TEST(MeshingTestSuite, MeshingBoxSphereCut) {
     auto model = bootstrap::Container()
             .mesh_dao()
@@ -184,6 +185,7 @@ TEST(MeshingTestSuite, MeshingBoxSphereCut) {
 
     EXPECT_EQ(result.n_vertices(), 0);
 }
+
 
 TEST(MeshingTestSuite, MeshingUnboundBoxSharpRoundRotatedDelaunay) {
     auto model = bootstrap::Container()

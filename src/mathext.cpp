@@ -367,6 +367,24 @@ namespace mathext {
     ) {
         return (vertices * scale).rowwise() + offset.transpose();
     }
+
+    std::vector<std::vector<entities::Mesh::VertexHandle>> find_boundary_vertices(const entities::Mesh &mesh) {
+        std::vector<std::vector<entities::Mesh::VertexHandle> > boundaries;
+
+        for (auto heh: mesh.halfedges()) {
+            if (mesh.is_boundary(heh)) {
+                OpenMesh::HalfedgeHandle start = heh;
+                std::vector<entities::Mesh::VertexHandle> boundary;
+                do {
+                    boundary.emplace_back(mesh.to_vertex_handle(heh));
+                    heh = mesh.next_halfedge_handle(heh);
+                } while (heh != start);
+                boundaries.emplace_back(boundary);
+            }
+        }
+
+        return boundaries;
+    }
 }
 
 namespace mathext {
@@ -586,4 +604,3 @@ namespace mathext {
         //        printf("counter %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
     }
 }
-

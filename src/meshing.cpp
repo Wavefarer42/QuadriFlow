@@ -21,7 +21,6 @@
 
 using namespace Eigen;
 
-
 namespace surfacenets {
     static const MatrixXi CUBE_CORNERS = (
         MatrixXi(8, 3) <<
@@ -69,7 +68,6 @@ namespace surfacenets {
                                            -1, -1, 0,
                                            -1, 0, 0).finished();
     static const std::vector QUAD_POINTS = {QUAD_POINTS_X, QUAD_POINTS_Y, QUAD_POINTS_Z};
-
 
     Vector3f estimate_centroid(
         const VectorXf &distances_corners
@@ -220,6 +218,16 @@ namespace surfacenets {
             }
             const Vector3i corner = indices.row(idx_cell).head<3>();
 
+            const std::set<int> debugstop = {
+                31789, 31739, 31790,
+                29189, 31789, 31790,
+                26588, 29138, 29189,
+                29138, 31688, 31739
+            };
+            if (debugstop.contains(idx_cell)) {
+                spdlog::debug("Vertex at  with distances=");
+            }
+
             for (int idx_axis = 0; idx_axis < AXES.size(); ++idx_axis) {
                 const auto &axis = AXES[idx_axis];
 
@@ -231,51 +239,62 @@ namespace surfacenets {
                 if (is_on_surface(d1, d2)) {
                     std::vector<entities::Mesh::VertexHandle> face(4);
 
+                    // Create vertex if needed
+                    VectorXf distances_corners(CUBE_CORNERS.rows());
+                    for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
+                        const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
+                        const int idx_flat = linearize(idx_nd);
+                        distances_corners(j) = sdf(idx_flat);
+                    }
+
+                    std::cout << "corner=" << corner.transpose() << std::endl << " distances=" << distances_corners.
+                            transpose()
+                            << std::endl;
+
                     const MatrixXi indices_quads = QUAD_POINTS[idx_axis].rowwise() + corner.transpose();
+                    std::cout << "quads points=" << indices_quads << std::endl;
+
                     for (int idx_vertex = 0; idx_vertex < indices_quads.rows(); ++idx_vertex) {
                         const auto idx_vertex_flat = linearize(indices_quads.row(idx_vertex));
 
-                        // Create vertex if needed
-                        VectorXf distances_corners(CUBE_CORNERS.rows());
-                        for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-                            const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-                            const int idx_flat = linearize(idx_nd);
-                            distances_corners(j) = sdf(idx_flat);
-                        }
                         if (!domain_to_surface.contains(idx_vertex_flat)) {
+                            // const Vector3f centroid = corner.cast<float>();
                             const Vector3f centroid = estimate_centroid(distances_corners) + corner.cast<float>();
                             const Vector3f position =
                                     domain_offset + (centroid.array() * domain_scale.array()).matrix();
 
-                            domain_to_surface[idx_vertex_flat] = mesh.add_vertex(
+                            const auto idx_v = mesh.add_vertex(
                                 entities::Mesh::Point(position.x(), position.y(), position.z())
                             );
+
+                            const std::set<int> debugstop = {
+                                610, 605, 611,
+                                491, 610, 611,
+                                380, 487, 490,
+                                487, 602, 605
+                            };
+                            if (debugstop.contains(idx_v.idx())) {
+                                spdlog::debug("Vertex at  with distances=");
+                            }
+                            domain_to_surface[idx_vertex_flat] = idx_v;
                         }
 
                         face[idx_vertex] = domain_to_surface[idx_vertex_flat];
                     }
 
                     if (is_negative_face(d1, d2)) {
-                        mesh.add_face(
+                        const auto fv = mesh.add_face(
                             face[0],
                             face[1],
-                            face[2]
-                        );
-                        mesh.add_face(
-                            face[0],
                             face[2],
                             face[3]
                         );
                     } else {
-                        mesh.add_face(
-                            face[0],
-                            face[2],
-                            face[1]
-                        );
-                        mesh.add_face(
-                            face[0],
+                        const auto fv = mesh.add_face(
                             face[3],
-                            face[2]
+                            face[2],
+                            face[1],
+                            face[0]
                         );
                     }
                 }

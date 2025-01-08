@@ -36,4 +36,8 @@ namespace smoothing {
         int iterations = 10,
         const float rate_projection = 1
     );
+
+    entities::Mesh fill_holes(
+        entities::Mesh &mesh
+    );
 };

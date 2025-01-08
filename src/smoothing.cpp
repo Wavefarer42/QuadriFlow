@@ -219,4 +219,30 @@ namespace smoothing {
         return mesh;
     }
 
+    entities::Mesh fill_holes(
+        entities::Mesh &mesh
+    ) {
+        spdlog::info("Filling holes in mesh.");
+        spdlog::stopwatch watch;
+
+        const auto boundaries = mathext::find_boundary_vertices(mesh);
+
+        int count_n2 = 0;
+        for (const auto &boundary: boundaries) {
+            if (boundary.size() >= 3) {
+                for (int i = 1; i + 1 < boundary.size(); ++i) {
+                    mesh.add_face(boundary[0], boundary[i], boundary[i + 1]);
+                }
+            } else {
+                count_n2++;
+            }
+        }
+
+        spdlog::debug("Finished filling {}/{} holes({:.3}s)", boundaries.size() - count_n2, boundaries.size(), watch);
+#ifdef DEV_DEBUG
+        OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/smoothing-holes.ply");
+#endif
+
+        return mesh;
+    }
 }
