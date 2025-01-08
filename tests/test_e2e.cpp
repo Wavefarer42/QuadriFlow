@@ -38,30 +38,30 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), 200);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
-    // mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20);
-    // dao.save_mesh(std::format("{}/{}.ply", path_base, "1-laplacian-project"), mesh);
+    mesh = smoothing::fill_holes(mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "1-holes"), mesh);
 
-    // mesh = smoothing::fill_holes(mesh);
-    // dao.save_mesh(std::format("{}/{}.ply", path_base, "2-holes"), mesh);
-
-    // mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20);
-    // dao.save_mesh(std::format("{}/{}.ply", path_base, "3-laplacian-project"), mesh);
+    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
 
     // mesh = smoothing::edge_snapping(sdfn, mesh, 10);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "2-project-edges"), mesh);
-    //
+
     // mesh = meshing::remesh_to_trimesh(mesh);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "3-trimesh"), mesh);
-    //
-    // mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 5000);
-    // dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
-    //
-    // mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
-    // dao.save_mesh(std::format("{}/{}.ply", path_base, "5-project"), mesh);
-    //
+
+    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 10000);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
+
+    mesh = smoothing::fill_holes(mesh);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-holes"), mesh);
+
+    mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
+    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
+
     // mesh = smoothing::edge_snapping(sdfn, mesh, 10);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project-edges"), mesh);
-    //
+
     // mesh = meshing::remesh_to_trimesh(mesh);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "7-remesh-tri"), mesh);
     //

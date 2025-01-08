@@ -39,15 +39,11 @@ namespace services {
 
                 auto sdfn = model[idx_model];
 
-                auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), sdfn_resolution);
-                mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 10, 1);
-                mesh = smoothing::edge_snapping(sdfn, mesh, 10, 30, 0.1);
-                mesh = meshing::remesh_to_trimesh(mesh);
+                auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), sdfn_resolution);
+                mesh = smoothing::fill_holes(mesh);
+                mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20, 1);
                 mesh = meshing::remesh_to_quadmesh(sdfn, mesh, face_count);
-                mesh = smoothing::sdfn_projection(sdfn, mesh);
-                mesh = smoothing::edge_snapping(sdfn, mesh);
-                mesh = meshing::remesh_to_trimesh(mesh);
-                mesh = meshing::remesh_to_quadmesh(sdfn, mesh, face_count);
+                mesh = smoothing::fill_holes(mesh);
                 mesh = smoothing::sdfn_projection(sdfn, mesh);
 
                 const auto path_filename = fmt::format(

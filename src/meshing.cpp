@@ -5,17 +5,25 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-#include <CGAL/Surface_mesh_default_triangulation_3.h>
-#include <CGAL/Complex_2_in_triangulation_3.h>
-#include <CGAL/make_surface_mesh.h>
-#include <CGAL/Implicit_surface_3.h>
-#include <CGAL/IO/facets_in_complex_2_to_triangle_mesh.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+
+#include <CGAL/Mesh_triangulation_3.h>
+#include <CGAL/Mesh_complex_3_in_triangulation_3.h>
+#include <CGAL/Mesh_criteria_3.h>
 #include <CGAL/Surface_mesh.h>
+#include <CGAL/Labeled_mesh_domain_3.h>
+#include <CGAL/make_mesh_3.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
+#include <CGAL/Polygon_mesh_processing/border.h>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
 #include "meshing.h"
+
+#include <CGAL/boost/graph/IO/Generic_facegraph_builder.h>
+#include <CGAL/Surface_mesh/Surface_mesh.h>
+
 #include "mathext.h"
 #include "quadriflow.h"
 
@@ -323,24 +331,32 @@ namespace surfacenets {
 }
 
 namespace delaunay {
-    typedef CGAL::Surface_mesh_default_triangulation_3 Tr;
-    typedef CGAL::Complex_2_in_triangulation_3<Tr> C2t3;
-    typedef Tr::Geom_traits GT;
-    typedef GT::Sphere_3 Sphere_3;
-    typedef GT::Point_3 Point_3;
-    typedef GT::FT FT;
+    typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+    typedef K::FT FT;
+    typedef K::Point_3 Point;
 
-    typedef FT (*Function)(Point_3);
+    typedef FT (Function)(const Point &);
 
-    typedef CGAL::Implicit_surface_3<GT, Function> Surface_3;
-    typedef CGAL::Surface_mesh<Point_3> Surface_mesh;
+    typedef CGAL::Labeled_mesh_domain_3<K> Mesh_domain;
+    typedef CGAL::Sequential_tag Concurrency_tag;
+    typedef CGAL::Mesh_triangulation_3<Mesh_domain, CGAL::Default, Concurrency_tag>::type Tr;
+    typedef CGAL::Mesh_complex_3_in_triangulation_3<Tr> C3t3;
+    typedef CGAL::Mesh_criteria_3<Tr> Mesh_criteria;
+    using Surface_mesh = CGAL::Surface_mesh<Point>;
+    namespace PMP = CGAL::Polygon_mesh_processing;
+    typedef CGAL::Simple_cartesian<double> Kernel;
+    namespace params = CGAL::parameters;
 
     entities::Mesh mesh(
         const entities::SDFn &sdfn,
         const AlignedBox3f &bounds,
         const int resolution
     ) {
-        const auto _sdfn = [sdfn](const Point_3 &p) {
+        spdlog::info("Creating mesh from SDF via delauney resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
+                     resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
+                     bounds.max().y(), bounds.max().z());
+
+        const auto _sdfn = [sdfn](const Point &p) {
             const Vector3f domain = {
                 static_cast<float>(p.x()),
                 static_cast<float>(p.y()),
@@ -350,26 +366,23 @@ namespace delaunay {
             return distance(0);
         };
 
-        Tr tr;
-        C2t3 c2t3(tr);
-        Surface_mesh _mesh;
-
         const auto diameter = (bounds.max() - bounds.min()).norm();
-        const auto radius = diameter / 2;
-        constexpr auto angle_bound = 20.0;
-        const auto radius_bound = diameter / resolution;
-        const auto distance_bound = diameter / 100;
+        const auto radius = diameter / 2.0f;
 
-        spdlog::debug(
-            "Meshing with Delaunay triangulation diameter={}, radius={}, angle={}, radius_bound={}, distance_bound={}",
-            diameter, radius, angle_bound, radius_bound, distance_bound
+        Mesh_domain domain = Mesh_domain::create_implicit_mesh_domain(
+            _sdfn, K::Sphere_3(CGAL::ORIGIN, K::FT(radius * radius)));
+        Mesh_criteria criteria(
+            params::facet_angle(30) // max 30
+            .facet_size(diameter / resolution)
+            .facet_distance(1 / resolution)
+            .cell_radius_edge_ratio(2)
+            .cell_size(diameter / resolution)
         );
 
-        const auto surface = Surface_3(_sdfn, Sphere_3(CGAL::ORIGIN, radius * radius));
-        const auto criteria = CGAL::Surface_mesh_default_criteria_3<Tr>(angle_bound, radius_bound, distance_bound);
+        auto c3t3 = CGAL::make_mesh_3<C3t3>(domain, criteria);
 
-        CGAL::make_surface_mesh(c2t3, surface, criteria, CGAL::Manifold_tag());
-        CGAL::facets_in_complex_2_to_triangle_mesh(c2t3, _mesh);
+        Surface_mesh _mesh;
+        CGAL::facets_in_complex_3_to_triangle_mesh(c3t3, _mesh);
 
         entities::Mesh mesh;
         std::map<Surface_mesh::Vertex_index, entities::Mesh::VertexHandle> mapping;
@@ -385,6 +398,10 @@ namespace delaunay {
             }
             mesh.add_face(face);
         }
+
+        spdlog::info("Finished creating mesh from SDF via delauney resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
+                     resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
+                     bounds.max().y(), bounds.max().z());
 
         return mesh;
     }
