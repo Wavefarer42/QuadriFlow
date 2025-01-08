@@ -199,7 +199,7 @@ namespace surfacenets {
         const MatrixXf &domain,
         const MatrixXf &sdf,
         const int resolution,
-        const NdToFlatIndexer &linearize
+        const surfacenets::NdToFlatIndexer &linearize
     ) {
         spdlog::debug("Creating surface mesh");
         spdlog::stopwatch watch;
@@ -218,16 +218,6 @@ namespace surfacenets {
             }
             const Vector3i corner = indices.row(idx_cell).head<3>();
 
-            const std::set<int> debugstop = {
-                31789, 31739, 31790,
-                29189, 31789, 31790,
-                26588, 29138, 29189,
-                29138, 31688, 31739
-            };
-            if (debugstop.contains(idx_cell)) {
-                spdlog::debug("Vertex at  with distances=");
-            }
-
             for (int idx_axis = 0; idx_axis < AXES.size(); ++idx_axis) {
                 const auto &axis = AXES[idx_axis];
 
@@ -239,7 +229,6 @@ namespace surfacenets {
                 if (is_on_surface(d1, d2)) {
                     std::vector<entities::Mesh::VertexHandle> face(4);
 
-                    // Create vertex if needed
                     VectorXf distances_corners(CUBE_CORNERS.rows());
                     for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
                         const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
@@ -247,18 +236,11 @@ namespace surfacenets {
                         distances_corners(j) = sdf(idx_flat);
                     }
 
-                    std::cout << "corner=" << corner.transpose() << std::endl << " distances=" << distances_corners.
-                            transpose()
-                            << std::endl;
-
                     const MatrixXi indices_quads = QUAD_POINTS[idx_axis].rowwise() + corner.transpose();
-                    std::cout << "quads points=" << indices_quads << std::endl;
-
                     for (int idx_vertex = 0; idx_vertex < indices_quads.rows(); ++idx_vertex) {
                         const auto idx_vertex_flat = linearize(indices_quads.row(idx_vertex));
 
                         if (!domain_to_surface.contains(idx_vertex_flat)) {
-                            // const Vector3f centroid = corner.cast<float>();
                             const Vector3f centroid = estimate_centroid(distances_corners) + corner.cast<float>();
                             const Vector3f position =
                                     domain_offset + (centroid.array() * domain_scale.array()).matrix();
@@ -267,15 +249,6 @@ namespace surfacenets {
                                 entities::Mesh::Point(position.x(), position.y(), position.z())
                             );
 
-                            const std::set<int> debugstop = {
-                                610, 605, 611,
-                                491, 610, 611,
-                                380, 487, 490,
-                                487, 602, 605
-                            };
-                            if (debugstop.contains(idx_v.idx())) {
-                                spdlog::debug("Vertex at  with distances=");
-                            }
                             domain_to_surface[idx_vertex_flat] = idx_v;
                         }
 
@@ -286,15 +259,13 @@ namespace surfacenets {
                         const auto fv = mesh.add_face(
                             face[0],
                             face[1],
-                            face[2],
-                            face[3]
+                            face[2]
                         );
                     } else {
                         const auto fv = mesh.add_face(
-                            face[3],
+                            face[0],
                             face[2],
-                            face[1],
-                            face[0]
+                            face[3]
                         );
                     }
                 }
