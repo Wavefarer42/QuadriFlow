@@ -119,7 +119,6 @@ namespace smoothing {
         spdlog::info("Smoothing mesh by snapping vertices to edges.");
         spdlog::stopwatch watch;
 
-
         for (int iteration = 0; iteration < iterations; ++iteration) {
             const auto field = laplacian_angular_field(sdfn, mesh);
 
@@ -242,6 +241,26 @@ namespace smoothing {
 #ifdef DEV_DEBUG
         OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/smoothing-holes.ply");
 #endif
+
+        return mesh;
+    }
+
+    entities::Mesh fix_face_orientation(
+        entities::Mesh &mesh,
+        entities::SDFn &sdfn
+    ) {
+
+        for (auto face_it = mesh.faces_begin(); face_it != mesh.faces_end(); ++face_it) {
+            Vector3f centroid = mathext::face_centroid(mesh, *face_it);
+            Vector3f centroid_normal = sdfn::normal_of(centroid);
+            float centroid_distance = sdfn(centroid.transpose())(0);
+
+            if (centroid_normal.dot(centroid) * centroid_distance < 0) {
+                auto halfedge = mesh.halfedge_handle(*face_it);
+                mesh.set_vertex_handle(halfedge, mesh.to_vertex_handle(mesh.next_halfedge_handle(halfedge)));
+                mesh.set_vertex_handle(mesh.next_halfedge_handle(halfedge), mesh.from_vertex_handle(halfedge));
+            }
+        }
 
         return mesh;
     }

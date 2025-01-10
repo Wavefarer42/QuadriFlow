@@ -2435,6 +2435,7 @@ namespace quadriflow {
         int counter = 0;
         while (!queue.empty()) {
             counter += 1;
+
             EdgeLink edge = queue.top();
             queue.pop();
 
@@ -2624,6 +2625,7 @@ namespace quadriflow {
             V2E[v0p] = 3 * f0 + 1;
             if (!is_boundary) V2E[v1p] = 3 * f1 + 2;
 
+            // FIXME bug infinite loops
             auto schedule = [&](int f) {
                 for (int i = 0; i < 3; ++i) {
                     if (abs(diffs[f * 3 + i][0]) > max_len || abs(diffs[f * 3 + i][1]) > max_len) {
@@ -2643,6 +2645,8 @@ namespace quadriflow {
             };
             schedule(f3);
         }
+
+        // --------
         F.conservativeResize(F.rows(), nF);
         V.conservativeResize(V.rows(), nV);
         N.conservativeResize(V.rows(), nV);
@@ -3375,7 +3379,10 @@ namespace quadriflow {
         auto &O = hierarchy.m_positions[0];
         auto &S = hierarchy.m_scales[0];
 
+        spdlog::stopwatch watch;
         build_edge_info();
+        spdlog::debug("Compute index map: edge info ({:.3}s)", watch);
+        watch.reset();
 
         // Constraints for the integer optimization
 
@@ -3418,12 +3425,21 @@ namespace quadriflow {
             }
         }
 
+        spdlog::debug("Compute index map: constraints ({:.3}s)", watch);
+        watch.reset();
+
         build_integer_constraints();
+
+        spdlog::debug("Compute index map: building integer constraints ({:.3}s)", watch);
+        watch.reset();
 
         // Compute Max Flow
         hierarchy.DownsampleEdgeGraph(m_face_edge_orientation, m_face_edge_ids, m_edge_difference, m_allow_changes, 1);
         Optimizer::optimize_integer_constraints(hierarchy, m_singularities);
         hierarchy.UpdateGraphValue(m_face_edge_orientation, m_face_edge_ids, m_edge_difference);
+
+        spdlog::debug("Compute index map: optimize ({:.3}s)", watch);
+        watch.reset();
 
         // potential bug
         subdivide_edge_to_length_considering_edge_differences(
@@ -3433,6 +3449,9 @@ namespace quadriflow {
             m_face_edge_ids, m_edges_preserve,
             m_singularities, 1
         );
+
+        spdlog::debug("Compute index map: subdivide ({:.3}s)", watch);
+        watch.reset();
 
         m_allow_changes.clear();
         m_allow_changes.resize(m_edge_difference.size() * 2, 1);
@@ -3453,6 +3472,9 @@ namespace quadriflow {
             m_singularities, 1
         );
 
+        spdlog::debug("Compute index map: flip ({:.3}s)", watch);
+        watch.reset();
+
         std::set<int> sharp_vertices;
         for (int i = 0; i < m_edges_preserve.size(); ++i) {
             if (m_edges_preserve[i] == 1) {
@@ -3471,6 +3493,9 @@ namespace quadriflow {
             with_scale
         );
 
+        spdlog::debug("Compute index map: positions ({:.3}s)", watch);
+        watch.reset();
+
         Optimizer::optimize_positions_fixed(
             hierarchy,
             m_edge_values,
@@ -3480,8 +3505,14 @@ namespace quadriflow {
             with_scale
         );
 
+        spdlog::debug("Compute index map: positions fixed ({:.3}s)", watch);
+        watch.reset();
+
         extract_quad();
         fix_valence();
+
+        spdlog::debug("Compute index map: quads ({:.3}s)", watch);
+        watch.reset();
 
         std::vector<int> sharp_o(m_positions_compact.size(), 0);
         std::map<int, std::pair<Vector3d, Vector3d> > compact_sharp_constraints;
@@ -3591,6 +3622,9 @@ namespace quadriflow {
             }
         }
 
+        spdlog::debug("Compute index map: stuff ({:.3}s)", watch);
+        watch.reset();
+
         Optimizer::optimize_positions_dynamic(
             F, V, N, Q,
             m_vertices_set, m_positions_compact, m_faces_compact, m_V2E_compact,
@@ -3603,7 +3637,11 @@ namespace quadriflow {
             compact_sharp_constraints,
             with_scale
         );
+
+        spdlog::debug("Compute index map: optimize position dynamic ({:.3}s)", watch);
+        watch.reset();
     }
+
 
     // Post-Processing
     void Parametrizer::fix_valence() {

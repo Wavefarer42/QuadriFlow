@@ -10,18 +10,26 @@
 #include <CGAL/Mesh_triangulation_3.h>
 #include <CGAL/Mesh_complex_3_in_triangulation_3.h>
 #include <CGAL/Mesh_criteria_3.h>
-#include <CGAL/Surface_mesh.h>
 #include <CGAL/Labeled_mesh_domain_3.h>
 #include <CGAL/make_mesh_3.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
-#include <CGAL/Polygon_mesh_processing/border.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
+#include <CGAL/AABB_tree.h>
+#include <CGAL/AABB_traits.h>
+#include <CGAL/AABB_face_graph_triangle_primitive.h>
+
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
 #include "meshing.h"
 
-#include <CGAL/boost/graph/IO/Generic_facegraph_builder.h>
 #include <CGAL/Surface_mesh/Surface_mesh.h>
 
 #include "mathext.h"
@@ -267,13 +275,15 @@ namespace surfacenets {
                         const auto fv = mesh.add_face(
                             face[0],
                             face[1],
-                            face[2]
+                            face[2],
+                            face[3]
                         );
                     } else {
                         const auto fv = mesh.add_face(
-                            face[0],
+                            face[3],
                             face[2],
-                            face[3]
+                            face[1],
+                            face[0]
                         );
                     }
                 }
@@ -331,6 +341,8 @@ namespace surfacenets {
 }
 
 namespace delaunay {
+    typedef CGAL::Sequential_tag Concurrency_tag;
+
     typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
     typedef K::FT FT;
     typedef K::Point_3 Point;
@@ -338,7 +350,6 @@ namespace delaunay {
     typedef FT (Function)(const Point &);
 
     typedef CGAL::Labeled_mesh_domain_3<K> Mesh_domain;
-    typedef CGAL::Sequential_tag Concurrency_tag;
     typedef CGAL::Mesh_triangulation_3<Mesh_domain, CGAL::Default, Concurrency_tag>::type Tr;
     typedef CGAL::Mesh_complex_3_in_triangulation_3<Tr> C3t3;
     typedef CGAL::Mesh_criteria_3<Tr> Mesh_criteria;
@@ -355,6 +366,8 @@ namespace delaunay {
         spdlog::info("Creating mesh from SDF via delauney resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
                      resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
                      bounds.max().y(), bounds.max().z());
+
+        spdlog::stopwatch watch;
 
         const auto _sdfn = [sdfn](const Point &p) {
             const Vector3f domain = {
@@ -384,6 +397,26 @@ namespace delaunay {
         Surface_mesh _mesh;
         CGAL::facets_in_complex_3_to_triangle_mesh(c3t3, _mesh);
 
+        // PMP::stitch_borders(_mesh);
+
+        // bool is_inverted = false;
+        // Point centroid = PMP::centroid(_mesh);
+        // for (auto face: _mesh.faces()) {
+        //     K::Vector_3 normal = PMP::compute_face_normal(face, _mesh);
+        //     auto halfedge = _mesh.halfedge(face);
+        //     Point vertex_point = _mesh.point(_mesh.target(halfedge));
+        //     K::Vector_3 to_centroid = centroid - vertex_point;
+        //
+        //     if (normal * to_centroid < 0) {
+        //         is_inverted = true;
+        //         break;
+        //     }
+        // }
+        //
+        // if (is_inverted) {
+        //     PMP::reverse_face_orientations(_mesh);
+        // }
+
         entities::Mesh mesh;
         std::map<Surface_mesh::Vertex_index, entities::Mesh::VertexHandle> mapping;
         for (Surface_mesh::Vertex_index vi: _mesh.vertices()) {
@@ -399,10 +432,7 @@ namespace delaunay {
             mesh.add_face(face);
         }
 
-        spdlog::info("Finished creating mesh from SDF via delauney resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
-                     resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
-                     bounds.max().y(), bounds.max().z());
-
+        spdlog::info("Finished creating mesh from SDF via delaunay ({:.3}s)");
         return mesh;
     }
 }

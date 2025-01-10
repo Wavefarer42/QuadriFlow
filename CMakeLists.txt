@@ -30,6 +30,7 @@ include_directories(src)
 
 # Tbb
 find_package(TBB REQUIRED)
+include_directories(${TBB_INCLUDE_DIR})
 
 # Eigen
 find_package(Eigen REQUIRED)
@@ -134,12 +135,12 @@ add_executable(
 target_link_libraries(
         meshbound
         PRIVATE
+        "-framework CoreFoundation"
         OpenMeshCore
         OpenMeshTools
         spdlog::spdlog
         nlohmann_json::nlohmann_json
         UnboundEval
-        "-framework CoreFoundation"
         TBB::tbb
         argparse
         CGAL::CGAL

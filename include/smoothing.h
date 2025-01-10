@@ -40,4 +40,9 @@ namespace smoothing {
     entities::Mesh fill_holes(
         entities::Mesh &mesh
     );
+
+    entities::Mesh fix_face_orientation(
+        entities::Mesh &mesh,
+        entities::SDFn &sdfn
+    );
 };
