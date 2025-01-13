@@ -68,22 +68,26 @@ namespace surfacenets {
     static const Vector3i AXIS_Z = {0, 0, 1};
     static const std::vector AXES = {AXIS_X, AXIS_Y, AXIS_Z};
 
-    static const MatrixXi QUAD_POINTS_X = (Matrix<int, 4, 3>() <<
-                                           0, 0, -1,
-                                           0, -1, -1,
-                                           0, -1, 0,
-                                           0, 0, 0).finished();
-    static const MatrixXi QUAD_POINTS_Y = (Matrix<int, 4, 3>() <<
-                                           0, 0, -1,
-                                           0, 0, 0,
-                                           -1, 0, 0,
-                                           -1, 0, -1).finished();
-    static const MatrixXi QUAD_POINTS_Z = (Matrix<int, 4, 3>() <<
-                                           0, 0, 0,
-                                           0, -1, 0,
-                                           -1, -1, 0,
-                                           -1, 0, 0).finished();
-    static const std::vector QUAD_POINTS = {QUAD_POINTS_X, QUAD_POINTS_Y, QUAD_POINTS_Z};
+    static const std::vector<std::vector<Vector3i> > QUAD_POINTS = {
+        {
+            Vector3i(0, 0, -1),
+            Vector3i(0, -1, -1),
+            Vector3i(0, -1, 0),
+            Vector3i(0, 0, 0)
+        },
+        {
+            Vector3i(0, 0, -1),
+            Vector3i(0, 0, 0),
+            Vector3i(-1, 0, 0),
+            Vector3i(-1, 0, -1)
+        },
+        {
+            Vector3i(0, 0, 0),
+            Vector3i(0, -1, 0),
+            Vector3i(-1, -1, 0),
+            Vector3i(-1, 0, 0)
+        }
+    };
 
     Vector3f estimate_centroid(
         const VectorXf &distances_corners
@@ -215,17 +219,12 @@ namespace surfacenets {
         const MatrixXf &domain,
         const MatrixXf &sdf,
         const int resolution,
-        const surfacenets::NdToFlatIndexer &linearize
+        const NdToFlatIndexer &linearize
     ) {
         spdlog::debug("Creating surface mesh");
         spdlog::stopwatch watch;
 
         entities::Mesh mesh;
-
-        const Vector3f domain_offset = domain.row(0);
-        const Vector3f domain_scale = (domain.row(domain.rows() - 1) - domain.row(0)).array() / resolution;
-        std::unordered_map<int, entities::Mesh::VertexHandle> domain_to_surface;
-
         for (int idx_cell = 0; idx_cell < indices.rows(); ++idx_cell) {
             if (indices(idx_cell, 0) >= resolution
                 || indices(idx_cell, 1) >= resolution
@@ -235,62 +234,46 @@ namespace surfacenets {
             const Vector3i corner = indices.row(idx_cell).head<3>();
 
             for (int idx_axis = 0; idx_axis < AXES.size(); ++idx_axis) {
-                const auto &axis = AXES[idx_axis];
+                const Vector3i &axis = AXES[idx_axis];
 
                 const int idx1 = linearize(corner);
                 const int idx2 = linearize(corner + axis);
-                const auto d1 = sdf(idx1);
-                const auto d2 = sdf(idx2);
+                const float d1 = sdf(idx1);
+                const float d2 = sdf(idx2);
 
                 if (is_on_surface(d1, d2)) {
-                    std::vector<entities::Mesh::VertexHandle> face(4);
+                    const std::vector<Vector3f> quad_vertices = {
+                        corner.cast<float>() + QUAD_POINTS[idx_axis][0].cast<float>(),
+                        corner.cast<float>() + QUAD_POINTS[idx_axis][1].cast<float>(),
+                        corner.cast<float>() + QUAD_POINTS[idx_axis][2].cast<float>(),
+                        corner.cast<float>() + QUAD_POINTS[idx_axis][3].cast<float>()
+                    };
 
-                    VectorXf distances_corners(CUBE_CORNERS.rows());
-                    for (int j = 0; j < CUBE_CORNERS.rows(); ++j) {
-                        const Vector3i idx_nd = corner + CUBE_CORNERS.row(j).transpose();
-                        const int idx_flat = linearize(idx_nd);
-                        distances_corners(j) = sdf(idx_flat);
-                    }
+                    const std::vector points = {
+                        entities::Mesh::Point(quad_vertices[0].x(), quad_vertices[0].y(), quad_vertices[0].z()),
+                        entities::Mesh::Point(quad_vertices[1].x(), quad_vertices[1].y(), quad_vertices[1].z()),
+                        entities::Mesh::Point(quad_vertices[2].x(), quad_vertices[2].y(), quad_vertices[2].z()),
+                        entities::Mesh::Point(quad_vertices[3].x(), quad_vertices[3].y(), quad_vertices[3].z())
+                    };
 
-                    const MatrixXi indices_quads = QUAD_POINTS[idx_axis].rowwise() + corner.transpose();
-                    for (int idx_vertex = 0; idx_vertex < indices_quads.rows(); ++idx_vertex) {
-                        const auto idx_vertex_flat = linearize(indices_quads.row(idx_vertex));
-
-                        if (!domain_to_surface.contains(idx_vertex_flat)) {
-                            const Vector3f centroid = estimate_centroid(distances_corners) + corner.cast<float>();
-                            const Vector3f position =
-                                    domain_offset + (centroid.array() * domain_scale.array()).matrix();
-
-                            const auto idx_v = mesh.add_vertex(
-                                entities::Mesh::Point(position.x(), position.y(), position.z())
-                            );
-
-                            domain_to_surface[idx_vertex_flat] = idx_v;
-                        }
-
-                        face[idx_vertex] = domain_to_surface[idx_vertex_flat];
-                    }
-
+                    const std::vector face = {
+                        mesh.add_vertex(points[0]),
+                        mesh.add_vertex(points[1]),
+                        mesh.add_vertex(points[2]),
+                        mesh.add_vertex(points[3])
+                    };
                     if (is_negative_face(d1, d2)) {
-                        const auto fv = mesh.add_face(
-                            face[0],
-                            face[1],
-                            face[2],
-                            face[3]
-                        );
+                        mesh.add_face(face[0], face[1], face[2]);
+                        mesh.add_face(face[0], face[2], face[3]);
                     } else {
-                        const auto fv = mesh.add_face(
-                            face[3],
-                            face[2],
-                            face[1],
-                            face[0]
-                        );
+                        mesh.add_face(face[0], face[2], face[1]);
+                        mesh.add_face(face[0], face[3], face[2]);
                     }
                 }
             }
         }
 
-        spdlog::debug("Finished creating surface vertices={} ({:.3}s)", domain_to_surface.size(), watch);
+        spdlog::debug("Finished creating surface ({:.3}s)", watch);
 
 #ifdef DEV_DEBUG
         OpenMesh::IO::write_mesh(mesh, "../tests/out/stage/4-mesh.ply");

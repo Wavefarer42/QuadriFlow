@@ -18,12 +18,12 @@ namespace fs = std::filesystem;
 TEST(E2E, FullPipelineStepwiseDebug) {
     const auto dao = bootstrap::Container().mesh_dao();
 
-    // const auto dir_input = "../tests/resources/benchmark/A-06.ubs";
-    const auto dir_input = "../tests/resources/benchmark/A-02.only-14.ubs";
+    const auto dir_input = "../tests/resources/benchmark/A-01.only-19.ubs";
+    // const auto dir_input = "../tests/resources/benchmark/A-02.only-14.ubs";
     // const auto dir_input = "../tests/resources/sausage.ubs";
     const auto dir_output = "../tests/out/benchmark";
 
-    const auto idx_model = 14;
+    const auto idx_model = 19;
     const auto faces = 10000;
     const auto path = fs::path(dir_input);;
     const auto path_base = std::format("{}/{}", dir_output, path.stem().string());
@@ -34,29 +34,29 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     auto model = dao.load_model(path.string());
     auto sdfn = model[idx_model];
 
-    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), 200);
+    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), 100);
     // auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), 200);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
-    mesh = smoothing::fill_holes(mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
-
-    mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
-
-    mesh = smoothing::edge_snapping(sdfn, mesh, 10);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "3-edges"), mesh);
-
-    mesh = meshing::remesh_to_trimesh(mesh);
-
-    mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 15000);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
-
-    mesh = smoothing::fill_holes(mesh);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "5-holes"), mesh);
-
-    mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
-    dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
+    // mesh = smoothing::fill_holes(mesh);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
+    //
+    // mesh = smoothing::laplacian_with_sdfn_projection(sdfn, mesh, 20);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "2-laplacian-project"), mesh);
+    //
+    // mesh = smoothing::edge_snapping(sdfn, mesh, 10);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "3-edges"), mesh);
+    //
+    // mesh = meshing::remesh_to_trimesh(mesh);
+    //
+    // mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 15000);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
+    //
+    // mesh = smoothing::fill_holes(mesh);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "5-holes"), mesh);
+    //
+    // mesh = smoothing::sdfn_projection(sdfn, mesh, 10);
+    // dao.save_mesh(std::format("{}/{}.ply", path_base, "6-project"), mesh);
 }
 
 
