@@ -38,35 +38,31 @@
 using namespace Eigen;
 
 namespace surfacenets {
-    static const MatrixXi CUBE_CORNERS = (
-        MatrixXi(8, 3) <<
-        0, 0, 0,
-        1, 0, 0,
-        0, 1, 0,
-        1, 1, 0,
-        0, 0, 1,
-        1, 0, 1,
-        0, 1, 1,
-        1, 1, 1
-    ).finished();
+    static const std::vector<std::pair<Vector3i, Vector3i> > CELL_EDGES = {
+        // edges on min Z-axis
+        {Vector3i(0, 0, 0), Vector3i(1, 0, 0)},
+        {Vector3i(1, 0, 0), Vector3i(1, 1, 0)},
+        {Vector3i(1, 1, 0), Vector3i(0, 1, 0)},
+        {Vector3i(0, 1, 0), Vector3i(0, 0, 0)},
 
-    static const Matrix<int, 12, 2> CUBE_EDGES = (Matrix<int, 12, 2>() << 0b000, 0b001,
-                                                  0b000, 0b010,
-                                                  0b000, 0b100,
-                                                  0b001, 0b011,
-                                                  0b001, 0b101,
-                                                  0b010, 0b011,
-                                                  0b010, 0b110,
-                                                  0b011, 0b111,
-                                                  0b100, 0b101,
-                                                  0b100, 0b110,
-                                                  0b101, 0b111,
-                                                  0b110, 0b111).finished();
+        // edges on max Z axis
+        {Vector3i(0, 0, 1), Vector3i(1, 0, 1)},
+        {Vector3i(1, 0, 1), Vector3i(1, 1, 1)},
+        {Vector3i(1, 1, 1), Vector3i(0, 1, 1)},
+        {Vector3i(0, 1, 1), Vector3i(0, 0, 1)},
 
-    static const Vector3i AXIS_X = {1, 0, 0};
-    static const Vector3i AXIS_Y = {0, 1, 0};
-    static const Vector3i AXIS_Z = {0, 0, 1};
-    static const std::vector AXES = {AXIS_X, AXIS_Y, AXIS_Z};
+        // edges on min Z to max Z
+        {Vector3i(0, 0, 0), Vector3i(0, 0, 1)},
+        {Vector3i(1, 0, 0), Vector3i(1, 0, 1)},
+        {Vector3i(1, 1, 0), Vector3i(1, 1, 1)},
+        {Vector3i(0, 1, 0), Vector3i(0, 1, 1)},
+    };
+
+    static const std::vector AXES = {
+        Vector3i(1, 0, 0),
+        Vector3i(0, 1, 0),
+        Vector3i(0, 0, 1)
+    };
 
     static const std::vector<std::vector<Vector3i> > QUAD_POINTS = {
         {
@@ -90,29 +86,33 @@ namespace surfacenets {
     };
 
     Vector3f estimate_centroid(
-        const VectorXf &distances_corners
+        const Vector3i &corner,
+        const MatrixXf &sdf,
+        const NdToFlatIndexer &linearize
     ) {
-        int n = 0;
         Vector3f centroid = Vector3f::Zero();
-        for (int i = 0; i < CUBE_EDGES.rows(); ++i) {
-            const auto idx_edge_a = CUBE_EDGES(i, 0);
-            const auto idx_edge_b = CUBE_EDGES(i, 1);
-            const auto distance_a = distances_corners(idx_edge_a);
-            const auto distance_b = distances_corners(idx_edge_b);
+        int count_edge_intersections = 0;
 
-            if (distance_a < 0.0f != distance_b < 0.0f) {
-                const auto interpolation1 = distance_a / (distance_a - distance_b + 1e-10f);
-                const auto interpolation2 = 1.0f - interpolation1;
+        for (const auto &[edge_a, edge_b]: CELL_EDGES) {
+            const Vector3i coord_a = corner + edge_a;
+            const Vector3i coord_b = corner + edge_b;
 
-                const Vector3f interpolation = interpolation2 * CUBE_CORNERS.row(idx_edge_a).cast<float>()
-                                               + interpolation1 * CUBE_CORNERS.row(idx_edge_b).cast<float>();
+            const float distance_a = sdf(linearize(coord_a));
+            const float distance_b = sdf(linearize(coord_b));
+
+            if (distance_a * distance_b < 0) {
+                const auto int1 = distance_a / (distance_a - distance_b + 1e-10f);
+                const auto int2 = 1.0f - int1;
+                const Vector3f interpolation = int2 * coord_a.cast<float>() + int1 * coord_b.cast<float>();
                 centroid += interpolation;
-                n++;
+                count_edge_intersections++;
             }
         }
 
-        assert(n > 0);
-        return centroid / static_cast<float>(n);
+        if (count_edge_intersections == 0) {
+            return corner.cast<float>() + Vector3f(0.5f, 0.5f, 0.5f);
+        }
+        return centroid / static_cast<float>(count_edge_intersections);
     }
 
     MatrixXi create_indices(
@@ -242,11 +242,12 @@ namespace surfacenets {
                 const float d2 = sdf(idx2);
 
                 if (is_on_surface(d1, d2)) {
+                    // const Vector3f position = corner.cast<float>();
                     const std::vector<Vector3f> quad_vertices = {
-                        corner.cast<float>() + QUAD_POINTS[idx_axis][0].cast<float>(),
-                        corner.cast<float>() + QUAD_POINTS[idx_axis][1].cast<float>(),
-                        corner.cast<float>() + QUAD_POINTS[idx_axis][2].cast<float>(),
-                        corner.cast<float>() + QUAD_POINTS[idx_axis][3].cast<float>()
+                        estimate_centroid(corner + QUAD_POINTS[idx_axis][0], sdf, linearize).cast<float>(),
+                        estimate_centroid(corner + QUAD_POINTS[idx_axis][1], sdf, linearize).cast<float>(),
+                        estimate_centroid(corner + QUAD_POINTS[idx_axis][2], sdf, linearize).cast<float>(),
+                        estimate_centroid(corner + QUAD_POINTS[idx_axis][3], sdf, linearize).cast<float>()
                     };
 
                     const std::vector points = {
