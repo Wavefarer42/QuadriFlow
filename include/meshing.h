@@ -5,6 +5,7 @@
 namespace surfacenets {
     using namespace Eigen;
     using NdToFlatIndexer = std::function<int(const Vector3i &)>;
+    using DomainScaler = std::function<Vector3f(const Vector3i &)>;
 
     NdToFlatIndexer indexer_nd_to_linear(
         int resolution
@@ -22,12 +23,15 @@ namespace surfacenets {
 
     MatrixXf sample_sdf(
         const entities::SDFn &sdfn,
-        const MatrixXf &domain
+        const float bounding_box_extends,
+        const float length_edge,
+        const int resolution,
+        const NdToFlatIndexer &linearize,
+        const DomainScaler &scaler
     );
 
     std::vector<Vector3f> create_vertices(
         MatrixXi &indices,
-        const MatrixXf &domain,
         const MatrixXf &sdf,
         const int resolution,
         const NdToFlatIndexer &linearize

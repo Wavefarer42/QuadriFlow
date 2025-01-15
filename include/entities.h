@@ -19,7 +19,21 @@ namespace entities {
 
     typedef OpenMesh::PolyMesh_ArrayKernelT<OpenMesh::DefaultTraits> Mesh;
 
-    typedef std::function<VectorXf(const MatrixXf&)> SDFn;
+    struct PointHash {
+        size_t operator()(const Mesh::Point &p) const {
+            // A simple hash function for 3D points
+            return std::hash<float>()(p[0]) ^ std::hash<float>()(p[1]) ^ std::hash<float>()(p[2]);
+        }
+    };
+
+    struct PointEqual {
+        bool operator()(const Mesh::Point &p1, const Mesh::Point &p2) const {
+            // Component-wise equality comparison
+            return (p1[0] == p2[0] && p1[1] == p2[1] && p1[2] == p2[2]);
+        }
+    };
+
+    typedef std::function<VectorXf(const MatrixXf &)> SDFn;
 
     class UnboundModel {
         const UB::Collection _collection;
@@ -99,10 +113,14 @@ namespace entities {
             }
 
             const auto bb = UB::getTightAABB(_models[idx]);
-
+            const auto extends = glm::compMax(glm::vec3(
+                glm::max(glm::abs(bb.x.lb), glm::abs(bb.x.ub)),
+                glm::max(glm::abs(bb.y.lb), glm::abs(bb.y.ub)),
+                glm::max(glm::abs(bb.z.lb), glm::abs(bb.z.ub))
+            ));
             return AlignedBox3f(
-                Vector3f(bb.x.lb, bb.y.lb, bb.z.lb).array().ceil() - margin,
-                Vector3f(bb.x.ub, bb.y.ub, bb.z.ub).array().ceil() + margin
+                Vector3f(-extends, -extends, -extends),
+                Vector3f(extends, extends, extends)
             );
         }
     };

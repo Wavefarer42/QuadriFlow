@@ -10,6 +10,9 @@ using namespace Eigen;
  * Math utilities.
  */
 namespace mathext {
+    entities::Mesh::EdgeHandle get_edge_between_vertices(const entities::Mesh &mesh, entities::Mesh::VertexHandle vh1,
+                                                         entities::Mesh::VertexHandle vh2);
+
     MatrixXf clip(
         const MatrixXf &mat,
         float minVal,
@@ -62,7 +65,7 @@ namespace mathext {
         const Vector3f &offset
     );
 
-    std::vector<std::vector<entities::Mesh::VertexHandle>> find_boundary_vertices(const entities::Mesh &mesh);
+    std::vector<std::vector<entities::Mesh::VertexHandle> > find_boundary_vertices(const entities::Mesh &mesh);
 }
 
 

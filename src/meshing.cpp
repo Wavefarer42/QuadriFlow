@@ -24,6 +24,10 @@
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include <fstream>
+#include <vector>
+#include <nlohmann/json.hpp>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
@@ -64,7 +68,7 @@ namespace surfacenets {
         Vector3i(0, 0, 1)
     };
 
-    static const std::vector<std::vector<Vector3i> > QUAD_POINTS = {
+    static const std::vector<std::vector<Vector3i> > QUAD_AXIS = {
         {
             Vector3i(0, 0, -1),
             Vector3i(0, -1, -1),
@@ -85,12 +89,38 @@ namespace surfacenets {
         }
     };
 
+    struct Vector3iHash {
+        size_t operator()(const Eigen::Vector3i &vec) const {
+            return std::hash<int>()(vec[0]) ^ (std::hash<int>()(vec[1]) << 1) ^ (std::hash<int>()(vec[2]) << 2);
+        }
+    };
+
+    struct Vector3iEqual {
+        bool operator()(const Eigen::Vector3i &vec1, const Eigen::Vector3i &vec2) const {
+            return vec1 == vec2;
+        }
+    };
+
+    DomainScaler create_domain_scaler(
+        const float extends,
+        const float length_edge
+    ) {
+        return [extends, length_edge](const Vector3i coords) {
+            return Vector3f(
+                -extends + coords.x() * length_edge,
+                -extends + coords.y() * length_edge,
+                -extends + coords.z() * length_edge
+            );
+        };
+    }
+
     Vector3f estimate_centroid(
         const Vector3i &corner,
         const MatrixXf &sdf,
-        const NdToFlatIndexer &linearize
+        const NdToFlatIndexer &linearize,
+        const DomainScaler &scaler
     ) {
-        Vector3f centroid = Vector3f::Zero();
+        Vector3f total = Vector3f::Zero();
         int count_edge_intersections = 0;
 
         for (const auto &[edge_a, edge_b]: CELL_EDGES) {
@@ -101,10 +131,15 @@ namespace surfacenets {
             const float distance_b = sdf(linearize(coord_b));
 
             if (distance_a * distance_b < 0) {
-                const auto int1 = distance_a / (distance_a - distance_b + 1e-10f);
-                const auto int2 = 1.0f - int1;
-                const Vector3f interpolation = int2 * coord_a.cast<float>() + int1 * coord_b.cast<float>();
-                centroid += interpolation;
+                float int1;
+                if (std::abs(distance_a - distance_b) < FLT_EPSILON) {
+                    int1 = 0.5f;
+                } else {
+                    int1 = distance_a / (distance_a - distance_b);
+                }
+
+                const Vector3f interpolation = (1.0f - int1) * scaler(coord_a) + int1 * scaler(coord_b);
+                total += interpolation;
                 count_edge_intersections++;
             }
         }
@@ -112,7 +147,7 @@ namespace surfacenets {
         if (count_edge_intersections == 0) {
             return corner.cast<float>() + Vector3f(0.5f, 0.5f, 0.5f);
         }
-        return centroid / static_cast<float>(count_edge_intersections);
+        return total / static_cast<float>(count_edge_intersections);
     }
 
     MatrixXi create_indices(
@@ -175,10 +210,27 @@ namespace surfacenets {
 
     MatrixXf sample_sdf(
         const entities::SDFn &sdfn,
-        const MatrixXf &domain
+        const float bounding_box_extends,
+        const float length_edge,
+        const int resolution,
+        const NdToFlatIndexer &linearize,
+        const DomainScaler &scaler
     ) {
-        spdlog::debug("Sampling signed distance field");
+        spdlog::debug("Sampling signed distance field extends={}, length_edge={}", bounding_box_extends, length_edge);
         spdlog::stopwatch watch;
+
+        auto domain = MatrixXf((resolution + 1) * (resolution + 1) * (resolution + 1), 3);
+        for (int z = 0; z <= resolution; ++z) {
+            for (int y = 0; y <= resolution; ++y) {
+                for (int x = 0; x <= resolution; ++x) {
+                    const int idx = linearize(Vector3i(x, y, z));
+
+                    domain.row(idx) << -bounding_box_extends + (x * length_edge),
+                            -bounding_box_extends + (y * length_edge),
+                            -bounding_box_extends + (z * length_edge);
+                }
+            }
+        }
 
         const VectorXf sdf = sdfn(domain);
 
@@ -214,16 +266,37 @@ namespace surfacenets {
         return distance2 < 0.0f && distance1 >= 0.0f;
     }
 
+    size_t count_faces_between_vertices(const entities::Mesh &mesh, entities::Mesh::VertexHandle v1,
+                                        entities::Mesh::VertexHandle v2) {
+        size_t face_count = 0;
+
+        // Iterate over all edges connected to v1
+        for (auto heh: mesh.voh_range(v1)) {
+            if (mesh.to_vertex_handle(heh) == v2) {
+                // If the edge connects v1 and v2, check its associated faces
+                if (mesh.face_handle(heh).is_valid()) {
+                    ++face_count; // Count the face on one side
+                }
+                if (mesh.face_handle(mesh.opposite_halfedge_handle(heh)).is_valid()) {
+                    ++face_count; // Count the face on the opposite side
+                }
+            }
+        }
+
+        return face_count;
+    }
+
     entities::Mesh create_mesh(
         MatrixXi &indices,
-        const MatrixXf &domain,
         const MatrixXf &sdf,
         const int resolution,
-        const NdToFlatIndexer &linearize
+        const NdToFlatIndexer &linearize,
+        const DomainScaler &scaler
     ) {
         spdlog::debug("Creating surface mesh");
         spdlog::stopwatch watch;
 
+        std::unordered_map<Vector3i, int, Vector3iHash, Vector3iEqual> vertex_map;
         entities::Mesh mesh;
         for (int idx_cell = 0; idx_cell < indices.rows(); ++idx_cell) {
             if (indices(idx_cell, 0) >= resolution
@@ -233,6 +306,7 @@ namespace surfacenets {
             }
             const Vector3i corner = indices.row(idx_cell).head<3>();
 
+            std::vector<std::vector<entities::Mesh::VertexHandle> > faces;
             for (int idx_axis = 0; idx_axis < AXES.size(); ++idx_axis) {
                 const Vector3i &axis = AXES[idx_axis];
 
@@ -242,33 +316,38 @@ namespace surfacenets {
                 const float d2 = sdf(idx2);
 
                 if (is_on_surface(d1, d2)) {
-                    // const Vector3f position = corner.cast<float>();
-                    const std::vector<Vector3f> quad_vertices = {
-                        estimate_centroid(corner + QUAD_POINTS[idx_axis][0], sdf, linearize).cast<float>(),
-                        estimate_centroid(corner + QUAD_POINTS[idx_axis][1], sdf, linearize).cast<float>(),
-                        estimate_centroid(corner + QUAD_POINTS[idx_axis][2], sdf, linearize).cast<float>(),
-                        estimate_centroid(corner + QUAD_POINTS[idx_axis][3], sdf, linearize).cast<float>()
-                    };
+                    const auto quad_neighbors = QUAD_AXIS[idx_axis];
 
-                    const std::vector points = {
-                        entities::Mesh::Point(quad_vertices[0].x(), quad_vertices[0].y(), quad_vertices[0].z()),
-                        entities::Mesh::Point(quad_vertices[1].x(), quad_vertices[1].y(), quad_vertices[1].z()),
-                        entities::Mesh::Point(quad_vertices[2].x(), quad_vertices[2].y(), quad_vertices[2].z()),
-                        entities::Mesh::Point(quad_vertices[3].x(), quad_vertices[3].y(), quad_vertices[3].z())
-                    };
+                    std::vector<entities::Mesh::VertexHandle> face(quad_neighbors.size());
+                    for (int idx_vertex = 0; idx_vertex < face.size(); ++idx_vertex) {
+                        const Vector3i coordinate = corner + quad_neighbors[idx_vertex];
+                        if (vertex_map.contains(coordinate)) {
+                            const auto vh = entities::Mesh::VertexHandle(vertex_map[coordinate]);
+                            face[idx_vertex] = vh;
+                        } else {
+                            const auto point_ = estimate_centroid(coordinate, sdf, linearize, scaler);
+                            const auto point = entities::Mesh::Point(point_.x(), point_.y(), point_.z());
+                            const auto vh = mesh.add_vertex(point);
 
-                    const std::vector face = {
-                        mesh.add_vertex(points[0]),
-                        mesh.add_vertex(points[1]),
-                        mesh.add_vertex(points[2]),
-                        mesh.add_vertex(points[3])
-                    };
+                            if (!vh.is_valid()) {
+                                spdlog::warn("Failed adding vertex for starting cell {} on axis {}", idx_cell,
+                                             idx_axis);
+                            }
+                            vertex_map[coordinate] = vh.idx();
+                            face[idx_vertex] = vh;
+                        }
+                    }
+
+                    entities::Mesh::FaceHandle fh;
                     if (is_negative_face(d1, d2)) {
-                        mesh.add_face(face[0], face[1], face[2]);
-                        mesh.add_face(face[0], face[2], face[3]);
+                        fh = mesh.add_face(face[0], face[1], face[2]);
+                        fh = mesh.add_face(face[0], face[2], face[3]);
                     } else {
-                        mesh.add_face(face[0], face[2], face[1]);
-                        mesh.add_face(face[0], face[3], face[2]);
+                        fh = mesh.add_face(face[0], face[2], face[1]);
+                        fh = mesh.add_face(face[0], face[3], face[2]);
+                    }
+                    if (!fh.is_valid()) {
+                        spdlog::warn("Failed adding face for starting cell {} on axis {}", idx_cell, idx_axis);
                     }
                 }
             }
@@ -298,25 +377,26 @@ namespace surfacenets {
 
     entities::Mesh mesh(
         const entities::SDFn &sdfn,
-        const AlignedBox3f &bounds,
-        const int resolution
+        const float resolution,
+        const float bounding_box_extents
     ) {
         spdlog::stopwatch watch;
 
-        if (bounds.volume() == 0.0f) {
-            throw std::invalid_argument("Bounds must have a volume greater than zero");
-        }
+        // if (bounds.volume() == 0.0f) {
+        // throw std::invalid_argument("Bounds must have a volume greater than zero");
+        // }
 
-        spdlog::info("Creating mesh from SDF with resolution={} and bounds=([{}, {}, {}], [{}, {}, {}])",
-                     resolution, bounds.min().x(), bounds.min().y(), bounds.min().z(), bounds.max().x(),
-                     bounds.max().y(), bounds.max().z());
+        spdlog::info("Creating mesh from SDF with resolution={} and bounding_box_extend{}=", resolution,
+                     bounding_box_extents);
 
         MatrixXi indices = create_indices(resolution);
 
+        const float length_edge = (2 * bounding_box_extents) / resolution;
+
         const auto linearize = indexer_nd_to_linear(resolution);
-        const auto domain = scale_to_domain(indices, bounds, resolution);
-        const auto sdf = sample_sdf(sdfn, domain);
-        const auto mesh = create_mesh(indices, domain, sdf, resolution, linearize);
+        const auto scaler = create_domain_scaler(bounding_box_extents, length_edge);
+        const auto sdf = sample_sdf(sdfn, bounding_box_extents, length_edge, resolution, linearize, scaler);
+        const auto mesh = create_mesh(indices, sdf, resolution, linearize, scaler);
 
         spdlog::debug("Finished creating mesh ({})", watch);
 
@@ -631,7 +711,7 @@ namespace meshing {
         spdlog::info("Meshing SDFn to quadmesh. algorithm={} resolution {}", algorithm, resolution);
 
         if (algorithm == "surface-nets") {
-            return surfacenets::mesh(sdfn, bounds, resolution);
+            return surfacenets::mesh(sdfn, resolution, bounds.max().x());
         }
 
         throw std::invalid_argument("Invalid algorithm");

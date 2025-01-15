@@ -171,6 +171,14 @@ namespace mathext {
         }
     };
 
+    entities::Mesh::EdgeHandle get_edge_between_vertices(const entities::Mesh& mesh, entities::Mesh::VertexHandle vh1, entities::Mesh::VertexHandle vh2) {
+        for (auto heh : mesh.voh_range(vh1)) {
+            if (mesh.to_vertex_handle(heh) == vh2) {
+                return mesh.edge_handle(heh);
+            }
+        }
+        return entities::Mesh::InvalidEdgeHandle;
+    }
 
     MatrixXf clip(
         const MatrixXf &mat,

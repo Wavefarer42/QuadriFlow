@@ -34,7 +34,7 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     auto model = dao.load_model(path.string());
     auto sdfn = model[idx_model];
 
-    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), 300);
+    auto mesh = meshing::mesh_to_quadmesh(sdfn, model.bounding_box(idx_model), 400);
     // auto mesh = meshing::mesh_to_trimesh(sdfn, model.bounding_box(idx_model), 200);
     dao.save_mesh(std::format("{}/{}.ply", path_base, "0-mesh"), mesh);
 
@@ -51,7 +51,7 @@ TEST(E2E, FullPipelineStepwiseDebug) {
     //
     // mesh = meshing::remesh_to_quadmesh(sdfn, mesh, 15000);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "4-remesh-quad"), mesh);
-    //
+
     // mesh = smoothing::fill_holes(mesh);
     // dao.save_mesh(std::format("{}/{}.ply", path_base, "5-holes"), mesh);
     //
