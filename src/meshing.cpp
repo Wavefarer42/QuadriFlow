@@ -29,6 +29,9 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
+#include "marching_cubes_33.c"
+#include "MC33_util_grd.c"
+
 #include "spdlog/spdlog.h"
 #include "spdlog/stopwatch.h"
 
@@ -39,7 +42,70 @@
 #include "mathext.h"
 #include "quadriflow.h"
 
+
 using namespace Eigen;
+
+namespace marching_cubes_33 {
+    entities::Mesh mesh(
+        const entities::SDFn &sdfn,
+        const float resolution,
+        const float bounding_box_extents
+    ) {
+        spdlog::info("Meshing SDFn to via marching cube 33 resolution={}, extends={}", resolution, bounding_box_extents);
+        spdlog::stopwatch watch;
+
+        const float step = (2.0f * bounding_box_extents) / resolution;
+        unsigned int nx, ny, nz, i, j, k, l;
+        double r0[3] = {-bounding_box_extents, -bounding_box_extents, -bounding_box_extents};
+        double d[3] = {step, step, step};
+        nx = ny = nz = resolution;
+        float *data = (float *) malloc(nx * ny * nz * sizeof(float));
+        l = 0;
+        MatrixXi sdf(nx * ny * nz, 1);
+        for (k = 0; k < nz; ++k) {
+            float z = r0[2] + k * d[2];
+            for (j = 0; j < ny; ++j) {
+                float y = r0[1] + j * d[1];
+                for (i = 0; i < nx; ++i) {
+                    float x = r0[0] + i * d[0];
+
+                    const float distance = sdfn(Vector3f(x, y, z).transpose())(0);
+                    data[l++] = distance;
+                }
+            }
+        }
+        _GRD *G = grid_from_data_pointer(nx, ny, nz, data);
+        memcpy(G->r0, r0, sizeof r0);
+        memcpy(G->d, d, sizeof d);
+
+        MC33 *M;
+        M = create_MC33(G);
+
+        surface *S;
+        S = calculate_isosurface(M, 0);
+
+        entities::Mesh mesh;
+        for (int i = 0; i < S->nV; ++i) {
+            const auto point = entities::Mesh::Point(S->V[i][0], S->V[i][1], S->V[i][2]);
+            mesh.add_vertex(point);
+        }
+
+        for (int i = 0; i < S->nT; ++i) {
+            mesh.add_face(
+                entities::Mesh::VertexHandle(S->T[i][2]),
+                entities::Mesh::VertexHandle(S->T[i][1]),
+                entities::Mesh::VertexHandle(S->T[i][0])
+            );
+        }
+
+        free_surface_memory(S);
+        free_MC33(M);
+
+        spdlog::info("Meshing SDFn to via marching cube 33 ({:.2}s)", watch);
+
+        return mesh;
+    }
+}
 
 namespace surfacenets {
     static const std::vector<std::pair<Vector3i, Vector3i> > CELL_EDGES = {
@@ -685,10 +751,13 @@ namespace meshing {
         const int resolution,
         const std::string &algorithm
     ) {
-        spdlog::info("Meshing SDFn to trimesh. algorithm={}, resolution={}", algorithm, resolution);
+        spdlog::info("Meshing SDFn to trimesh algorithm={}, resolution={}", algorithm, resolution);
 
         if (algorithm == "delaunay") {
             return delaunay::mesh(sdfn, bounds, resolution);
+        }
+        if (algorithm == "marching-cubes-33") {
+            return marching_cubes_33::mesh(sdfn, resolution, bounds.max().x());
         }
 
         throw std::invalid_argument("Invalid algorithm");
