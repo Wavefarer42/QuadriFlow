@@ -170,10 +170,10 @@ namespace smoothing {
         spdlog::stopwatch watch;
 
         auto vertices = MatrixXf(mesh.n_vertices(), 3);
-        for (int i = 0; i < mesh.n_vertices(); ++i) {
-            auto point = mesh.point(entities::Mesh::VertexHandle(i));
-            vertices.row(i) = Vector3f(point[0], point[1], point[2]);
-        }
+        tbb::parallel_for(static_cast<size_t>(0), mesh.n_vertices(), [&](size_t idx_v) {
+            auto point = mesh.point(entities::Mesh::VertexHandle(idx_v));
+            vertices.row(idx_v) = Vector3f(point[0], point[1], point[2]);
+        });
 
         for (auto iteration = 0; iteration < iterations; ++iteration) {
             spdlog::trace("Laplacian SDFn projection iteration {}/{}", iteration, iterations);
@@ -249,7 +249,6 @@ namespace smoothing {
         entities::Mesh &mesh,
         entities::SDFn &sdfn
     ) {
-
         for (auto face_it = mesh.faces_begin(); face_it != mesh.faces_end(); ++face_it) {
             Vector3f centroid = mathext::face_centroid(mesh, *face_it);
             Vector3f centroid_normal = sdfn::normal_of(centroid);
