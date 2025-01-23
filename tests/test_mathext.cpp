@@ -5,6 +5,9 @@
 #include <iostream>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <execution>
+#include <iostream>
+#include <vector>
 
 #include "bootstrap.h"
 #include "mathext.h"

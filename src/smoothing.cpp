@@ -259,6 +259,7 @@ namespace smoothing {
                 mesh.set_vertex_handle(halfedge, mesh.to_vertex_handle(mesh.next_halfedge_handle(halfedge)));
                 mesh.set_vertex_handle(mesh.next_halfedge_handle(halfedge), mesh.from_vertex_handle(halfedge));
             }
+
         }
 
         return mesh;

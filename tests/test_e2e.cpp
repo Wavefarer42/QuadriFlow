@@ -18,13 +18,13 @@ namespace fs = std::filesystem;
 TEST(E2E, FullPipelineStepwiseDebug) {
     const auto dao = bootstrap::Container().mesh_dao();
 
-    const auto dir_input = "../tests/resources/benchmark/A-01.only-19.ubs";
+    const auto dir_input = "../tests/resources/benchmark/Z-46.ubs";
     // const auto dir_input = "../tests/resources/benchmark/A-02.only-14.ubs";
     // const auto dir_input = "../tests/resources/benchmark/A-06.only.ubs";
     // const auto dir_input = "../tests/resources/sausage.ubs";
     const auto dir_output = "../tests/out/benchmark";
 
-    const auto idx_model = 19;
+    const auto idx_model = 2;
     const auto faces = 10000;
     const auto path = fs::path(dir_input);
     const auto path_base = std::format("{}/{}", dir_output, path.stem().string());
